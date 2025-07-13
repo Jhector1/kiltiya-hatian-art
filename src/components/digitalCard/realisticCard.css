@@ -1,0 +1,72 @@
+/* File: components/DigitalCardCustomizer/realisticCard.css */
+
+.realistic-card-container {
+  perspective: 1800px;
+  margin: auto;
+  cursor: pointer;
+}
+
+.realistic-card {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 1.4s ease;
+  display: flex;
+  transform-origin: left;
+}
+
+.realistic-card.open .right {
+  transform: rotateY(-180deg);
+}
+
+.card-panel {
+  width: 50%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  background: #fdf5e6;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+.card-panel.left {
+  z-index: 1;
+  background-color: #fdf5e6;
+  border-right: 1px solid #ddd;
+}
+
+.card-panel.right {
+  transform-style: preserve-3d;
+  transform-origin: left;
+  transition: transform 1.4s ease;
+  background: white;
+  z-index: 2;
+}
+
+.card-face {
+  backface-visibility: hidden;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-face.front {
+  z-index: 2;
+}
+
+.card-face.inside {
+  transform: rotateY(180deg);
+  background: white;
+}
+
+.card-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

@@ -1,0 +1,58 @@
+/* File: components/DigitalCardCustomizer/foldingCard.css */
+
+.card3d-container {
+  perspective: 1600px;
+  width: 500px;
+  height: 300px;
+  margin: auto;
+}
+
+.card3d {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform: rotateY(0deg);
+  transition: transform 1s ease;
+  position: relative;
+  cursor: pointer;
+}
+
+.card3d.open {
+  transform: rotateY(-180deg);
+}
+
+.card3d-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border: 2px solid #ccc;
+  border-radius: 10px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.card3d-face.front {
+  z-index: 2;
+}
+
+.card3d-face.inside {
+  transform: rotateY(180deg);
+  padding: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.card3d-face.front::after {
+  content: \"\";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 50px;
+  height: 50px;
+  background: radial-gradient(circle at bottom right, #eee, transparent 70%);
+  clip-path: polygon(100% 0, 0 100%, 100% 100%);
+  box-shadow: -5px -5px 10px rgba(0,0,0,0.2);
+  transform: rotate(0deg);
+}

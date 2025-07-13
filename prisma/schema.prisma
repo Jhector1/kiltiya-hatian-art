@@ -1,0 +1,193 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Core E-commerce Models
+model Product {
+  id          String   @id @default(uuid())
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  title       String
+  description String
+  price       Float
+  publicId    String
+  thumbnails  String[]
+  formats     String[]
+  createdAt   DateTime @default(now())
+
+  // Relations
+  favorites  Favorite[]
+  reviews    Review[]
+  orderItems OrderItem[]
+  cartItems  CartItem[] // default one‐to‐many relation
+  variants   ProductVariant[]
+}
+
+/// User & Authentication
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // E-commerce relations
+  cart      Cart?
+  favorites Favorite[]
+  orders    Order[]
+  addresses Address[]
+  reviews   Review[]
+}
+
+/// Categorization
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  products Product[]
+}
+
+/// Pre-defined product variants
+model ProductVariant {
+  id        String  @id @default(cuid())
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  type     VariantType
+  format   String
+  size     String?
+  material String?
+  frame    String?
+  // back‐relations for the two named relations
+  CartItemsAsDigital CartItem[] @relation("CartItemDigital")
+  CartItemsAsPrint   CartItem[] @relation("CartItemPrint")
+}
+
+/// Shopping Cart
+model Cart {
+  id        String     @id @default(cuid())
+  user      User?      @relation(fields: [userId], references: [id])
+  userId    String?    @unique
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+/// Items in Cart, optionally pointing at one of the two variant types
+model CartItem {
+  id     String @id @default(cuid())
+  cart   Cart   @relation(fields: [cartId], references: [id])
+  cartId String
+
+  // link back to the product
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+
+  // optional pointer to a digital variant
+  digitalVariantId String?
+  digitalVariant   ProductVariant? @relation("CartItemDigital", fields: [digitalVariantId], references: [id])
+
+  // optional pointer to a print variant
+  printVariantId String?
+  printVariant   ProductVariant? @relation("CartItemPrint", fields: [printVariantId], references: [id])
+
+  price    Float
+  quantity Int      @default(1)
+  addedAt  DateTime @default(now())
+
+  @@index([cartId])
+}
+
+enum VariantType {
+  DIGITAL
+  PRINT
+}
+
+/// Favorites / Wishlist
+model Favorite {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}
+
+/// Product Reviews
+model Review {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  rating    Int      @default(5)
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+/// Orders & Payments
+model Order {
+  id         String      @id @default(cuid())
+  user       User        @relation(fields: [userId], references: [id])
+  userId     String
+  items      OrderItem[]
+  total      Float
+  status     String      @default("PENDING")
+  placedAt   DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  payment    Payment?
+  shipping   Address?    @relation("Order_shipping", fields: [shippingId], references: [id])
+  shippingId String?
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String
+  product   Product? @relation(fields: [productId], references: [id])
+  productId String
+  type      String
+  price     Float
+  quantity  Int      @default(1)
+
+  @@index([orderId])
+}
+
+/// Addresses (User & Shipping)
+model Address {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  label      String?
+  street     String
+  city       String
+  state      String
+  postalCode String
+  country    String
+  createdAt  DateTime @default(now())
+
+  orders Order[] @relation("Order_shipping")
+}
+
+/// Payment Records
+model Payment {
+  id            String   @id @default(cuid())
+  order         Order    @relation(fields: [orderId], references: [id])
+  orderId       String   @unique
+  amount        Float
+  provider      String
+  transactionId String
+  status        String   @default("PENDING")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

@@ -1,0 +1,53 @@
+{
+  "name": "haitian-art-store",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "@prisma/client": "^6.10.1",
+    "@stripe/stripe-js": "^7.4.0",
+    "archiver": "^7.0.1",
+    "axios": "^1.10.0",
+    "bcryptjs": "^3.0.2",
+    "ccapture.js": "^1.1.0",
+    "cloudinary": "^2.7.0",
+    "formidable": "^3.5.4",
+    "framer-motion": "^12.18.1",
+    "html2canvas": "^1.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "konva": "^9.3.22",
+    "lucide-react": "^0.525.0",
+    "micro": "^10.0.1",
+    "next": "15.3.4",
+    "prisma": "^6.10.1",
+    "react": "^19.0.0",
+    "react-color": "^2.19.3",
+    "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.5.2",
+    "react-konva": "^19.0.7",
+    "react-medium-image-zoom": "^5.2.14",
+    "stripe": "^18.3.0",
+    "use-image": "^1.1.4"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/archiver": "^6.0.3",
+    "@types/formidable": "^3.4.5",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-color": "^3.0.13",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
