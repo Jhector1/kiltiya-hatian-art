@@ -3,6 +3,7 @@
   Displays proper Add/Remove text, loading state, and dynamic styling
 */
 'use client';
+import { CartSelectedItem } from '@/types';
 import React from 'react';
 
 export default function CartActions({
@@ -13,7 +14,7 @@ export default function CartActions({
     disabled,
 
 }: {
-  inCart: boolean;
+  inCart: CartSelectedItem | null;
   loading: boolean;
   onToggleCart: () => void;
   onCheckout: () => void;
@@ -36,8 +37,9 @@ export default function CartActions({
         {loading ? (inCart ? 'Removing...' : 'Adding...') : inCart ? 'Remove from Cart' : 'Add Selected to Cart'}
       </button>
       <button
+      disabled={disabled}
         onClick={onCheckout}
-        className="bg-green-600 text-white font-semibold px-6 py-3 rounded-lg shadow hover:bg-green-700 transition"
+        className={`bg-green-600 text-white font-semibold px-6 py-3 rounded-lg shadow hover:bg-green-700 transition ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         Proceed to Checkout
       </button>

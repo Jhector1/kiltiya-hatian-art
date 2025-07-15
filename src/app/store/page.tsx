@@ -2,13 +2,13 @@
 
 import SEO from '@/components/SEO';
 import Gallery from '@/components/store/Gallery';
-import {  MyProduct } from '@/types';
+import {  ProductListItem } from '@/types';
 import { fetchProducts } from '@/utils/fetchProducts';
 import { useEffect, useState } from 'react';
 
 
 export default function Home() {
-  const [products, setProducts] = useState<MyProduct[]>([]);
+  const [products, setProducts] = useState<ProductListItem[]>([]);
 
   useEffect(() => {
     fetchProducts().then(setProducts).catch(console.error);

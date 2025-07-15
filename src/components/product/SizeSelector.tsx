@@ -1,5 +1,6 @@
 // File: components/SizeSelector.tsx
 "use client";
+import { CartSelectedItem, CartUpdates } from "@/types";
 import React from "react";
 
 type Option = { label: string; multiplier: number };
@@ -20,8 +21,8 @@ export default function SizeSelector({
     sel: Option,
     custom?: { width: string; height: string }
   ) => void;
-  updateCart: (updates: { [key: string]: any }) => void;
-  inCart: boolean;
+  updateCart: (updates: CartUpdates) => void;
+  inCart: CartSelectedItem;
 }) {
   return (
     <div>

@@ -1,106 +1,99 @@
-import { NextRequest, NextResponse } from "next/server";
+// src/app/api/downloads/zip/route.ts
+
+import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
-import archiver from "archiver";
-import stream from "stream";
+import { v2 as cloudinary } from "cloudinary";
 
 const prisma = new PrismaClient();
 export const runtime = "nodejs";
 
-// TEMP AUTH: Replace with real auth logic
+cloudinary.config({
+  cloud_name:  process.env.CLOUDINARY_CLOUD_NAME!,
+  api_key:     process.env.CLOUDINARY_API_KEY!,
+  api_secret:  process.env.CLOUDINARY_API_SECRET!,
+});
 
-
-import { stripe } from "@/lib/stripe"; // Make sure this is already imported
-
-async function getUserIdFromRequest(req: Request): Promise<string | null> {
-  const url = new URL(req.url);
-  const sessionId = url.searchParams.get("session_id");
-  if (!sessionId) return null;
-
-  try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-    const customerId = session.metadata?.customerId;
-    return customerId || null;
-  } catch (err) {
-    console.error("❌ Failed to retrieve Stripe session:", err);
-    return null;
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const sessionId = searchParams.get("session_id");
+  if (!sessionId) {
+    return NextResponse.json({ error: "Missing session_id" }, { status: 400 });
   }
-}
 
-
-
-// Fetch all purchased digital product files for the user
-async function getUserDigitalDownloads(userId: string) {
-  const orders = await prisma.order.findMany({
-    where: { userId },
+  // ————————————————
+  // 1️⃣  Fetch the one Order by its stripeSessionId
+  // ————————————————
+  const order = await prisma.order.findUnique({
+    where: { stripeSessionId: sessionId },
     include: {
       items: {
         where: { type: "DIGITAL" },
-        include: {
-          product: true,
-        },
+        include: { product: true },
       },
     },
   });
 
-  const downloads: { url: string; name: string }[] = [];
-
-  for (const order of orders) {
-    for (const item of order.items) {
-      const product = item.product;
-      if (!product) continue;
-
-      for (const formatUrl of product.formats) {
-        const extension = formatUrl.split(".").pop() || "jpg";
-        const titleSanitized = product.title.replace(/\s+/g, "_").toLowerCase();
-        downloads.push({
-          url: formatUrl,
-          name: `${titleSanitized}_${extension}.${extension}`,
-        });
-      }
-    }
+  if (!order) {
+    return NextResponse.json(
+      { error: "No order found for that session." },
+      { status: 404 }
+    );
   }
 
-  return downloads;
-}
-
-export async function GET(req: NextRequest) {
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const files = await getUserDigitalDownloads(userId);
-
-  if (!files.length) {
-    return NextResponse.json({ error: "No digital downloads found." }, { status: 404 });
-  }
-
-  try {
-    const archive = archiver("zip");
-    const zipStream = new stream.PassThrough();
-
-    archive.pipe(zipStream);
-
-    for (const file of files) {
-      try {
-        const res = await fetch(file.url);
-        if (!res.ok || !res.body) continue;
-        archive.append(res.body, { name: file.name });
-      } catch (err) {
-        console.error(`❌ Failed to fetch ${file.url}:`, err);
-      }
-    }
-
-    archive.finalize();
-
-    return new Response(zipStream, {
-      headers: {
-        "Content-Type": "application/zip",
-        "Content-Disposition": "attachment; filename=downloads.zip",
-      },
+  // ————————————————
+  // 2️⃣  Build a list of { url, name } from that single order
+  // ————————————————
+  const files = order.items.flatMap((item) => {
+    const safeTitle = item.product.title.replace(/\W+/g, "_");
+    return item.product.formats.map((fmt) => {
+      const ext = fmt.split(".").pop()!;
+      return { url: fmt, name: `${safeTitle}.${ext}` };
     });
+  });
+
+  if (files.length === 0) {
+    return NextResponse.json(
+      { error: "No digital items in this order." },
+      { status: 404 }
+    );
+  }
+
+  // ————————————————
+  // 3️⃣  Extract, decode, and dedupe the Cloudinary public IDs
+  // ————————————————
+  const publicIds = Array.from(
+    new Set(
+      files
+        .map((f) => {
+          const m = f.url.match(/\/upload\/(?:v\d+\/)?(.+)\.[^/]+$/i);
+          return m ? decodeURIComponent(m[1]) : null;
+        })
+        .filter((id): id is string => Boolean(id))
+    )
+  );
+
+  if (publicIds.length === 0) {
+    return NextResponse.json(
+      { error: "Could not determine Cloudinary public IDs." },
+      { status: 500 }
+    );
+  }
+
+  // ————————————————
+  // 4️⃣  Generate the signed ZIP URL & redirect (307)
+  // ————————————————
+  try {
+    const zipUrl = cloudinary.utils.download_zip_url({
+      public_ids:            publicIds,
+      resource_type:         "image",
+      use_original_filename: true,
+    });
+    return NextResponse.redirect(zipUrl);
   } catch (err) {
-    console.error("❌ Failed to create ZIP archive:", err);
-    return NextResponse.json({ error: "Failed to create download package." }, { status: 500 });
+    console.error("Cloudinary ZIP error:", err);
+    return NextResponse.json(
+      { error: "Failed to generate download URL." },
+      { status: 500 }
+    );
   }
 }

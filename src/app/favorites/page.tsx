@@ -6,13 +6,13 @@ import Gallery from "@/components/store/Gallery";
 import { useUser } from "@/contexts/UserContext";
 import { useFavorites } from "@/contexts/FavoriteContext";
 // import { Product } from "@prisma/client";
-import { MyProduct } from "@/types";
+import {  ProductListItem } from "@/types";
 
 
 export default function FavoritePage() {
   const { user, isLoggedIn } = useUser();
   const { favorites,  removeFavorite } = useFavorites();
-  const [favoriteProducts, setFavoriteProducts] = useState<MyProduct[]>([]);
+  const [favoriteProducts, setFavoriteProducts] = useState<ProductListItem[]>([]);
 
   useEffect(() => {
     if (!user?.id || !isLoggedIn) return;
@@ -50,7 +50,7 @@ export default function FavoritePage() {
 
         <Gallery
           products={favoriteProducts}
-          showBuyButton
+          
           showLikeButton
           showViewSizeControls
           showCommentButton={false}

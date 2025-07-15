@@ -148,6 +148,8 @@ model Order {
   payment    Payment?
   shipping   Address?    @relation("Order_shipping", fields: [shippingId], references: [id])
   shippingId String?
+  // store the Stripe Checkout Session ID so we can look up this order by session
+stripeSessionId String?   @unique
 }
 
 model OrderItem {

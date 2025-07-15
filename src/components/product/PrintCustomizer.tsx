@@ -2,7 +2,7 @@
 "use client";
 import React, { useMemo } from "react";
 import Image from "next/image";
-import { MaterialOption, FrameOption } from "@/types";
+import { MaterialOption, FrameOption, CartSelectedItem, CartUpdates } from "@/types";
 
 interface PrintCustomizerProps {
   basePrice: number;
@@ -11,11 +11,11 @@ interface PrintCustomizerProps {
   imageSrc: string;
   materials: MaterialOption[];
   frames: FrameOption[];
-  setFrameAction: (frame: FrameOption) => void;
-  frame: FrameOption;
+  setFrameAction: (frame: FrameOption | null) => void;
+  frame: FrameOption | null;
   material: MaterialOption;
-  updateCart: (updates: {[key: string]: any}) => void;
-  inCart: boolean;
+  updateCart: (updates: CartUpdates) => void;
+  inCart: CartSelectedItem | null;
   setMaterialAction: (material: MaterialOption) => void;
 }
 

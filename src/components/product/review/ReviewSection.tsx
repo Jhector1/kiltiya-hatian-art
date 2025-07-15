@@ -1,16 +1,17 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import ReviewForm, { NewReview } from './ReviewForm';
-import ReviewList, { Review } from './ReviewList';
+import ReviewList from './ReviewList';
 
 interface ReviewsSectionProps {
   productId: string;
 }
 import { useUser } from '@/contexts/UserContext';
+import { ProductReview } from '@/types';
 
 export default function ReviewsSection({ productId }: ReviewsSectionProps) {
   const { user } = useUser(); // get current user
-  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
 
   useEffect(() => {
     fetch(`/api/products/${productId}/reviews`)
@@ -18,7 +19,7 @@ export default function ReviewsSection({ productId }: ReviewsSectionProps) {
         if (!res.ok) throw new Error('Network response was not ok');
         return res.json();
       })
-      .then((data: Review[]) => {
+      .then((data: ProductReview[]) => {
         setReviews(data);
       })
       .catch(() => {
@@ -34,7 +35,7 @@ export default function ReviewsSection({ productId }: ReviewsSectionProps) {
       body: JSON.stringify({ ...newReview, userId: user.id }),
     })
       .then((res) => res.json())
-      .then((saved: Review) => setReviews((prev) => [saved, ...prev]))
+      .then((saved: ProductReview) => setReviews((prev) => [saved, ...prev]))
       .catch(() => console.error('Failed to post review'));
   };
 

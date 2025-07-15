@@ -8,7 +8,7 @@ import ColorPicker from "./ColorPicker";
 import ImageUploader from "./ImageUploader";
 import CardCanvas from "./CardCanvas";
 import html2canvas from "html2canvas";
-import FoldingCard, { RealisticGreetingCard } from "./FoldingCard";
+import RealisticGreetingCard  from "./FoldingCard";
 
 export default function DigitalCard() {
   const [occasion, setOccasion] = useState("Birthday");

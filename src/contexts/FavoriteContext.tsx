@@ -26,7 +26,7 @@ export const FavoriteProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const res = await fetch(`/api/favorite?userId=${user.id}`);
       const data = await res.json();
       const ids = new Set(data.map((product: MyProduct) => product.id));
-      setFavorites(ids);
+      setFavorites(ids as Set<string>);
     } catch (err) {
       console.error("Failed to refresh favorites:", err);
     }

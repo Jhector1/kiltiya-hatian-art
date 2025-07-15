@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import SEO from "@/components/SEO";
 import ProductImage from "@/components/product/ProductImage";
@@ -19,29 +19,22 @@ import AuthenticationForm from "@/components/authenticate/AuthenticationFom";
 import { useCart } from "@/contexts/CartContext";
 import {
   AddOptions,
+  CartUpdates,
   Format,
   FrameOption,
   MaterialOption,
-  MyProduct,
+  ProductDetailResult,
 } from "@/types";
 import { useMemo } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 
 export default function ProductDetail() {
-  const { id } = useParams();
-  const router = useRouter();
+  const { id } = useParams()!;
   const { isLoggedIn } = useUser();
-  const {
-    cart,
-    loadingCart,
-    loadingAdd,
-    addToCart,
-    updateCart,
-    removeFromCart,
-  } = useCart();
+  const { cart, loadingAdd, addToCart, updateCart, removeFromCart } = useCart();
   const { user, loading: loadingUser } = useUser();
 
-  const [product, setProduct] = useState<MyProduct | null>(null);
+  const [product, setProduct] = useState<ProductDetailResult | null>(null);
   const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
     null
   );
@@ -201,7 +194,7 @@ export default function ProductDetail() {
         }
       })
       .catch(console.error);
-  }, [id, loadingUser, materials, frames, optionSizes, user?.id]);
+  }, [id, loadingUser, materials, frames, optionSizes, user?.id, updateCart]);
 
   if (!product || !preview) {
     return <div className="p-10 text-center">Loading product…</div>;
@@ -229,7 +222,7 @@ export default function ProductDetail() {
     (f) => !seen.has(f.type) && seen.add(f.type)
   );
 
-  const inCart = cart.find((item) => item.productId === product.id);
+  const inCart = cart.find((item) => item.productListItem.id === product.id);
   const loading = loadingAdd;
 
   const handleToggleCart = async () => {
@@ -244,14 +237,19 @@ export default function ProductDetail() {
         options.digital ? "Digital" : null,
         options.print ? "Print" : null,
         parseFloat(calculatePrice(options.digital ? "Digital" : "Print")),
-        1,
+
         format,
         size.label,
         material?.label || "",
-        frame?.label || ""
+        frame?.label || "",
+        1
       );
     } else {
-      await removeFromCart(product.id, inCart.digital?.id, inCart.print?.id);
+      await removeFromCart(
+        product.id,
+        options.digitalVariantId!,
+        options.printVariantId!
+      );
     }
   };
 
@@ -285,8 +283,8 @@ export default function ProductDetail() {
             formats={uniqueFormats}
             selected={format}
             onChangeAction={setFormat}
-            inCart={inCart}
-            updateCart={(updates) =>
+            inCart={inCart || null}
+            updateCart={(updates: CartUpdates) =>
               updateCart({
                 userId: user?.id || "",
                 productId: product.id,
@@ -307,7 +305,7 @@ export default function ProductDetail() {
                 setIsCustom(s.label === "Custom");
                 if (custom) setCustomSize(custom);
               }}
-              inCart={inCart}
+              inCart={inCart!}
               updateCart={(updates) =>
                 updateCart({
                   userId: user?.id || "",
@@ -324,7 +322,7 @@ export default function ProductDetail() {
             printPrice={calculatePrice("Print")}
             options={options}
             onToggle={(t) => setOptions((o) => ({ ...o, [t]: !o[t] }))}
-            inCart={inCart}
+            inCart={inCart || null}
             updateCart={(updates) =>
               updateCart({
                 userId: user?.id || "",
@@ -351,12 +349,12 @@ export default function ProductDetail() {
               sizeMultiplier={size.multiplier}
               imageSrc={product.imageUrl}
               setFrameAction={setFrame}
-              frame={frame}
+              frame={frame || null}
               setMaterialAction={setMaterial}
               material={material}
               materials={materials}
               frames={frames}
-              inCart={inCart}
+              inCart={inCart || null}
               updateCart={(updates) =>
                 updateCart({
                   userId: user?.id || "",
@@ -369,7 +367,7 @@ export default function ProductDetail() {
           )}
 
           <CartActions
-            inCart={inCart}
+            inCart={inCart || null}
             loading={loading}
             onToggleCart={handleToggleCart}
             onCheckout={async () => {
@@ -377,6 +375,24 @@ export default function ProductDetail() {
                 setModalOpen(true);
                 return;
               }
+              // let data = null;
+              if (!inCart) {
+                await addToCart(
+                  id?.toString() || "",
+                  options.digital ? "Digital" : null,
+                  options.print ? "Print" : null,
+                  parseFloat(
+                    calculatePrice(options.digital ? "Digital" : "Print")
+                  ),
+
+                  format,
+                  size.label,
+                  material?.label || "",
+                  frame?.label || "",
+                  1
+                );
+              }
+              // alert(JSON.stringify(data));
 
               const productId = product.id;
               const productItem = {
@@ -390,13 +406,19 @@ export default function ProductDetail() {
                   imageUrl: product.imageUrl || "/placeholder.png",
                   digital: options.digital
                     ? {
-                        id: options.digitalVariantId || "temp-digital-id", // fallback if not in cart yet
+                        id:
+                          options.digitalVariantId ||
+                          // data?.result.digitalVariantId ||
+                          "temp-digital-id", // fallback if not in cart yet
                         format,
                       }
                     : undefined,
                   print: options.print
                     ? {
-                        id: options.printVariantId || "temp-print-id",
+                        id:
+                          options.printVariantId ||
+                          // data?.result?.digitalVariantId ||
+                          "temp-print-id",
                         format,
                         size: size.label,
                         material: material?.label,
@@ -431,9 +453,12 @@ export default function ProductDetail() {
                 if (!stripe) throw new Error("Stripe failed to load");
 
                 await stripe.redirectToCheckout({ sessionId: data.sessionId });
-              } catch (err: any) {
-                console.error("Checkout error:", err);
-                alert(err.message || "Checkout failed");
+              } catch (err) {
+                if (err instanceof Error) {
+                  console.error("Checkout error:", err.message);
+                } else {
+                  console.error("Checkout error:", err);
+                }
               }
             }}
             disabled={!options.digital && !options.print}

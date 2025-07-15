@@ -1,24 +1,13 @@
-// src/app/api/products/route.ts
+// File: src/app/api/products/route.ts
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma, productListSelect, ProductListItem } from "@/types";
 
 export const runtime = "nodejs";
-const db = new PrismaClient();
 
 export async function GET() {
-  const products = await db.product.findMany({
-    include: { category: true },
+  const products: ProductListItem[] = await prisma.product.findMany({
+    select: productListSelect,
     orderBy: { createdAt: "desc" },
   });
-  const withUrls = products.map((p) => ({
-    id: p.id,
-    title: p.title,
-    description: p.description,
-    price: p.price,
-    category: p.category.name,
-    image: p.thumbnails[0] || "/placeholder.png",
-    rawPublicId: p.publicId,
-  }));
-
-  return NextResponse.json(withUrls);
+  return NextResponse.json(products);
 }

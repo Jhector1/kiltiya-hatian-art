@@ -1,5 +1,3 @@
-// src/app/cart/artworks/checkout/success/page.tsx
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -15,41 +13,51 @@ interface PurchasedArtwork {
 
 export default function CheckoutSuccessPage() {
   const searchParams = useSearchParams();
-  const sessionId = searchParams.get("session_id");
+  const sessionId = searchParams?.get("session_id");
   const [artworks, setArtworks] = useState<PurchasedArtwork[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // helper to download any URL as a file
+  const downloadFile = async (url: string, filename: string) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Network response was not ok");
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error(err);
+      toast.error("Download failed");
+    }
+  };
+
   useEffect(() => {
     if (!sessionId) return;
-
-    async function fetchDownloads() {
+    (async () => {
       try {
         const res = await fetch(
           `/api/checkout/success?session_id=${sessionId}`
         );
         const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error || "Could not fetch downloads.");
-        }
-
+        if (!res.ok) throw new Error(data.error || "Could not fetch downloads.");
         setArtworks(data.digitalDownloads);
-      } catch (err: any) {
-        console.error(err);
-        toast.error(err.message || "Failed to load order.");
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Unexpected error";
+        console.error(message);
+        toast.error(message);
       } finally {
         setLoading(false);
       }
-    }
-
-    fetchDownloads();
+    })();
   }, [sessionId]);
 
-  if (loading) {
-    return (
-      <div className="p-10 text-center">Loading your purchased items…</div>
-    );
-  }
+  if (loading) return <div className="p-10 text-center">Loading your purchased items…</div>;
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
@@ -63,11 +71,8 @@ export default function CheckoutSuccessPage() {
         <>
           <p className="mb-4">You purchased the following digital artwork:</p>
           <ul className="space-y-4">
-            {artworks.map((art) => (
-              <li
-                key={art.id}
-                className="flex gap-4 items-center border-b pb-4"
-              >
+            {artworks.map((art, i) => (
+              <li key={`${art.id}-${i}`} className="flex gap-4 items-center border-b pb-4">
                 <img
                   src={art.downloadUrl}
                   alt={art.title}
@@ -78,25 +83,37 @@ export default function CheckoutSuccessPage() {
                   <p className="text-sm text-gray-500 mb-2">
                     Format: {art.format}
                   </p>
-                  <a
-                    href={art.downloadUrl}
-                    download
+                  <button
+                    onClick={() =>
+                      downloadFile(art.downloadUrl, `${art.title}.${art.format}`)
+                    }
                     className="inline-block bg-green-600 text-white px-4 py-1 rounded-full hover:bg-green-700 transition"
                   >
                     Download
-                  </a>
+                  </button>
                 </div>
               </li>
             ))}
           </ul>
-
-          <div className="mt-8">
-            <a
-              href={`/api/downloads/zip?session_id=${sessionId}`}
+             <div className="mt-8"> 
+  <a
+             href={`/api/downloads/zip?session_id=${sessionId}`}
+             className="bg-blue-700 text-white px-6 py-2 rounded-full hover:bg-blue-800 transition"
+           >
+             Download All as ZIP
+           </a>
+      
+            {/* <button
+              onClick={() =>
+                downloadFile(
+                  `/api/downloads/zip?session_id=${sessionId}`,
+                  `all-artworks-${sessionId}.zip`
+                )
+              }
               className="bg-blue-700 text-white px-6 py-2 rounded-full hover:bg-blue-800 transition"
             >
               Download All as ZIP
-            </a>
+            </button>  */}
           </div>
         </>
       )}

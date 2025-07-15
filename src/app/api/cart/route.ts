@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { v2 as cloudinary } from "cloudinary";
+import { CartSelectedItem, productListSelect } from "@/types";
 
 export const runtime = "nodejs";
 const prisma = new PrismaClient();
@@ -11,6 +12,12 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY!,
   api_secret: process.env.CLOUDINARY_API_SECRET!,
 });
+
+// src/app/api/cart/route.ts
+// import { NextResponse, NextRequest } from "next/server";
+// import { CartSelectedItem, productListSelect, type ProductListItem } from "@/types";
+
+// export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -26,78 +33,64 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // ─── 1️⃣ Existence check ─────────────────────────────────────────────────────
+  // ─── 1️⃣ Existence‐check mode ─────────────────────────────────────
   if (productId && (digitalVariantId || printVariantId)) {
     try {
-      const cart = await prisma.cart.findUnique({ where: { userId } });
+      const cart = await prisma.cart.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
       if (!cart) {
         return NextResponse.json({ inCart: false });
       }
 
-      const where: Record<string, string> = {
-        cartId: cart.id,
-        productId,
-      };
+      const where: Record<string, string> = { cartId: cart.id, productId };
       if (digitalVariantId) where.digitalVariantId = digitalVariantId;
       if (printVariantId) where.printVariantId = printVariantId;
 
       const item = await prisma.cartItem.findFirst({ where });
-      
       return NextResponse.json({ inCart: Boolean(item) });
-    } catch (err) {
-      console.error("GET /api/cart existence-check failed:", err);
+    } catch {
       return NextResponse.json({ inCart: false });
     }
   }
 
-  // ─── 2️⃣ Fetch full cart ────────────────────────────────────────────────────
+  // ─── 2️⃣ Full‐cart fetch (for Gallery) ──────────────────────────
   try {
+    // ensure the cart exists
     const cart = await prisma.cart.findUnique({
       where: { userId },
-      include: {
-        items: {
-          include: {
-            product: true,
-            digitalVariant: true,
-            printVariant: true,
-          },
-        },
+      select: { id: true },
+    });
+    if (!cart) {
+      // If no cart yet, nothing to show
+      return NextResponse.json([] as CartSelectedItem[]);
+    }
+
+    // fetch only the products in the cart, using the same select you use elsewhere
+    const items = await prisma.cartItem.findMany({
+      where: { cartId: cart.id },
+      select: {
+        id: true,
+        price: true,
+        quantity: true,
+        printVariant: true,
+        digitalVariant: true,
+        product: { select: productListSelect },
       },
     });
 
-    if (!cart) {
-      return NextResponse.json({ items: [] });
-    }
-
-    const items = cart.items.map((item) => ({
-      id: item.id,
-      productId: item.productId,
-      title: item.product?.title,
-      //  category: item.product.,
-      image: item.product?.publicId
-        ? cloudinary.url(item.product.publicId, { secure: true })
-        : "/placeholder.png",
-      description: item.product?.description,
-      price: item.price,
-      quantity: item.quantity,
-      digital: item.digitalVariant
-        ? {
-            id: item.digitalVariant.id,
-            format: item.digitalVariant.format,
-          }
-        : null,
-      print: item.printVariant
-        ? {
-            id: item.printVariant.id,
-            format: item.printVariant.format,
-            size: item.printVariant.size,
-            material: item.printVariant.material,
-            frame: item.printVariant.frame,
-          }
-        : null,
+    // unwrap to ProductListItem[]
+    const products: CartSelectedItem[] = items.map((ci) => ({
+      cartItemId: ci.id,
+      cartPrice: ci.price,
+      cartQuantity: ci.quantity,
+      digital: ci.digitalVariant,
+      print: ci.printVariant,
+      productListItem: ci.product,
     }));
-    console.log(items)
-    return NextResponse.json({ items });
+    console.log("produuu", products);
+    return NextResponse.json(products);
   } catch (err) {
     console.error("GET /api/cart full-fetch failed:", err);
     return NextResponse.json(
@@ -106,6 +99,101 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+// export async function GET(request: NextRequest) {
+//   const { searchParams } = new URL(request.url);
+//   const userId = searchParams.get("userId");
+//   const productId = searchParams.get("productId");
+//   const digitalVariantId = searchParams.get("digitalVariantId");
+//   const printVariantId = searchParams.get("printVariantId");
+
+//   if (!userId) {
+//     return NextResponse.json(
+//       { error: "User ID is required." },
+//       { status: 400 }
+//     );
+//   }
+
+//   // ─── 1️⃣ Existence check ─────────────────────────────────────────────────────
+//   if (productId && (digitalVariantId || printVariantId)) {
+//     try {
+//       const cart = await prisma.cart.findUnique({ where: { userId } });
+//       if (!cart) {
+//         return NextResponse.json({ inCart: false });
+//       }
+
+//       const where: Record<string, string> = {
+//         cartId: cart.id,
+//         productId,
+//       };
+//       if (digitalVariantId) where.digitalVariantId = digitalVariantId;
+//       if (printVariantId) where.printVariantId = printVariantId;
+
+//       const item = await prisma.cartItem.findFirst({ where });
+
+//       return NextResponse.json({ inCart: Boolean(item) });
+//     } catch (err) {
+//       console.error("GET /api/cart existence-check failed:", err);
+//       return NextResponse.json({ inCart: false });
+//     }
+//   }
+
+//   // ─── 2️⃣ Fetch full cart ────────────────────────────────────────────────────
+//   try {
+//     const cart = await prisma.cart.findUnique({
+//       where: { userId },
+//       include: {
+//         items: {
+//           include: {
+//             product: true,
+//             digitalVariant: true,
+//             printVariant: true,
+//           },
+//         },
+//       },
+//     });
+
+//     if (!cart) {
+//       return NextResponse.json({ items: [] });
+//     }
+
+//     const items = cart.items.map((item) => ({
+//       id: item.id,
+//       productId: item.productId,
+//       title: item.product?.title,
+//       //  category: item.product.,
+//       image: item.product?.publicId
+//         ? cloudinary.url(item.product.publicId, { secure: true })
+//         : "/placeholder.png",
+//       description: item.product?.description,
+//       price: item.price,
+//       quantity: item.quantity,
+//       digital: item.digitalVariant
+//         ? {
+//             id: item.digitalVariant.id,
+//             format: item.digitalVariant.format,
+//           }
+//         : null,
+//       print: item.printVariant
+//         ? {
+//             id: item.printVariant.id,
+//             format: item.printVariant.format,
+//             size: item.printVariant.size,
+//             material: item.printVariant.material,
+//             frame: item.printVariant.frame,
+//           }
+//         : null,
+//     }));
+//     console.log(items)
+//     return NextResponse.json({ items });
+//   } catch (err) {
+//     console.error("GET /api/cart full-fetch failed:", err);
+//     return NextResponse.json(
+//       { error: "Internal server error." },
+//       { status: 500 }
+//     );
+//   }
+// }
 
 // src/app/api/cart/route.ts
 export async function POST(request: NextRequest) {
@@ -121,19 +209,6 @@ export async function POST(request: NextRequest) {
     material = null,
     frame = null,
   } = await request.json();
-  console.log(
-    "hello",
-    userId,
-    productId,
-    digitalType,
-    printType,
-    price,
-    quantity,
-    format,
-    size,
-    material,
-    frame
-  );
 
   if (
     !userId ||
@@ -147,7 +222,6 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  console.log("*********************");
 
   try {
     // 1) ensure cart exists
@@ -184,18 +258,22 @@ export async function POST(request: NextRequest) {
       });
     }
     // 3) create the cart-item pointing to that variant
+    const data = {
+      cartId,
+      productId,
+      digitalVariantId: digitalVariant?.id,
+      printVariantId: printVariant?.id,
+      price: parseFloat(price),
+      quantity,
+    };
     await prisma.cartItem.create({
-      data: {
-        cartId,
-        productId,
-        digitalVariantId: digitalVariant?.id,
-        printVariantId: printVariant?.id,
-        price: parseFloat(price),
-        quantity,
-      },
+      data: data,
     });
 
-    return NextResponse.json({ message: "Item added with new variant." });
+    return NextResponse.json({
+      message: "Item added with new variant.",
+      result: data,
+    });
   } catch (err) {
     console.error("POST /api/cart failed:", err);
     return NextResponse.json(
@@ -256,7 +334,6 @@ export async function DELETE(request: NextRequest) {
 }
 
 // PATCH /api/cart
-
 
 export async function PATCH(request: NextRequest) {
   const {

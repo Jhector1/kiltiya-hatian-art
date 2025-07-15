@@ -56,8 +56,15 @@ const digitalDownloads = order.items.flatMap((item) => {
 
 
     return NextResponse.json({ digitalDownloads });
-  } catch (err: any) {
-    console.error('❌ Failed to fetch checkout success data:', err.message);
+} catch (error: unknown) {
+  // start with a default
+  let message = "Unexpected error";
+
+  // narrow to Error and read .message safely
+  if (error instanceof Error) {
+    message = error.message;
+  }
+    console.error('❌ Failed to fetch checkout success data:', message);
     return NextResponse.json({ error: 'Failed to fetch purchased digital items.' }, { status: 500 });
   }
 }

@@ -13,7 +13,7 @@ interface ReviewFormProps {
   onSubmit: (review: NewReview) => void;
 }
 
-export default function ReviewForm({ productId, onSubmit }: ReviewFormProps) {
+export default function ReviewForm({ onSubmit }: ReviewFormProps) {
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
 

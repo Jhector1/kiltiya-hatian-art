@@ -87,7 +87,7 @@
 // }'use client';
 import AboutComponent from "@/components/AboutComponent";
 import SEO from "@/components/SEO";
-import DigitalCard from "@/components/digitalCard/DigitalCard";
+// import DigitalCard from "@/components/digitalCard/DigitalCard";
 import DigitalCardWrapper from "@/components/digitalCard/DigitalCardWrapper";
 
 import CategoryGrid from "@/components/home/CategoryGrid";

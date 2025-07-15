@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useUser } from "@/contexts/UserContext";
-import { MyProduct } from "@/types";
+import { CartSelectedItem, CartUpdates } from "@/types";
 // import { type } from 'os';
 // import { ProductVariant } from '@prisma/client';
 
@@ -20,27 +20,28 @@ import { MyProduct } from "@/types";
 // }
 
 type CartContextType = {
-  cart: MyProduct[];
+  cart: CartSelectedItem[];
   loadingCart: boolean;
   loadingAdd: boolean;
   totalPrice: number;
   refreshCart: () => Promise<void>;
   addToCart: (
     productId: string,
-    digitalType: string,
-    printType: string,
+    digitalType: string | null,
+    printType: string | null,
 
-    price: string, // 'Digital' or 'Print'
-    quantity: 1,
+    price: number, // 'Digital' or 'Print'
+
     format: string, // e.g. 'jpg' or 'png'
     size: string, // e.g. '11x14 in'
     material: string,
-    frame: string
+    frame: string,
+    quantity?: 1
   ) => Promise<void>;
   removeFromCart: (
     productId: string,
-    variantId: string,
-    type: "Digital" | "Print"
+    digitalVariantId: string,
+    printVariantId: string
   ) => Promise<void>;
   updateCart: ({
     userId,
@@ -51,18 +52,27 @@ type CartContextType = {
   }: {
     userId: string;
     productId: string;
-    printVariantId: string;
-    digitalVariantId: string;
-    updates: { [key: string]: string };
+    printVariantId?: string;
+    digitalVariantId?: string;
+    updates: CartUpdates;
   }) => Promise<void>;
 };
-
-const CartContext = createContext<CartContextType>({} as any);
+const defaultCartContext: CartContextType = {
+  cart: [],
+  loadingCart: false,
+  loadingAdd: false,
+  totalPrice: 0,
+  refreshCart: async () => {},
+  addToCart: async () => {},
+  removeFromCart: async () => {},
+  updateCart: async () => {},
+};
+const CartContext = createContext<CartContextType>(defaultCartContext);
 export const useCart = () => useContext(CartContext);
 
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const { user, isLoggedIn } = useUser();
-  const [cart, setCart] = useState<MyProduct[]>([]);
+  const [cart, setCart] = useState<CartSelectedItem[]>([]);
   const [loadingCart, setLoadingCart] = useState(true);
   const [loadingAdd, setLoadingAdd] = useState(false);
   // const {loadingAdd, setLoadingAdd} = useState<ProductV>(false);
@@ -77,7 +87,8 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const res = await fetch(`/api/cart?userId=${user.id}`);
       if (!res.ok) throw new Error(res.statusText);
-      const { items } = await res.json();
+      const items = await res.json();
+      // alert(JSON.stringify(items))
       setCart(items || []);
     } catch (err) {
       console.error("Failed to fetch cart:", err);
@@ -88,63 +99,40 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const addToCart = async (
-    //  userId: string,
     productId: string,
-    digitalType: string,
-    printType: string,
-
-    price: string, // 'Digital' or 'Print'
-    quantity: 1,
-    format: string, // e.g. 'jpg' or 'png'
-    size: string, // e.g. '11x14 in'
+    digitalType: string | null,
+    printType: string | null,
+    price: number,
+    format: string,
+    size: string,
     material: string,
-    frame: string
-    // calculatePrice: (variantId: string) => string
+    frame: string,
+    quantity?: number
   ) => {
-    // console.log(888)
     if (!isLoggedIn || !user) return;
     setLoadingAdd(true);
-    // const payloads: Array<{
-    //   digitalVariantId?: string;
-    //   printVariantId?: string;
-    //   price: number;
-    // }> = [];
-    // if (options.digitalVariantId) {
-    //   payloads.push({
-    //     digitalVariantId: options.digitalVariantId,
-    //     price: parseFloat(calculatePrice(options.digitalVariantId)),
-    //   });
-    // }
-    // if (options.printVariantId) {
-    //   payloads.push({
-    //     printVariantId: options.printVariantId,
-    //     price: parseFloat(calculatePrice(options.printVariantId)),
-    //   });
-    // }
+
+    // if your caller is sending a string price, turn it into a number here:
+    // const numericPrice = typeof price === "string" ? parseFloat(price) : price;
 
     try {
-      // await Promise.all(
-      //   payloads.map((p) =>
       await fetch("/api/cart", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
-          productId: productId,
-          digitalType, // 'Digital'
-          printType, // 'Print'
-          price,
+          productId,
+          digitalType,
+          printType,
+          price, // now a number
           quantity,
-          format, // e.g. 'jpg' or 'png'
-          size, // e.g. '11x14 in'
+          format,
+          size,
           material,
           frame,
         }),
       });
-
       await fetchCart();
-    } catch (error) {
-      console.error("Failed to add to cart:", error);
     } finally {
       setLoadingAdd(false);
     }
@@ -158,9 +146,9 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   }: {
     userId: string;
     productId: string;
-    printVariantId: string;
-    digitalVariantId: string;
-    updates: { [key: string]: string };
+    printVariantId?: string; // now matches the interface
+    digitalVariantId?: string; // now matches the interface
+    updates: CartUpdates;
   }) {
     try {
       const res = await fetch("/api/cart", {
@@ -224,7 +212,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   }, [user, isLoggedIn]);
 
   const totalPrice = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
+    (sum, item) => sum + item.cartPrice * item.cartQuantity,
     0
   );
 

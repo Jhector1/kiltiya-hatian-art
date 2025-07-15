@@ -1,6 +1,6 @@
 // File: components/FormatSelector.tsx
 "use client";
-import { Format } from "@/types";
+import { CartSelectedItem, CartUpdates, Format } from "@/types";
 import React from "react";
 
 export default function FormatSelector({
@@ -12,8 +12,8 @@ export default function FormatSelector({
 }: {
   formats: Format[];
   selected: string;
-  updateCart: (updates: { [key: string]: any }) => void;
-  inCart: boolean;
+  updateCart: (updates: CartUpdates) => void;
+  inCart: CartSelectedItem | null;
   onChangeAction: (f: string) => void;
 }) {
   return (

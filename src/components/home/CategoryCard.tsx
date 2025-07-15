@@ -1,9 +1,10 @@
 
 'use client';
 
+import { HomeCategory } from '@/types';
 import Link from 'next/link';
 
-export default function CategoryCard({ slug, title, image, gradient }) {
+export default function CategoryCard({ slug, title, image, gradient }:HomeCategory) {
   return (
     <Link href={`/category/${slug}`}>
       <div className={`rounded-xl p-6 cursor-pointer bg-gradient-to-r ${gradient} text-white shadow-lg hover:scale-105 transition-transform duration-300 flex flex-col items-center justify-center`}>

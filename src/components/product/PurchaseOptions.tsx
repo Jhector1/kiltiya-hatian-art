@@ -1,5 +1,6 @@
 // File: components/PurchaseOptions.tsx
 "use client";
+import { AddOptions, CartSelectedItem, CartUpdates } from "@/types";
 import React from "react";
 export default function PurchaseOptions({
   digitalPrice,
@@ -12,12 +13,12 @@ export default function PurchaseOptions({
 }: {
   digitalPrice: string;
   printPrice: string;
-  options: { digital: boolean; print: boolean };
+  options: AddOptions;
   onToggle: (key: "digital" | "print") => void;
-  updateCart: (updates: { [key: string]: any }) => void;
-  updateCart2: (updates: { [key: string]: any }) => void;
+  updateCart: (updates: CartUpdates) => void;
+  updateCart2: (updates: CartUpdates) => void;
 
-  inCart: boolean;
+  inCart: CartSelectedItem | null;
 }) {
   return (
     <div>

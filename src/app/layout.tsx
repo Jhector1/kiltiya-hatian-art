@@ -5,6 +5,7 @@ import { UserProvider } from "@/contexts/UserContext";
 import { CartProvider } from "@/contexts/CartContext";
 import Header from "@/components/Header";
 import { FavoriteProvider } from "@/contexts/FavoriteContext";
+import Head from "next/head";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,6 +29,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+       <Head>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Sacramento&display=swap"
+        rel="stylesheet"
+      />
+    </Head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

@@ -1,4 +1,6 @@
-const categories = [
+import { HomeCategory } from "@/types";
+
+const categories: HomeCategory[] = [
   {
     title: 'Veve Symbols',
     slug: 'veve',

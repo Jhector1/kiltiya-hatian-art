@@ -10,11 +10,11 @@ import {
 import { HeartIcon as HeartOutline } from "@heroicons/react/24/outline";
 import ImageModal from "./ImageModal";
 import { useRouter } from "next/navigation";
-import { MyProduct } from "@/types";
 import { useFavorites } from "@/contexts/FavoriteContext";
 import UniversalModal from "../modal/UniversalModal";
 import AuthenticationForm from "../authenticate/AuthenticationFom";
 import { useUser } from "@/contexts/UserContext";
+import type { ProductListItem } from "@/types";
 
 const sizeOptions = {
   small: "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5",
@@ -23,7 +23,7 @@ const sizeOptions = {
 };
 
 type Props = {
-  products: MyProduct[];
+  products: ProductListItem[];
   showViewSizeControls?: boolean;
   showBuyButton?: boolean;
   showLikeButton?: boolean;
@@ -35,7 +35,7 @@ type Props = {
 export default function Gallery({
   products,
   showViewSizeControls = true,
-  showBuyButton = true,
+  showBuyButton = false,
   showLikeButton = true,
   showCommentButton = false,
   rounded = false,
@@ -43,13 +43,8 @@ export default function Gallery({
 }: Props) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
-  const [zoomImage, setZoomImage] = useState<{
-    src: string;
-    title: string;
-  } | null>(null);
-  const [viewSize, setViewSize] = useState<"small" | "medium" | "large">(
-    "medium"
-  );
+  const [zoomImage, setZoomImage] = useState<{ src: string; title: string } | null>(null);
+  const [viewSize, setViewSize] = useState<"small" | "medium" | "large">("medium");
   const [isModalOpen, setModalOpen] = useState(false);
 
   const router = useRouter();
@@ -64,13 +59,13 @@ export default function Gallery({
       setModalOpen(true);
     }
   };
-  console.log('producyoofkfjjf', products)
 
   return (
     <>
       <UniversalModal isOpen={isModalOpen} onClose={() => setModalOpen(false)}>
         <AuthenticationForm closeModalAction={() => setModalOpen(false)} />
       </UniversalModal>
+
       {showViewSizeControls && (
         <div className="flex gap-3 mt-6 justify-end pr-4">
           {(["small", "medium", "large"] as const).map((s) => (
@@ -90,21 +85,24 @@ export default function Gallery({
       )}
 
       <motion.div
+   
         className={`grid ${sizeOptions[viewSize]} gap-x-8 gap-y-14 mt-10 justify-items-center`}
         initial="hidden"
         animate="visible"
+        key={products.length}
         variants={{
           hidden: { opacity: 0 },
           visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
         }}
       >
-        {products.map((product) => {
+        {products.map((product, i) => {
+          // alert(JSON.stringify(products))
           const isLoaded = !!loadedImages[product.id];
           const liked = isFavorite(product.id);
 
           return (
             <motion.div
-              key={product.productId || product.id }
+               key={`${product.id}-${i}`} 
               className="relative max-w-xs w-full group"
               variants={{
                 hidden: { opacity: 0, y: 30 },
@@ -127,27 +125,21 @@ export default function Gallery({
 
               <div
                 className={`relative w-full h-[20rem] bg-gray-100 overflow-hidden ${
-                  rounded && "rounded-xl"
+                  rounded ? "rounded-xl" : ""
                 } shadow-sm cursor-pointer`}
-                onClick={() =>
-                  router.push(`/store/${product.productId || product.id}`)
-                }
+                onClick={() => router.push(`/store/${product.id}`)}
               >
-                {/* Inner padded container */}
                 <div className="w-full h-full p-[1rem]">
                   <div className="relative w-full h-full">
                     <Image
-                      src={product.image || "/placeholder.png"}
+                      src={product.thumbnails[0] ?? "/placeholder.png"}
                       alt={product.title}
                       fill
                       unoptimized
                       className="object-contain transition-transform duration-300 ease-in-out group-hover:scale-105"
                       style={{ opacity: isLoaded ? 1 : 0 }}
                       onLoadingComplete={() =>
-                        setLoadedImages((prev) => ({
-                          ...prev,
-                          [product.id]: true,
-                        }))
+                        setLoadedImages((prev) => ({ ...prev, [product.id]: true }))
                       }
                     />
                   </div>
@@ -159,11 +151,9 @@ export default function Gallery({
               </div>
 
               <div className="mt-4 space-y-0">
-                <h2 className="font-semibold text-gray-800 text-base">
-                  {product.title}
-                </h2>
+                <h2 className="font-semibold text-gray-800 text-base">{product.title}</h2>
                 <p className="text-sm text-gray-500">Size: 30×30in</p>
-                <div className="text-gray-700  font-semibold">
+                <div className="text-gray-700 font-semibold">
                   Price: ${product.price}
                 </div>
 

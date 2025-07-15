@@ -3,8 +3,15 @@
 
 import { motion } from 'framer-motion';
 import CategoryCard from './CategoryCard';
+import { HomeCategory } from '@/types';
 
-export default function CategoryGrid({ categories }) {
+export interface CategoryGridProps {
+  categories: HomeCategory[];
+}
+
+export default function CategoryGrid({
+  categories,
+}: CategoryGridProps) {
   return (
     <motion.div
       className="mb-20 grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"

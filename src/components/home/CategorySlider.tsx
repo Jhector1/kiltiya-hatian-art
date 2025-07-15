@@ -2,8 +2,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { HomeCategory } from '@/types';
 
-export default function CategorySlider({ categories }) {
+export interface CategoryGridProps {
+  categories: HomeCategory[];
+}
+
+export default function CategoryGrid({
+  categories,
+}: CategoryGridProps) {
   const [index, setIndex] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
