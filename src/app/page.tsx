@@ -102,6 +102,8 @@ import categories from "@/data/categories";
 export default function Home() {
   return (
     <>
+    {/* <h1 className="brush-logo">Strain</h1> */}
+
       <SEO
         title="Haitian Digital Art Gallery"
         description="Buy and explore uniquely crafted Haitian vector artworks."

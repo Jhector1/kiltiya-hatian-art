@@ -187,3 +187,17 @@ export interface HomeCategory {
   image: string;
   gradient: string;
 }
+// --- Types ----------------------------------------------------------------
+export type VariantType = 'DIGITAL' | 'PRINT' | 'ALL';
+
+export type CollectionItem = {
+  id: string;
+  type: VariantType;
+  product: {
+    title: string;
+    thumbnails: string[];
+  };
+  digitalVariant?: { url: string } | null;
+  printVariant?: { url: string } | null;
+  order: { placedAt: string };
+};

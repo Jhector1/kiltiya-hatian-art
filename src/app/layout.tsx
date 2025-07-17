@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { UserProvider } from "@/contexts/UserContext";
+import { UserContextInner, UserProvider } from "@/contexts/UserContext";
 import { CartProvider } from "@/contexts/CartContext";
 import Header from "@/components/Header";
 import { FavoriteProvider } from "@/contexts/FavoriteContext";
@@ -29,27 +29,29 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-       <Head>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Sacramento&display=swap"
-        rel="stylesheet"
-      />
-    </Head>
+      <Head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Sacramento&display=swap"
+          rel="stylesheet"
+        />
+      </Head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <UserProvider>
-          <CartProvider>
-            <FavoriteProvider>
-            <div className="bg-[#0f0f1a] bg-dot-grid bg-[length:var(--tw-background-size-dot-grid)] min-h-screen bg-gradient-to-r from-amber-100 via-white to-slate-100 text-gray-900">
-              <Header />
-              <main className="px-4 md:px-10 lg:px-20">{children}</main>
-              <footer className="text-center text-sm py-6">
-                &copy; 2024 Haitian Digital Market
-              </footer>
-            </div>
-            </FavoriteProvider>
-          </CartProvider>
+          <UserContextInner>
+            <CartProvider>
+              <FavoriteProvider>
+                <div className="bg-[#0f0f1a] bg-dot-grid bg-[length:var(--tw-background-size-dot-grid)] min-h-screen bg-gradient-to-r from-amber-100 via-white to-slate-100 text-gray-900">
+                  <Header />
+                  <main className="px-4 md:px-10 lg:px-20">{children}</main>
+                  <footer className="text-center text-sm py-6">
+                    &copy; 2024 Haitian Digital Market
+                  </footer>
+                </div>
+              </FavoriteProvider>
+            </CartProvider>
+          </UserContextInner>
         </UserProvider>
       </body>
     </html>

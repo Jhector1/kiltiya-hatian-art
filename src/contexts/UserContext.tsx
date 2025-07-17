@@ -1,78 +1,64 @@
-// File: src/context/UserContext.tsx
+// File: src/contexts/UserContext.tsx
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-// import { useCart } from './CartContext';
+import React, { createContext, useContext } from 'react';
+import { SessionProvider, useSession, signIn, signOut } from 'next-auth/react';
 
 export type User = {
-  id: string;
-  email: string;
-  name?: string;
+  id:       string;
+  email:    string;
+  name?:    string;
   createdAt: string;
   updatedAt?: string;
+  
 };
 
 export type UserContextType = {
-  user: User | null;
-  loading: boolean;
+  user:       User | null;
+  loading:    boolean;
   isLoggedIn: boolean;
-  setUser: (user: User | null) => void;
+  // Optional helpers:
+  login:      () => void;
+  logout:     () => void;
 };
 
 const UserContext = createContext<UserContextType>({
-  user: null,
-  loading: true,
+  user:       null,
+  loading:    true,
   isLoggedIn: false,
-  setUser: () => {},
+  login:      () => {},
+  logout:     () => {},
 });
 
 export const useUser = () => useContext(UserContext);
 
-export const UserProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  // const {refreshCart}= useCart();
+/**
+ * Wrap your app in <UserProvider> (inside app/layout.tsx)
+ * so that `useUser()` works everywhere.
+ */
+export function UserProvider({ children }: { children: React.ReactNode }) {
+  return <SessionProvider>{children}</SessionProvider>;
+}
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    // console.log('token',token, user)
-    if (!token) {
-      setLoading(false);
-      setIsLoggedIn(false);
-      return;
-    }
+/**
+ * Internal provider that reads NextAuth’s session and exposes
+ * a simpler `user` + `isLoggedIn` + `loading` API.
+ */
+export function UserContextInner({ children }: { children: React.ReactNode }) {
+  const { data: session, status } = useSession();
+  const loading    = status === 'loading';
+  const isLoggedIn = status === 'authenticated';
+  const user       = session?.user as User | undefined;
 
-    fetch('/api/auth/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (res) => {
-                console.log(res)
+  // Optional: you can extend the session callback to include `createdAt`
+  // in `session.user` if you store that in your JWT.
 
-        if (!res.ok) throw new Error('Failed to fetch user');
-        const data = await res.json();
-        // console.log(data)
-                  // await refreshCart(); // 🔥 This will manually load the correct cart after login
-
-        return data.user;
-      })
-      .then((u: User) => {
-        // console.log(u, '000=====')
-        setUser(u);
-        
-        setIsLoggedIn(true);
-      })
-      .catch(() => {
-        setUser(null);
-        setIsLoggedIn(false);
-      })
-      .finally(() => setLoading(false));
-
-  }, [isLoggedIn]);
+  const login  = () => signIn('credentials'); // or open your modal
+  const logout = () => signOut({ redirect: false });
 
   return (
-    <UserContext.Provider value={{ user, loading, isLoggedIn, setUser }}>
+    <UserContext.Provider value={{ user: user ?? null, loading, isLoggedIn, login, logout }}>
       {children}
     </UserContext.Provider>
   );
-};
+}

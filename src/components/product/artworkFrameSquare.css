@@ -1,0 +1,17 @@
+.artwork-frame-square {
+  cursor: pointer;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+  --lx: 50%;
+  --ly: 50%;
+}
+
+.artwork-frame-square:hover {
+  transform: perspective(1000px)
+    rotateX(calc((var(--ly) - 50) * 0.15deg))
+    rotateY(calc((var(--lx) - 50) * 0.15deg));
+}
+
+.artwork-frame-square.open {
+  transform: perspective(1000px) rotateX(0) rotateY(0);
+}

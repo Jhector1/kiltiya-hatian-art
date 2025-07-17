@@ -1,8 +1,15 @@
-// File: components/PrintCustomizer.tsx
-"use client";
-import React, { useMemo } from "react";
-import Image from "next/image";
-import { MaterialOption, FrameOption, CartSelectedItem, CartUpdates } from "@/types";
+'use client';
+
+import React, { useMemo } from 'react';
+// import { ArtworkFrameSquare } from '../ArtworkFrameSquare.'; // adjust path as needed
+import './artworkFrameSquare.css';                         // ensures the hover/tilt styles apply
+import {
+  MaterialOption,
+  FrameOption,
+  CartSelectedItem,
+  CartUpdates,
+} from '@/types';
+import { ArtworkFrameSquare } from './artworkFrameSquare';
 
 interface PrintCustomizerProps {
   basePrice: number;
@@ -14,9 +21,9 @@ interface PrintCustomizerProps {
   setFrameAction: (frame: FrameOption | null) => void;
   frame: FrameOption | null;
   material: MaterialOption;
+  setMaterialAction: (material: MaterialOption) => void;
   updateCart: (updates: CartUpdates) => void;
   inCart: CartSelectedItem | null;
-  setMaterialAction: (material: MaterialOption) => void;
 }
 
 export default function PrintCustomizer({
@@ -33,14 +40,20 @@ export default function PrintCustomizer({
   updateCart,
   inCart,
 }: PrintCustomizerProps) {
-  // const [material, setMaterial] = useState<MaterialOption>(materials[0]);
-  // const [frame, setFrame] = useState<FrameOption | null>(null);
-
+  // compute price
   const price = useMemo(() => {
-    const raw =
-      basePrice * formatMultiplier * sizeMultiplier * material.multiplier;
+    const raw = basePrice * formatMultiplier * sizeMultiplier * material.multiplier;
     return raw.toFixed(2);
   }, [basePrice, formatMultiplier, sizeMultiplier, material]);
+
+  // parse the user's chosen border string, e.g. "8px solid #111"
+  const [parsedFrameWidth, parsedFrameColor] = useMemo(() => {
+    if (!frame?.border) return [0, '#000'];
+    const parts = frame.border.split(' ');             // ["8px","solid","#111"]
+    const widthPx = parseInt(parts[0], 10) || 0;        // 8
+    const color   = parts[2] || '#000';                 // "#111"
+    return [widthPx, color];
+  }, [frame]);
 
   return (
     <div className="p-6 bg-white rounded-xl shadow-lg space-y-6">
@@ -53,8 +66,8 @@ export default function PrintCustomizer({
               key={m.label}
               className={`cursor-pointer p-2 border rounded-lg transition-shadow ${
                 material.label === m.label
-                  ? "shadow-md border-purple-600"
-                  : "border-gray-300"
+                  ? 'shadow-md border-purple-600'
+                  : 'border-gray-300'
               }`}
             >
               <input
@@ -65,15 +78,14 @@ export default function PrintCustomizer({
                 checked={material.label === m.label}
                 onChange={() => {
                   setMaterialAction(m);
-                  if (inCart) updateCart({'material':m.label});
+                  if (inCart) updateCart({ material: m.label });
                 }}
               />
               <div className="flex flex-col items-center gap-1">
                 <div className="w-16 h-16 relative">
-                  <Image
+                  <img
                     src={m.thumbnail}
                     alt={m.label}
-                    fill
                     className="object-cover rounded"
                   />
                 </div>
@@ -89,9 +101,12 @@ export default function PrintCustomizer({
         <h3 className="font-semibold mb-2">Frame:</h3>
         <div className="flex gap-4 items-center">
           <button
-            onClick={() => setFrameAction(null)}
+            onClick={() => {
+              setFrameAction(null);
+              if (inCart) updateCart({ frame: '' });
+            }}
             className={`px-3 py-1 rounded ${
-              frame === null ? "bg-purple-600 text-white" : "bg-gray-100"
+              frame === null ? 'bg-purple-600 text-white' : 'bg-gray-100'
             }`}
           >
             None
@@ -101,12 +116,12 @@ export default function PrintCustomizer({
               key={f.label}
               onClick={() => {
                 setFrameAction(f);
-                if (inCart) updateCart({'frame': f.label});
+                if (inCart) updateCart({ frame: f.label });
               }}
               className={`px-3 py-1 rounded ${
                 frame?.label === f.label
-                  ? "bg-purple-600 text-white"
-                  : "bg-gray-100"
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100'
               }`}
             >
               {f.label}
@@ -117,17 +132,44 @@ export default function PrintCustomizer({
 
       {/* Preview */}
       <div>
-        <h3 className="font-semibold mb-2">Preview:</h3>
-        <div
-          className="relative w-full h-64	bg-gray-50 overflow-hidden rounded-lg p-4"
-          style={frame ? { border: frame.border, padding: "1rem" } : undefined}
-        >
-          <Image
-            src={imageSrc}
-            alt="Artwork Preview"
-            fill
-            className="object-contain"
+                <h3 className="font-semibold mb-2">Preview:</h3>
+  <div
+    className={`
+      relative
+      w-full
+      p-10
+      cursor-zoom-in
+      overflow-hidden
+
+      /* center everything */
+      flex
+      items-center
+      justify-center
+
+      /* wall texture + light vignette */
+      ${parsedFrameColor !== '#000' && "bg-[url('/images/textures/concrete-wall.png')]"}
+      bg-cover
+      bg-center
+
+      before:content-['']
+      before:absolute before:inset-0
+      before:bg-white/30
+      before:mix-blend-overlay
+    `}
+  >
+<div className="inline-flex items-center justify-center bg-white">
+          <ArtworkFrameSquare
+            imageSrc={imageSrc}
+            width={400}
+            // height={400}
+            frameWidth={parsedFrameWidth}
+            frameColor={parsedFrameColor}
+            linerWidth={6}
+            linerColor="#D4AF37"
+            mattePadding={50}
+            matteColor="#fff"
           />
+        </div>
         </div>
       </div>
 

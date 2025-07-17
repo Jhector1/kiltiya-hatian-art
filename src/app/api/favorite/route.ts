@@ -1,91 +1,86 @@
+// File: src/app/api/favorite/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
-
-// GET all favorites for the user// src/app/api/favorite/route.ts
-// import { NextResponse, NextRequest } from "next/server";
-import {  productListSelect, ProductListItem } from "@/types";
+import { getServerSession }        from "next-auth/next";
+import { authOptions } from "../auth/[...nextauth]/route";
+import { PrismaClient }            from "@prisma/client";
+import { productListSelect, ProductListItem } from "@/types";
 
 export const runtime = "nodejs";
+const prisma = new PrismaClient();
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get("userId");
-  if (!userId) return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+/** Helper: ensure the user is signed in and return their ID or throw a 401 */
+async function requireUser() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new NextResponse(
+      JSON.stringify({ error: "Not authenticated" }),
+      { status: 401 }
+    );
+  }
+  return session.user.id;
+}
+
+// ─── GET /api/favorite ────────────────────────────────────────────────
+// Returns the list of products the signed-in user has favorited
+export async function GET() {
+  const userId = await requireUser();
 
   const favorites = await prisma.favorite.findMany({
     where: { userId },
     select: { product: { select: productListSelect } },
   });
 
-  // unwrap and return exactly the ProductListItem[] shape
-  const products: ProductListItem[] = favorites.map((f) => f.product);
+  const products: ProductListItem[] = favorites.map(f => f.product);
   return NextResponse.json(products);
 }
 
-// POST → Add to favorites
-export async function POST(request: NextRequest) {
-  const { userId, productId } = await request.json();
+// ─── POST /api/favorite ───────────────────────────────────────────────
+// Body: { productId: string }
+export async function POST(req: NextRequest) {
+  const userId    = await requireUser();
+  const { productId } = await req.json();
 
-  if (!userId || !productId) {
+  if (!productId) {
     return NextResponse.json(
-      { error: "Missing userId or productId" },
+      { error: "Missing productId" },
       { status: 400 }
     );
   }
 
-  try {
-    const existing = await prisma.favorite.findUnique({
-      where: {
-        userId_productId: { userId, productId },
-      },
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        { message: "Already favorited" },
-        { status: 200 }
-      );
-    }
-
-    const favorite = await prisma.favorite.create({
-      data: { userId, productId },
-    });
-
-    return NextResponse.json(favorite, { status: 201 });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
-}
-
-// DELETE → Remove from favorites
-export async function DELETE(request: NextRequest) {
-  const { userId, productId } = await request.json();
-
-  if (!userId || !productId) {
+  const exists = await prisma.favorite.findUnique({
+    where: { userId_productId: { userId, productId } },
+  });
+  if (exists) {
     return NextResponse.json(
-      { error: "Missing userId or productId" },
-      { status: 400 }
-    );
-  }
-
-  try {
-    await prisma.favorite.delete({
-      where: {
-        userId_productId: { userId, productId },
-      },
-    });
-
-    return NextResponse.json(
-      { message: "Removed from favorites" },
+      { message: "Already favorited" },
       { status: 200 }
     );
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-
-    return NextResponse.json({ error: message }, { status: 500 });
   }
+
+  const favorite = await prisma.favorite.create({
+    data: { userId, productId },
+  });
+  return NextResponse.json(favorite, { status: 201 });
+}
+
+// ─── DELETE /api/favorite ────────────────────────────────────────────
+// Body: { productId: string }
+export async function DELETE(req: NextRequest) {
+  const userId    = await requireUser();
+  const { productId } = await req.json();
+
+  if (!productId) {
+    return NextResponse.json(
+      { error: "Missing productId" },
+      { status: 400 }
+    );
+  }
+
+  await prisma.favorite.delete({
+    where: { userId_productId: { userId, productId } },
+  });
+  return NextResponse.json(
+    { message: "Removed from favorites" },
+    { status: 200 }
+  );
 }

@@ -1,3 +1,6 @@
+-- CreateEnum
+CREATE TYPE "VariantType" AS ENUM ('DIGITAL', 'PRINT');
+
 -- CreateTable
 CREATE TABLE "Product" (
     "id" TEXT NOT NULL,
@@ -34,6 +37,19 @@ CREATE TABLE "Category" (
 );
 
 -- CreateTable
+CREATE TABLE "ProductVariant" (
+    "id" TEXT NOT NULL,
+    "productId" TEXT NOT NULL,
+    "type" "VariantType" NOT NULL,
+    "format" TEXT NOT NULL,
+    "size" TEXT,
+    "material" TEXT,
+    "frame" TEXT,
+
+    CONSTRAINT "ProductVariant_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Cart" (
     "id" TEXT NOT NULL,
     "userId" TEXT,
@@ -48,7 +64,8 @@ CREATE TABLE "CartItem" (
     "id" TEXT NOT NULL,
     "cartId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
-    "type" TEXT NOT NULL,
+    "digitalVariantId" TEXT,
+    "printVariantId" TEXT,
     "price" DOUBLE PRECISION NOT NULL,
     "quantity" INTEGER NOT NULL DEFAULT 1,
     "addedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -87,6 +104,7 @@ CREATE TABLE "Order" (
     "placedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "shippingId" TEXT,
+    "stripeSessionId" TEXT,
 
     CONSTRAINT "Order_pkey" PRIMARY KEY ("id")
 );
@@ -96,7 +114,9 @@ CREATE TABLE "OrderItem" (
     "id" TEXT NOT NULL,
     "orderId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
-    "type" TEXT NOT NULL,
+    "digitalVariantId" TEXT,
+    "printVariantId" TEXT,
+    "type" "VariantType" NOT NULL,
     "price" DOUBLE PRECISION NOT NULL,
     "quantity" INTEGER NOT NULL DEFAULT 1,
 
@@ -151,6 +171,9 @@ CREATE UNIQUE INDEX "Favorite_userId_productId_key" ON "Favorite"("userId", "pro
 CREATE INDEX "Review_productId_idx" ON "Review"("productId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Order_stripeSessionId_key" ON "Order"("stripeSessionId");
+
+-- CreateIndex
 CREATE INDEX "OrderItem_orderId_idx" ON "OrderItem"("orderId");
 
 -- CreateIndex
@@ -160,6 +183,9 @@ CREATE UNIQUE INDEX "Payment_orderId_key" ON "Payment"("orderId");
 ALTER TABLE "Product" ADD CONSTRAINT "Product_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "ProductVariant" ADD CONSTRAINT "ProductVariant_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Cart" ADD CONSTRAINT "Cart_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -167,6 +193,12 @@ ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_cartId_fkey" FOREIGN KEY ("cartI
 
 -- AddForeignKey
 ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_digitalVariantId_fkey" FOREIGN KEY ("digitalVariantId") REFERENCES "ProductVariant"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_printVariantId_fkey" FOREIGN KEY ("printVariantId") REFERENCES "ProductVariant"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Favorite" ADD CONSTRAINT "Favorite_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -191,6 +223,12 @@ ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_orderId_fkey" FOREIGN KEY ("or
 
 -- AddForeignKey
 ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_digitalVariantId_fkey" FOREIGN KEY ("digitalVariantId") REFERENCES "ProductVariant"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_printVariantId_fkey" FOREIGN KEY ("printVariantId") REFERENCES "ProductVariant"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Address" ADD CONSTRAINT "Address_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

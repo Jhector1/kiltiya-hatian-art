@@ -1,70 +1,55 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
-import { PrismaClient } from '@prisma/client';
+// File: src/app/api/user/downloads/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession }         from "next-auth/next";
+import { PrismaClient }             from "@prisma/client";
+import { authOptions } from "../../auth/[...nextauth]/route";
 
 const prisma = new PrismaClient();
 
 export async function GET(req: NextRequest) {
-  const sessionId = req.nextUrl.searchParams.get('session_id');
+  // 1️⃣ Authenticate via NextAuth session cookie
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json(
+      { error: "Not authenticated" },
+      { status: 401 }
+    );
+  }
 
+  // 2️⃣ Read the session_id param
+  const url       = new URL(req.url);
+  const sessionId = url.searchParams.get("session_id");
   if (!sessionId) {
-    return NextResponse.json({ error: 'Missing session_id' }, { status: 400 });
+    return NextResponse.json({ digitalDownloads: [] });
   }
 
-  try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-    const customerId = session.metadata?.customerId;
-
-    if (!customerId) {
-      return NextResponse.json({ error: 'Missing customer metadata' }, { status: 400 });
-    }
-
-    // Get the most recent order by user
-    const order = await prisma.order.findFirst({
-      where: { userId: customerId },
-      orderBy: { placedAt: 'desc' },
-      include: {
-        items: {
-          where: { type: 'DIGITAL' },
-          include: {
-            product: true,
-          },
-        },
+  // 3️⃣ Fetch the specific order by stripeSessionId
+  const order = await prisma.order.findUnique({
+    where: { stripeSessionId: sessionId },
+    include: {
+      items: {
+        where: { type: "DIGITAL" },
+        include: { product: true },
       },
-    });
-
-    if (!order) {
-      return NextResponse.json({ digitalDownloads: [] }, { status: 200 });
-    }
-
-const digitalDownloads = order.items.flatMap((item) => {
-  const product = item.product;
-  if (!product || !product.formats) return [];
-
-  return product.formats.map((url) => {
-    const extension = url.split(".").pop() || "jpg";
-    // const filename = product.title.replace(/\s+/g, "_").toLowerCase();
-
-    return {
-      id: `${item.id}-${extension}`,
-      title: product.title,
-      format: extension,
-      downloadUrl: url,
-    };
+    },
   });
-});
 
-
-    return NextResponse.json({ digitalDownloads });
-} catch (error: unknown) {
-  // start with a default
-  let message = "Unexpected error";
-
-  // narrow to Error and read .message safely
-  if (error instanceof Error) {
-    message = error.message;
+  if (!order) {
+    return NextResponse.json({ digitalDownloads: [] });
   }
-    console.error('❌ Failed to fetch checkout success data:', message);
-    return NextResponse.json({ error: 'Failed to fetch purchased digital items.' }, { status: 500 });
-  }
+
+  // 4️⃣ Map each digital item’s formats into download entries
+  const digitalDownloads = order.items.flatMap(item =>
+    item.product?.formats.map(url => {
+      const ext = url.split(".").pop()!;
+      return {
+        id:          `${item.id}-${ext}`,
+        title:       item.product?.title,
+        format:      ext,
+        downloadUrl: url,
+      };
+    })
+  );
+
+  return NextResponse.json({ digitalDownloads });
 }

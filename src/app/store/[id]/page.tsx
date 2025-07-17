@@ -27,6 +27,7 @@ import {
 } from "@/types";
 import { useMemo } from "react";
 import { loadStripe } from "@stripe/stripe-js";
+import { AnimatePresence, motion } from "framer-motion";
 
 export default function ProductDetail() {
   const { id } = useParams()!;
@@ -221,7 +222,7 @@ export default function ProductDetail() {
   const uniqueFormats = formats.filter(
     (f) => !seen.has(f.type) && seen.add(f.type)
   );
-
+  // alert(JSON.stringify(formats))
   const inCart = cart.find((item) => item.productListItem.id === product.id);
   const loading = loadingAdd;
 
@@ -260,22 +261,27 @@ export default function ProductDetail() {
       </UniversalModal>
 
       <SEO title={product.title} description={product.description} />
-      <div className="max-w-5xl mx-auto px-6 py-10 grid md:grid-cols-3 gap-8">
-        <div>
-          <ProductImagePreviews
-            scenarios={product.thumbnails}
-            onSelectAction={setPreview}
-            selected={preview}
-          />
-        </div>
-
-        <div className="md:col-span-2 space-y-6">
-          <div className="flex justify-between">
-            <h1 className="text-3xl font-bold">{product.title}</h1>
-            <LikeButton liked={liked} onToggle={() => setLiked(!liked)} />
+      <div className="flex lg:flex-row flex-col w-full  lg:justify-around items-center mt-20 gap-20">
+        <div className="flex gap-5 lg:sticky top-10 lg:h-screen lg:justify-between center">
+          <div className="">
+            <ProductImagePreviews
+              scenarios={product.thumbnails}
+              onSelectAction={setPreview}
+              selected={preview}
+            />
           </div>
+          <div className="w-[40vw] lg:h-screen">
+            {/* <div className="md:col-span-2 space-y-6"> */}
+            {/* <div className="flex w-[50vw] h-screen"> */}
+              {/* <h1 className="text-3xl font-bold">{product.title}</h1> */}
+              {/* <LikeButton liked={liked} onToggle={() => setLiked(!liked)} /> */}
 
-          <ProductImage src={preview.src} alt={preview.alt} />
+              <ProductImage src={preview.src} alt={preview.alt} />
+            {/* </div> */}
+          </div>
+        </div>
+        <div className="flex flex-col gap-5">
+           <h1 className="text-3xl font-bold">{product.title}</h1>
           <h3 className="font-bold">Description:</h3>
           <p className="pb-10">{product.description}</p>
 
@@ -286,36 +292,13 @@ export default function ProductDetail() {
             inCart={inCart || null}
             updateCart={(updates: CartUpdates) =>
               updateCart({
-                userId: user?.id || "",
+                // userId: user?.id || "",
                 productId: product.id,
                 printVariantId: options.printVariantId,
                 updates,
               })
             }
           />
-
-          {options.print && (
-            <SizeSelector
-              options={optionSizes}
-              selected={size}
-              isCustom={isCustom}
-              customSize={customSize}
-              onSizeChange={(s, custom) => {
-                setSize(s);
-                setIsCustom(s.label === "Custom");
-                if (custom) setCustomSize(custom);
-              }}
-              inCart={inCart!}
-              updateCart={(updates) =>
-                updateCart({
-                  userId: user?.id || "",
-                  productId: product.id,
-                  printVariantId: options.printVariantId,
-                  updates,
-                })
-              }
-            />
-          )}
 
           <PurchaseOptions
             digitalPrice={calculatePrice("Digital")}
@@ -325,7 +308,7 @@ export default function ProductDetail() {
             inCart={inCart || null}
             updateCart={(updates) =>
               updateCart({
-                userId: user?.id || "",
+                // userId: user?.id || "",
                 productId: product.id,
                 printVariantId: "ADD",
                 updates,
@@ -334,37 +317,71 @@ export default function ProductDetail() {
             updateCart2={(updates) => {
               // alert(options.digitalVariantId)
               updateCart({
-                userId: user?.id || "",
+                // userId: user?.id || "",
                 productId: product.id,
                 digitalVariantId: "ADD",
                 updates,
               });
             }}
           />
+          <AnimatePresence initial={false}>
+            {options.print && (
+              <motion.div
+                key="print-settings"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 1.0, ease: "easeInOut" }}
+                style={{ overflow: "hidden" }}
+              >
+                <SizeSelector
+                  options={optionSizes}
+                  selected={size}
+                  isCustom={isCustom}
+                  customSize={customSize}
+                  onSizeChange={(s, custom) => {
+                    setSize(s);
+                    setIsCustom(s.label === "Custom");
+                    if (custom) setCustomSize(custom);
+                  }}
+                  inCart={inCart!}
+                  updateCart={(updates) =>
+                    updateCart({
+                      // userId: user?.id || "",
+                      productId: product.id,
+                      printVariantId: options.printVariantId,
+                      updates,
+                    })
+                  }
+                />
+                <br/>
+            
 
-          {options.print && (
-            <PrintCustomizer
-              basePrice={product.price}
-              formatMultiplier={1}
-              sizeMultiplier={size.multiplier}
-              imageSrc={product.imageUrl}
-              setFrameAction={setFrame}
-              frame={frame || null}
-              setMaterialAction={setMaterial}
-              material={material}
-              materials={materials}
-              frames={frames}
-              inCart={inCart || null}
-              updateCart={(updates) =>
-                updateCart({
-                  userId: user?.id || "",
-                  productId: product.id,
-                  printVariantId: options.printVariantId,
-                  updates,
-                })
-              }
-            />
-          )}
+
+                <PrintCustomizer
+                  basePrice={product.price}
+                  formatMultiplier={1}
+                  sizeMultiplier={size.multiplier}
+                  imageSrc={product.imageUrl}
+                  setFrameAction={setFrame}
+                  frame={frame || null}
+                  setMaterialAction={setMaterial}
+                  material={material}
+                  materials={materials}
+                  frames={frames}
+                  inCart={inCart || null}
+                  updateCart={(updates) =>
+                    updateCart({
+                      // userId: user?.id || "",
+                      productId: product.id,
+                      printVariantId: options.printVariantId,
+                      updates,
+                    })
+                  }
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <CartActions
             inCart={inCart || null}

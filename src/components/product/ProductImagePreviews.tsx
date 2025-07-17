@@ -15,7 +15,7 @@ export default function ProductImagePreviews({
   onSelectAction,
 }: PreviewProps) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="flex flex-col gap-4">
       {scenarios.map((s, idx) => {
         // Try to parse s as a URL. If it fails, fall back to a placeholder.
         const validSrc = (() => {
@@ -31,7 +31,7 @@ export default function ProductImagePreviews({
           <button
             key={idx}
             onClick={() => onSelectAction({ src: validSrc, alt: `Preview ${idx + 1}` })}
-            className={`relative w-full h-24 rounded-lg overflow-hidden border ${
+            className={`relative w-15 h-15 rounded-lg overflow-hidden border ${
               selected.src === validSrc ? 'ring-2 ring-purple-500' : 'ring-1 ring-gray-300'
             }`}
           >

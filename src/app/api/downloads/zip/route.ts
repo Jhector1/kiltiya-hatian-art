@@ -44,8 +44,8 @@ export async function GET(req: Request) {
   // 2️⃣  Build a list of { url, name } from that single order
   // ————————————————
   const files = order.items.flatMap((item) => {
-    const safeTitle = item.product.title.replace(/\W+/g, "_");
-    return item.product.formats.map((fmt) => {
+    const safeTitle = item.product?.title.replace(/\W+/g, "_");
+    return item.product?.formats.map((fmt) => {
       const ext = fmt.split(".").pop()!;
       return { url: fmt, name: `${safeTitle}.${ext}` };
     });
@@ -65,7 +65,7 @@ export async function GET(req: Request) {
     new Set(
       files
         .map((f) => {
-          const m = f.url.match(/\/upload\/(?:v\d+\/)?(.+)\.[^/]+$/i);
+          const m = f?.url.match(/\/upload\/(?:v\d+\/)?(.+)\.[^/]+$/i);
           return m ? decodeURIComponent(m[1]) : null;
         })
         .filter((id): id is string => Boolean(id))
@@ -97,3 +97,6 @@ export async function GET(req: Request) {
     );
   }
 }
+
+
+

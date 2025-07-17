@@ -45,6 +45,11 @@ model User {
   orders    Order[]
   addresses Address[]
   reviews   Review[]
+/// Optional URL (or storage key) for the user’s avatar image
+avatarUrl    String?   @db.VarChar(255)
+
+ /// Running total of how many times this user has downloaded a purchased image
+ downloadCount Int      @default(0)
 }
 
 /// Categorization
@@ -56,17 +61,20 @@ model Category {
 
 /// Pre-defined product variants
 model ProductVariant {
-  id        String  @id @default(cuid())
-  product   Product @relation(fields: [productId], references: [id])
-  productId String
-  type     VariantType
-  format   String
-  size     String?
-  material String?
-  frame    String?
+  id                  String      @id @default(cuid())
+  product             Product     @relation(fields: [productId], references: [id])
+  productId           String
+  type                VariantType
+  format              String
+  size                String?
+  material            String?
+  frame               String?
   // back‐relations for the two named relations
-  CartItemsAsDigital CartItem[] @relation("CartItemDigital")
-  CartItemsAsPrint   CartItem[] @relation("CartItemPrint")
+  CartItemsAsDigital  CartItem[]  @relation("CartItemDigital")
+  CartItemsAsPrint    CartItem[]  @relation("CartItemPrint")
+  // ← add these two:
+  OrderItemsAsDigital OrderItem[] @relation("OrderItemDigital")
+  OrderItemsAsPrint   OrderItem[] @relation("OrderItemPrint")
 }
 
 /// Shopping Cart
@@ -137,30 +145,41 @@ model Review {
 
 /// Orders & Payments
 model Order {
-  id         String      @id @default(cuid())
-  user       User        @relation(fields: [userId], references: [id])
-  userId     String
-  items      OrderItem[]
-  total      Float
-  status     String      @default("PENDING")
-  placedAt   DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  payment    Payment?
-  shipping   Address?    @relation("Order_shipping", fields: [shippingId], references: [id])
-  shippingId String?
+  id              String      @id @default(cuid())
+  user            User        @relation(fields: [userId], references: [id])
+  userId          String
+  items           OrderItem[]
+  total           Float
+  status          String      @default("PENDING")
+  placedAt        DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  payment         Payment?
+  shipping        Address?    @relation("Order_shipping", fields: [shippingId], references: [id])
+  shippingId      String?
   // store the Stripe Checkout Session ID so we can look up this order by session
-stripeSessionId String?   @unique
+  stripeSessionId String?     @unique
 }
 
 model OrderItem {
-  id        String   @id @default(cuid())
-  order     Order    @relation(fields: [orderId], references: [id])
-  orderId   String
+  id      String @id @default(cuid())
+  order   Order  @relation(fields: [orderId], references: [id])
+  orderId String
+
   product   Product? @relation(fields: [productId], references: [id])
   productId String
-  type      String
-  price     Float
-  quantity  Int      @default(1)
+
+  // now point at the chosen variant(s):
+  digitalVariantId String?
+  digitalVariant   ProductVariant? @relation("OrderItemDigital", fields: [digitalVariantId], references: [id])
+
+  printVariantId String?
+  printVariant   ProductVariant? @relation("OrderItemPrint", fields: [printVariantId], references: [id])
+
+  // use the VariantType enum instead of raw string:
+  type VariantType
+
+  price    Float
+  quantity Int   @default(1)
 
   @@index([orderId])
 }

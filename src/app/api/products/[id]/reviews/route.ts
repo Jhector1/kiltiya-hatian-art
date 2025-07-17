@@ -1,37 +1,52 @@
+// File: src/app/api/products/[id]/reviews/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { ProductReview } from "@/types";
+import { getServerSession }        from "next-auth/next";
+import { authOptions } from "../../../auth/[...nextauth]/route";
+import { PrismaClient }            from "@prisma/client";
+import { ProductReview }           from "@/types";
 
 const prisma = new PrismaClient();
+
+// ─── Helper: require a valid session and return userId ────────────────
+async function requireUser() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new NextResponse(
+      JSON.stringify({ error: "Not authenticated" }),
+      { status: 401 }
+    );
+  }
+  return session.user.id;
+}
+
+// ─── GET /api/products/[id]/reviews ───────────────────────────────────
+// Public: fetch reviews for a given product
 export async function GET(
   req: NextRequest,
- { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  // ✅ Await the promise, then pull out `id`
-  const { id: productId } = await params;
-
-  // this returns RawReview[]
+  const productId = params.id;
   const reviews: ProductReview[] = await prisma.review.findMany({
     where: { productId },
     include: { user: true },
     orderBy: { createdAt: "desc" },
   });
-
   return NextResponse.json(reviews);
 }
 
+// ─── POST /api/products/[id]/reviews ──────────────────────────────────
+// Authenticated: add a review for the signed-in user
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const productId = params.id; // ← Use `id` instead of `productId`
+  const userId    = await requireUser();
+  const productId = params.id;
+  const { rating, text } = await req.json();
 
-  const body = await req.json();
-  const { userId, rating, text } = body;
-
-  if (!productId || !userId || typeof rating !== "number" || !text) {
+  if (typeof rating !== "number" || !text) {
     return NextResponse.json(
-      { error: "Missing required fields" },
+      { error: "Missing rating or comment text" },
       { status: 400 }
     );
   }
@@ -43,58 +58,45 @@ export async function POST(
       rating,
       comment: text,
     },
-    include: {
-      user: true,
-    },
+    include: { user: true },
   });
 
   return NextResponse.json({
-    id: newReview.id,
+    id:     newReview.id,
     userId: newReview.userId,
-    user: newReview.user.name ?? newReview.user.email,
+    user:   newReview.user.name ?? newReview.user.email,
     rating: newReview.rating,
-    text: newReview.comment ?? "",
-    date: newReview.createdAt.toISOString().split("T")[0],
+    text:   newReview.comment ?? "",
+    date:   newReview.createdAt.toISOString().split("T")[0],
   });
 }
 
+// ─── DELETE /api/products/[id]/reviews ────────────────────────────────
+// Authenticated: delete the signed-in user’s own review
 export async function DELETE(
   req: NextRequest
-  //   { params }: { params: { id: string } }
 ) {
-  try {
-    const body = await req.json();
-    const { reviewId, userId } = body;
+  const userId = await requireUser();
+  const { reviewId } = await req.json();
 
-    if (!reviewId || !userId) {
-      return NextResponse.json(
-        { error: "Missing reviewId or userId" },
-        { status: 400 }
-      );
-    }
-
-    // First ensure the review exists and belongs to the user
-    const review = await prisma.review.findUnique({
-      where: { id: reviewId },
-    });
-
-    if (!review || review.userId !== userId) {
-      return NextResponse.json(
-        { error: "Unauthorized or review not found" },
-        { status: 403 }
-      );
-    }
-
-    await prisma.review.delete({
-      where: { id: reviewId },
-    });
-
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("DELETE /reviews error:", err);
+  if (!reviewId) {
     return NextResponse.json(
-      { error: "Failed to delete review" },
-      { status: 500 }
+      { error: "Missing reviewId" },
+      { status: 400 }
     );
   }
+
+  // Ensure review belongs to this user
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+  });
+  if (!review || review.userId !== userId) {
+    return NextResponse.json(
+      { error: "Unauthorized or review not found" },
+      { status: 403 }
+    );
+  }
+
+  await prisma.review.delete({ where: { id: reviewId } });
+  return NextResponse.json({ success: true });
 }

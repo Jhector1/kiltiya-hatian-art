@@ -85,35 +85,36 @@ function MobileNav({ open }: { open: boolean }) {
   );
 }
 
+import { signOut } from "next-auth/react";          // ← import this
+
+
+// ...IconAction, DesktopNav, MobileNav as before...
+
 export default function Header() {
   const { user, loading, isLoggedIn } = useUser();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { cart } = useCart();
-  const {favorites} = useFavorites();
+  const { favorites } = useFavorites();
   const [isModalOpen, setModalOpen] = useState(false);
 
-  // Placeholder counts (replace with real data/context)
   const likeCount = favorites.size;
   const cartCount = cart.length;
 
-  if (loading) return null; // or spinner
-console.log("Cart:", cart);
-console.log("Favorites:", favorites);
-console.log("user:", user);
+  if (loading) return null;
+
   return (
     <header className="bg-white shadow sticky top-0 z-50">
       <UniversalModal isOpen={isModalOpen} onClose={() => setModalOpen(false)}>
-        <AuthenticationForm  closeModalAction={()=>setModalOpen(false)}/>
+        <AuthenticationForm closeModalAction={() => setModalOpen(false)} />
       </UniversalModal>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-        {/* Logo */}
         <Link href="/" className="text-2xl font-bold text-gray-800">
-          Haitian Art
+          <span>Zile</span><span>Digital</span>
         </Link>
 
         <DesktopNav />
 
-        {/* Icons and Profile */}
         <div className="flex items-center space-x-4">
           <IconAction
             href="/favorites"
@@ -138,22 +139,18 @@ console.log("user:", user);
                 { label: "Dashboard", href: "/profile" },
                 { label: "Settings", href: "/settings" },
                 { label: "Earnings", href: "/earnings" },
+                // add a logout entry here:
+                // { label: "Sign Out", href: "#" },
               ]}
               onSignOut={() => {
-                localStorage.removeItem("token");
-                window.location.href = "/login";
+                // ← replace localStorage hack with NextAuth signOut
+                signOut({ callbackUrl: "/" });
               }}
             />
           ) : (
             <button
-              // href="/login"
               className="text-gray-600 hover:text-gray-800"
-              onClick={() => {
-                if (!isLoggedIn) {
-                  setModalOpen(true);
-                  return;
-                }
-              }}
+              onClick={() => setModalOpen(true)}
             >
               <UserCircleIcon className="h-7 w-7" />
             </button>
