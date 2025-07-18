@@ -13,13 +13,16 @@ import { signIn } from "next-auth/react";
 // import { useCart } from "@/contexts/CartContext";
 // import { useFavorites } from "@/contexts/FavoriteContext";
 
-interface AuthenticationFormProps {
-  closeModalAction: () => void;
-}
+// interface AuthenticationFormProps {
+//   closeModalAction: () => void;
+// }
 
-export default function AuthenticationForm({
-  // closeModalAction,
-}: AuthenticationFormProps) {
+export default function AuthenticationForm(
+//   {
+//   // closeModalAction,
+// }: AuthenticationFormProps
+
+) {
   // const { setUser } = useUser();
   // const { refreshCart } = useCart();
   // const { refreshFavorites } = useFavorites();

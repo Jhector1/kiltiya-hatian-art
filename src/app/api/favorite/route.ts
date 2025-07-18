@@ -1,9 +1,9 @@
 // File: src/app/api/favorite/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession }        from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
 import { PrismaClient }            from "@prisma/client";
 import { productListSelect, ProductListItem } from "@/types";
+import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
 const prisma = new PrismaClient();
@@ -31,7 +31,11 @@ export async function GET() {
   });
 
   const products: ProductListItem[] = favorites.map(f => f.product);
-  return NextResponse.json(products);
+   const payload = products.map(p => ({
+    ...p,
+    purchaseCount: 0,
+  }));
+  return NextResponse.json(payload);
 }
 
 // ─── POST /api/favorite ───────────────────────────────────────────────

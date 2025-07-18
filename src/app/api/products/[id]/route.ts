@@ -1,8 +1,8 @@
 // File: src/app/api/products/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession }        from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]/route";
 import { PrismaClient }            from "@prisma/client";
+import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
 const db = new PrismaClient();

@@ -17,7 +17,7 @@ export default function Home() {
   return (
     <>
       <SEO title="Haitian Digital Art Gallery" description="Buy and explore uniquely crafted Haitian vector artworks." />
-      <Gallery products={products} showBuyButton={false} />
+      <Gallery products={products}  />
     </>
   );
 }

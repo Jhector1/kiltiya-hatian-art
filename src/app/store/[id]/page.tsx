@@ -257,7 +257,8 @@ export default function ProductDetail() {
   return (
     <>
       <UniversalModal isOpen={isModalOpen} onClose={() => setModalOpen(false)}>
-        <AuthenticationForm closeModalAction={() => setModalOpen(false)} />
+        <AuthenticationForm/>
+         {/* closeModalAction={() => setModalOpen(false)} /> */}
       </UniversalModal>
 
       <SEO title={product.title} description={product.description} />

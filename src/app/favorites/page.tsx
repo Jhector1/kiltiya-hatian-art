@@ -52,8 +52,8 @@ export default function FavoritePage() {
           products={favoriteProducts}
           
           showLikeButton
-          showViewSizeControls
-          showCommentButton={false}
+          // showViewSizeControls
+          // showCommentButton={false}
           onLikeToggle={handleLikeToggle}
         />
       </div>

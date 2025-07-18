@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { User } from '@prisma/client';
 
-export default function ProfileInfo({ user }: { user: User }) {
+export default function ProfileInfo({ user }: { user: Partial<User> }) {
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({
     name: user.name,

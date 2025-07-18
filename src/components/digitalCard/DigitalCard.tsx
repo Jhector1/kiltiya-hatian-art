@@ -6,9 +6,11 @@ import OccasionSelector from "./OccasionSelector";
 import TextCustomizer from "./TextCustomizer";
 import ColorPicker from "./ColorPicker";
 import ImageUploader from "./ImageUploader";
-import CardCanvas from "./CardCanvas";
+// const CardCanvas = dynamic(() => import("./CardCanvas"), { ssr: false });
 import html2canvas from "html2canvas";
 import RealisticGreetingCard  from "./FoldingCard";
+// import dynamic from "next/dynamic";
+// const CardCanvas = dynamic(() => import("./CardCanvas"), { ssr: false });
 
 export default function DigitalCard() {
   const [occasion, setOccasion] = useState("Birthday");
@@ -50,7 +52,7 @@ export default function DigitalCard() {
         <ColorPicker color={color} onChange={setColor} />
         <ImageUploader onUpload={handleImageUpload} />
       </div>
-
+{/* 
       <CardCanvas
         id="card-preview"
         occasion={occasion}
@@ -58,7 +60,7 @@ export default function DigitalCard() {
         font={font}
         color={color}
         imageURL={imageURL}
-      />
+      /> */}
 
       <button
         onClick={exportCard}
@@ -80,8 +82,8 @@ export default function DigitalCard() {
 /> */}
 
 <RealisticGreetingCard
-  frontImageURL="/images/card-front.png"
-  insideImageURL="/images/card-inside.png"
+  // frontImageURL="/images/card-front.png"
+  // insideImageURL="/images/card-inside.png"
   width={500}
   height={300}
 />

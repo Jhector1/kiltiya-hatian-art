@@ -1,30 +1,20 @@
 // File: components/Gallery.tsx
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import Image from 'next/image';
-import { motion } from 'framer-motion';
-import {
-  HeartIcon as HeartSolid,
-} from '@heroicons/react/24/solid';
-import { HeartIcon as HeartOutline } from '@heroicons/react/24/outline';
-import { useRouter } from 'next/navigation';
-import UniversalModal from '../modal/UniversalModal';
-import AuthenticationForm from '../authenticate/AuthenticationFom';
-import { useFavorites } from '@/contexts/FavoriteContext';
-import { useUser } from '@/contexts/UserContext';
-import type { ProductListItem } from '@/types';
+import React, { useState } from "react";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import { HeartIcon as HeartSolid } from "@heroicons/react/24/solid";
+import { HeartIcon as HeartOutline } from "@heroicons/react/24/outline";
+import { useRouter } from "next/navigation";
+import UniversalModal from "../modal/UniversalModal";
+import AuthenticationForm from "../authenticate/AuthenticationFom";
+import { useFavorites } from "@/contexts/FavoriteContext";
+import { useUser } from "@/contexts/UserContext";
+import type { ProductListAndOrderCount, ProductListItem } from "@/types";
 
 interface GalleryProps {
-  products: Array<
-    ProductListItem & {
-      purchaseCount: number;
-      artistName: string;
-      dimensions: string;
-      originalPrice?: number;
-      description: string;
-    }
-  >;
+  products: Array<ProductListAndOrderCount> | ProductListItem[];
   showLikeButton?: boolean;
   onLikeToggle?: (id: string, liked: boolean) => void;
 }
@@ -53,7 +43,8 @@ export default function Gallery({
   return (
     <>
       <UniversalModal isOpen={modalOpen} onClose={() => setModalOpen(false)}>
-        <AuthenticationForm closeModalAction={() => setModalOpen(false)} />
+        <AuthenticationForm />
+        {/* // closeModalAction={() => setModalOpen(false)} /> */}
       </UniversalModal>
 
       <motion.div
@@ -93,11 +84,11 @@ export default function Gallery({
               {/* Image container */}
               <div
                 className="w-full relative bg-grbay-100 p-4 overflow-hidden cursor-pointer"
-                style={{ paddingBottom: '75%' }}
+                style={{ paddingBottom: "75%" }}
                 onClick={() => router.push(`/store/${p.id}`)}
               >
                 <Image
-                  src={p.thumbnails[0] || '/placeholder.png'}
+                  src={p.thumbnails[0] || "/placeholder.png"}
                   alt={p.title}
                   fill
                   className="object-contain transition-transform duration-300 group-hover:scale-105"
@@ -112,35 +103,47 @@ export default function Gallery({
               </div>
 
               {/* Metadata */}
-              <div className="mt-6 space-ny-2 text-left">
-                <p className="text-xs text-gray-500">{p.artistName}</p>
-                <h3
-                  onClick={() => router.push(`/store/${p.id}`)}
-                  className="text-base font-semibold text-gray-900 hover:underline cursor-pointer"
-                >
-                  {p.title}
-                </h3>
-                {/* <p className="text-sm text-gray-600">{p.description}</p> */}
-                <p className="text-xs text-gray-500">{p.dimensions}</p>
-                <p className="text-sm font-bold text-gray-900">
-                  {p.originalPrice ? (
-                    <>
-                      <span className="line-through text-gray-400">
-                        ${p.originalPrice.toFixed(2)}
-                      </span>{' '}
-                      <span>${p.price.toFixed(2)}</span>{' '}
-                      <span className="text-red-600">
-                        -{Math.round((1 - p.price / p.originalPrice) * 100)}%
-                      </span>
-                    </>
-                  ) : (
-                    <>${p.price.toFixed(2)}</>
-                  )}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Purchased: {p.purchaseCount}
-                </p>
-              </div>
+
+         {/* Always show title, price, etc. */}
+<div className="mt-6 space-y-2 text-left">
+  <h3
+    onClick={() => router.push(`/store/${p.id}`)}
+    className="text-base font-semibold text-gray-900 hover:underline cursor-pointer"
+  >
+    {p.title}
+  </h3>
+
+  {/* Optional: show dimensions if present */}
+  {"dimensions" in p && <p className="text-xs text-gray-500">{p.dimensions}</p>}
+
+  {/* Price (with optional discount) */}
+  <p className="text-sm font-bold text-gray-900">
+    {"originalPrice" in p && p.originalPrice ? (
+      <>
+        <span className="line-through text-gray-400">
+          ${p.originalPrice.toFixed(2)}
+        </span>{' '}
+        <span>${p.price.toFixed(2)}</span>{' '}
+        <span className="text-red-600">
+          -{Math.round((1 - p.price / p.originalPrice) * 100)}%
+        </span>
+      </>
+    ) : (
+      <>${p.price.toFixed(2)}</>
+    )}
+  </p>
+
+  {/* Optional artist name */}
+  {"artistName" in p && <p className="text-xs text-gray-500">{p.artistName}</p>}
+
+  {/* Optional purchase count */}
+  {"purchaseCount" in p && (
+    <p className="text-xs text-gray-500">
+      Purchased: {p.purchaseCount}
+    </p>
+  )}
+</div>
+
             </motion.div>
           );
         })}

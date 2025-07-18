@@ -1,10 +1,10 @@
 // File: src/app/api/cart/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession }         from "next-auth/next";
-import { authOptions }              from "@/app/api/auth/[...nextauth]/route";
 import { PrismaClient }             from "@prisma/client";
 import { v2 as cloudinary }         from "cloudinary";
 import { CartSelectedItem, productListSelect } from "@/types";
+import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
 const prisma = new PrismaClient();

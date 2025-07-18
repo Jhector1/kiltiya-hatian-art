@@ -113,7 +113,8 @@ export default function Header() {
   return (
     <header className="bg-white shadow sticky top-0 z-50">
       <UniversalModal isOpen={isModalOpen} onClose={() => setModalOpen(false)}>
-        <AuthenticationForm closeModalAction={() => setModalOpen(false)} />
+        <AuthenticationForm />
+        {/* closeModalAction={() => setModalOpen(false)} /> */}
       </UniversalModal>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">

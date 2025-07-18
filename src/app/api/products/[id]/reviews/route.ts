@@ -1,8 +1,8 @@
 // File: src/app/api/products/[id]/reviews/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession }        from "next-auth/next";
-import { authOptions } from "../../../auth/[...nextauth]/route";
 import { PrismaClient }            from "@prisma/client";
+import { authOptions } from "@/lib/auth";
 // import { ProductReview }           from "@/types";
 
 const prisma = new PrismaClient();
@@ -21,29 +21,37 @@ async function requireUser() {
 
 // ─── GET /api/products/[id]/reviews ───────────────────────────────────
 // Public: fetch reviews for a given product
-export async function GET(
-  request: NextRequest,                                     // ← 1st arg: the request
-  { params }: { params: Promise<{ id: string }> }           // ← 2nd arg: destructure the async params
-) {
-  // Now `params` really is a Promise<{id}>; await it:
-  const { id: productId } = await params;
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const productId = url.pathname.split("/").at(-2); // or -1 if your route is deeper
+
+  if (!productId) {
+    return NextResponse.json({ error: "Missing product ID" }, { status: 400 });
+  }
 
   const reviews = await prisma.review.findMany({
     where: { productId },
     include: { user: true },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: "desc" },
   });
 
   return NextResponse.json(reviews);
 }
+
+
 // ─── POST /api/products/[id]/reviews ──────────────────────────────────
-// Authenticated: add a review for the signed-in user
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const userId    = await requireUser();
-  const productId = params.id;
+// Authenticated: add a review for the signed-in userexport 
+
+
+export async function POST(req: NextRequest) {
+  const url = new URL(req.url);
+  const productId = url.pathname.split("/").at(-2);
+
+  if (!productId) {
+    return NextResponse.json({ error: "Missing product ID in URL" }, { status: 400 });
+  }
+
+  const userId = await requireUser();
   const { rating, text } = await req.json();
 
   if (typeof rating !== "number" || !text) {
@@ -55,7 +63,7 @@ export async function POST(
 
   const newReview = await prisma.review.create({
     data: {
-      productId,
+      productId, // Now definitely a string
       userId,
       rating,
       comment: text,

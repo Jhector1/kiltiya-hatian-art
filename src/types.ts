@@ -199,5 +199,13 @@ export type CollectionItem = {
   };
   digitalVariant?: { url: string } | null;
   printVariant?: { url: string } | null;
-  order: { placedAt: string };
+  order: { placedAt: string; stripeSessionId: string};
+};
+
+export type ProductListAndOrderCount = ProductListItem & {
+  purchaseCount: number;
+  artistName: string;
+  dimensions: string;
+  originalPrice?: number;
+  description: string;
 };

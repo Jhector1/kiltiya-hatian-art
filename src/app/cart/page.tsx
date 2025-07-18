@@ -107,9 +107,9 @@ export default function CartPage() {
           <>
             <Gallery
               products={cart.map((product) => product.productListItem)}
-              showBuyButton={false}
+              // showBuyButton={false}
               showLikeButton={false}
-              showViewSizeControls={false}
+              // showViewSizeControls={false}
             />
             <div className="mt-10 flex justify-between items-center border-t pt-6">
               <span className="text-xl font-semibold text-gray-800">

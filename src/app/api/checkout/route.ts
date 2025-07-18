@@ -5,8 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe }                  from "@/lib/stripe";
 import { getServerSession }        from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
 import type { OrderList }          from "@/types";
+import { authOptions } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   // ─── 0️⃣ Authenticate ──────────────────────────────────────────

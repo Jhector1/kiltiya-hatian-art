@@ -38,13 +38,13 @@ export async function POST(request: Request) {
       update: {},
     });
     async function listWatermarks() {
-  const res = await cloudinary.api.resources({
-    resource_type: "image",
-    type:          "upload",
-    prefix:        "watermark",   // list everything whose ID starts with this
-    max_results:   100,
-  });
-  console.log(JSON.stringify(res.resources.map((r ) => r.public_id), null, 2));
+  // const res = await cloudinary.api.resources({
+  //   resource_type: "image",
+  //   type:          "upload",
+  //   prefix:        "watermark",   // list everything whose ID starts with this
+  //   max_results:   100,
+  // });
+  // console.log(JSON.stringify(res.resources.map((r ) => r.public_id), null, 2));
 }
 
 listWatermarks().catch(console.error);
