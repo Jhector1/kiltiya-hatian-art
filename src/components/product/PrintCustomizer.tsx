@@ -110,24 +110,28 @@ export default function PrintCustomizer({
             None
           </button>
           {frames.map((f) => (
-            <button
-              key={f.label}
-              onClick={() => {
-                setFrameAction(f);
-                if (inCart) updateCart({ frame: f.label });
-              }}
-              className={`px-3 py-1 rounded bg-[url("/images/textures/${f.label
-                .split(" ")[0]
-                .trim()
-                .toLowerCase()}-wood.png")] bg-cover bg-center bg-no-repeat ${
-                f.label === "White" ? "text-black" : "text-white"
-              } ${
-                frame?.label === f.label &&
-                "border-2 border-transparent outline outline-2 outline-purple-600 outline-offset-4"
-              }`}
-            >
-              {f.label}
-            </button>
+          <button
+  key={f.label}
+  onClick={() => {
+    setFrameAction(f);
+    if (inCart) updateCart({ frame: f.label });
+  }}
+  className={`px-3 py-1 rounded bg-cover bg-center bg-no-repeat ${
+    f.label === "White" ? "text-black" : "text-white"
+  } ${
+    frame?.label === f.label &&
+    "border-2 border-transparent outline outline-2 outline-purple-600 outline-offset-4"
+  }`}
+  style={{
+    backgroundImage: `url("/images/textures/${f.label
+      .split(" ")[0]
+      .trim()
+      .toLowerCase()}-wood.png")`,
+  }}
+>
+  {f.label}
+</button>
+
           ))}
         </div>
       </div>
