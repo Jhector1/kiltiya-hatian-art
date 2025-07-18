@@ -29,8 +29,8 @@ export default function CartActions({
         className={
           `font-semibold px-6 py-3 rounded-lg shadow transition ${
             inCart
-              ? 'bg-red-500 hover:bg-red-600 text-white'
-              : 'bg-purple-600 hover:bg-purple-700 text-white'
+              ? 'bg-white-500 hover:bg-gray-100 text-purple-600 border-2 border-color-purple '
+              : 'bg-white-600 hover:bg-gray-100 text-black'
           } ${loading || !inCart && disabled ? 'opacity-50 cursor-not-allowed' : ''}`
         }
       >
@@ -39,7 +39,7 @@ export default function CartActions({
       <button
       disabled={disabled}
         onClick={onCheckout}
-        className={`bg-green-600 text-white font-semibold px-6 py-3 rounded-lg shadow hover:bg-green-700 transition ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`bg-purple-600 text-white font-semibold px-6 py-3 rounded-lg shadow hover:bg-purple-700 transition ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         Proceed to Checkout
       </button>

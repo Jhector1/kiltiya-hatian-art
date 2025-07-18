@@ -8,7 +8,7 @@ import FormatSelector from "@/components/product/FormatSelector";
 import SizeSelector from "@/components/product/SizeSelector";
 import PurchaseOptions from "@/components/product/PurchaseOptions";
 import CartActions from "@/components/product/CartActions";
-import LikeButton from "@/components/product/LikeButton";
+// import LikeButton from "@/components/product/LikeButton";
 import PrintCustomizer from "@/components/product/PrintCustomizer";
 import ProductImagePreviews from "@/components/product/ProductImagePreviews";
 import ReviewsSection from "@/components/product/review/ReviewSection";
@@ -58,7 +58,7 @@ export default function ProductDetail() {
     digital: false,
     print: false,
   });
-  const [liked, setLiked] = useState(false);
+  // const [liked, setLiked] = useState(false);
   const [isModalOpen, setModalOpen] = useState(false);
 
   const materials = useMemo(
@@ -262,7 +262,7 @@ export default function ProductDetail() {
 
       <SEO title={product.title} description={product.description} />
       <div className="flex lg:flex-row flex-col w-full  lg:justify-around items-center mt-20 gap-20">
-        <div className="flex gap-5 lg:sticky top-10 lg:h-screen lg:justify-between center">
+        <div className="flex gap-5 lg:sticky top-5 lg:h-screen lg:justify-between center">
           <div className="">
             <ProductImagePreviews
               scenarios={product.thumbnails}

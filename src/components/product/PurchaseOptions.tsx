@@ -39,7 +39,7 @@ export default function PurchaseOptions({
                 updateCart2({ format: "jpg" });
             }}
           />
-          <div className="flex items-center px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-green-600 peer-checked:text-white transition">
+          <div className="flex items-center px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-purple-600 peer-checked:text-white transition">
             Digital – <span className="font-medium ml-1">${digitalPrice}</span>
           </div>
         </label>
@@ -62,7 +62,7 @@ export default function PurchaseOptions({
                 });
             }}
           />
-          <div className="flex items-center px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-green-600 peer-checked:text-white transition">
+          <div className="flex items-center px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-purple-600 peer-checked:text-white transition">
             Print – <span className="font-medium ml-1">${printPrice}</span>
           </div>
         </label>

@@ -40,8 +40,8 @@ export default function ContactPage() {
             </p>
 
             <div className="space-y-4">
-              <ContactInfo icon="✉️" text="hello@yourdomain.com" />
-              <ContactInfo icon="📞" text="+1 (555) 123-4567" />
+              <ContactInfo icon="✉️" text="info@ziledigital.com" />
+              <ContactInfo icon="📞" text="+1 (773) 690-7299" />
               <ContactInfo
                 icon="📍"
                 text="123 Rue Freedom, Port-au-Prince, Haiti"
@@ -86,7 +86,7 @@ export default function ContactPage() {
             </div>
             <button
               type="submit"
-              className="w-full bg-blue-600 text-white py-2 rounded-xl hover:bg-blue-700 transition-all duration-200"
+              className="w-full bg-purple-600 text-white py-2 rounded-xl hover:bg-blue-700 transition-all duration-200"
             >
               Send Message
             </button>

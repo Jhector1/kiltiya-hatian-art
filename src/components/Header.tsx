@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   HeartIcon,
@@ -91,6 +91,14 @@ import { signOut } from "next-auth/react";          // ← import this
 // ...IconAction, DesktopNav, MobileNav as before...
 
 export default function Header() {
+  useEffect(() => {
+  const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+  document.addEventListener("contextmenu", handleContextMenu);
+  return () => {
+    document.removeEventListener("contextmenu", handleContextMenu);
+  };
+}, []);
+
   const { user, loading, isLoggedIn } = useUser();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { cart } = useCart();

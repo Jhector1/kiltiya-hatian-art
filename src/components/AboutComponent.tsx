@@ -7,6 +7,7 @@ import {
   SparklesIcon,
   ArrowRightCircleIcon,
 } from '@heroicons/react/24/outline';
+import Link from 'next/link';
 
 export default function AboutComponent() {
   return (
@@ -101,12 +102,12 @@ export default function AboutComponent() {
               Find your next digital treasure or unique wall piece.
             </p>
           </div>
-          <a
+          <Link
             href="/store"
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-full text-lg font-medium transition"
+            className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full text-lg font-medium transition"
           >
             Browse Gallery <ArrowRightCircleIcon className="h-6 w-6" />
-          </a>
+          </Link>
         </div>
       </div>
     </div>

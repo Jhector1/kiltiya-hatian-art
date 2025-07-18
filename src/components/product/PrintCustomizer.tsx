@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 // import { ArtworkFrameSquare } from '../ArtworkFrameSquare.'; // adjust path as needed
-import './artworkFrameSquare.css';                         // ensures the hover/tilt styles apply
+import "./artworkFrameSquare.css"; // ensures the hover/tilt styles apply
 import {
   MaterialOption,
   FrameOption,
   CartSelectedItem,
   CartUpdates,
-} from '@/types';
-import { ArtworkFrameSquare } from './artworkFrameSquare';
+} from "@/types";
+import { ArtworkFrameSquare } from "./artworkFrameSquare";
 
 interface PrintCustomizerProps {
   basePrice: number;
@@ -42,16 +42,17 @@ export default function PrintCustomizer({
 }: PrintCustomizerProps) {
   // compute price
   const price = useMemo(() => {
-    const raw = basePrice * formatMultiplier * sizeMultiplier * material.multiplier;
+    const raw =
+      basePrice * formatMultiplier * sizeMultiplier * material.multiplier;
     return raw.toFixed(2);
   }, [basePrice, formatMultiplier, sizeMultiplier, material]);
 
   // parse the user's chosen border string, e.g. "8px solid #111"
   const [parsedFrameWidth, parsedFrameColor] = useMemo(() => {
-    if (!frame?.border) return [0, '#000'];
-    const parts = frame.border.split(' ');             // ["8px","solid","#111"]
-    const widthPx = parseInt(parts[0], 10) || 0;        // 8
-    const color   = parts[2] || '#000';                 // "#111"
+    if (!frame?.border) return [0, "#000"];
+    const parts = frame.border.split(" "); // ["8px","solid","#111"]
+    const widthPx = parseInt(parts[0], 10) || 0; // 8
+    const color = parts[2] || "#000"; // "#111"
     return [widthPx, color];
   }, [frame]);
 
@@ -66,8 +67,8 @@ export default function PrintCustomizer({
               key={m.label}
               className={`cursor-pointer p-2 border rounded-lg transition-shadow ${
                 material.label === m.label
-                  ? 'shadow-md border-purple-600'
-                  : 'border-gray-300'
+                  ? "shadow-md border-purple-600"
+                  : "border-gray-300"
               }`}
             >
               <input
@@ -103,10 +104,10 @@ export default function PrintCustomizer({
           <button
             onClick={() => {
               setFrameAction(null);
-              if (inCart) updateCart({ frame: '' });
+              if (inCart) updateCart({ frame: "" });
             }}
             className={`px-3 py-1 rounded ${
-              frame === null ? 'bg-purple-600 text-white' : 'bg-gray-100'
+              frame === null ? "bg-purple-600 text-white" : "bg-gray-100"
             }`}
           >
             None
@@ -118,10 +119,13 @@ export default function PrintCustomizer({
                 setFrameAction(f);
                 if (inCart) updateCart({ frame: f.label });
               }}
-              className={`px-3 py-1 rounded ${
-                frame?.label === f.label
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100'
+              className={`px-3 py-1 rounded bg-[url("/images/textures/${f.label
+                .split(" ")[0]
+                .trim()
+                .toLowerCase()
+                .trim()}-wood.png")] bg-cover bg-center bg-no-repeat ${f.label==='White'?'text-black':"text-white"} ${
+                frame?.label === f.label &&
+                "border-2 border-transparent  outline outline-2 outline-purple-600 outline-offset-4"
               }`}
             >
               {f.label}
@@ -132,9 +136,9 @@ export default function PrintCustomizer({
 
       {/* Preview */}
       <div>
-                <h3 className="font-semibold mb-2">Preview:</h3>
-  <div
-    className={`
+        <h3 className="font-semibold mb-2">Preview:</h3>
+        <div
+          className={`
       relative
       w-full
       p-10
@@ -147,7 +151,10 @@ export default function PrintCustomizer({
       justify-center
 
       /* wall texture + light vignette */
-      ${parsedFrameColor !== '#000' && "bg-[url('/images/textures/concrete-wall.png')]"}
+      ${
+        parsedFrameColor !== "#000" &&
+        "bg-[url('/images/textures/concrete-wall.png')]"
+      }
       bg-cover
       bg-center
 
@@ -156,20 +163,20 @@ export default function PrintCustomizer({
       before:bg-white/30
       before:mix-blend-overlay
     `}
-  >
-<div className="inline-flex items-center justify-center bg-white">
-          <ArtworkFrameSquare
-            imageSrc={imageSrc}
-            width={400}
-            // height={400}
-            frameWidth={parsedFrameWidth}
-            frameColor={parsedFrameColor}
-            linerWidth={6}
-            linerColor="#D4AF37"
-            mattePadding={50}
-            matteColor="#fff"
-          />
-        </div>
+        >
+          <div className="inline-flex items-center justify-center bg-white">
+            <ArtworkFrameSquare
+              imageSrc={imageSrc}
+              width={400}
+              // height={400}
+              frameWidth={parsedFrameWidth}
+              frameColor={parsedFrameColor}
+              linerWidth={6}
+              linerColor="#D4AF37"
+              mattePadding={50}
+              matteColor="#fff"
+            />
+          </div>
         </div>
       </div>
 

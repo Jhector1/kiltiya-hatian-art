@@ -44,7 +44,7 @@ export default function SizeSelector({
                 if (inCart) updateCart({ size: opt.label });
               }}
             />
-            <span className="px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-blue-600 peer-checked:text-white transition">
+            <span className="px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-purple-600 peer-checked:text-white transition">
               {opt.label}
             </span>
           </label>

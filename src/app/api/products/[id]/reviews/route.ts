@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession }        from "next-auth/next";
 import { authOptions } from "../../../auth/[...nextauth]/route";
 import { PrismaClient }            from "@prisma/client";
-import { ProductReview }           from "@/types";
+// import { ProductReview }           from "@/types";
 
 const prisma = new PrismaClient();
 
@@ -22,18 +22,20 @@ async function requireUser() {
 // ─── GET /api/products/[id]/reviews ───────────────────────────────────
 // Public: fetch reviews for a given product
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest,                                     // ← 1st arg: the request
+  { params }: { params: Promise<{ id: string }> }           // ← 2nd arg: destructure the async params
 ) {
-  const productId = params.id;
-  const reviews: ProductReview[] = await prisma.review.findMany({
+  // Now `params` really is a Promise<{id}>; await it:
+  const { id: productId } = await params;
+
+  const reviews = await prisma.review.findMany({
     where: { productId },
     include: { user: true },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: 'desc' },
   });
+
   return NextResponse.json(reviews);
 }
-
 // ─── POST /api/products/[id]/reviews ──────────────────────────────────
 // Authenticated: add a review for the signed-in user
 export async function POST(

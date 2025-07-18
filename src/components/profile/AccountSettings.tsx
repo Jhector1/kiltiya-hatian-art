@@ -17,7 +17,7 @@ export default function AccountSettings() {
           </div>
           <button
             type="submit"
-            className="bg-indigo-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
+            className="bg-purple-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-purple-700 transition"
           >
             <KeyIcon className="h-4 w-4 inline mr-1" />
             Change Password

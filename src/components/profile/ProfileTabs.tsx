@@ -8,7 +8,7 @@ export default function ProfileTabs({ activeTab, setActiveTab }: { activeTab: st
         <button
           key={tab}
           className={`px-4 py-2 rounded-lg font-semibold transition ${
-            activeTab === tab ? 'bg-indigo-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+            activeTab === tab ? 'bg-purple-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
           }`}
           onClick={() => setActiveTab(tab)}
         >
