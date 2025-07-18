@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-// import { ArtworkFrameSquare } from '../ArtworkFrameSquare.'; // adjust path as needed
-import "./artworkFrameSquare.css"; // ensures the hover/tilt styles apply
+import "./artworkFrameSquare.css";
 import {
   MaterialOption,
   FrameOption,
@@ -40,28 +39,26 @@ export default function PrintCustomizer({
   updateCart,
   inCart,
 }: PrintCustomizerProps) {
-  // compute price
   const price = useMemo(() => {
     const raw =
       basePrice * formatMultiplier * sizeMultiplier * material.multiplier;
     return raw.toFixed(2);
   }, [basePrice, formatMultiplier, sizeMultiplier, material]);
 
-  // parse the user's chosen border string, e.g. "8px solid #111"
   const [parsedFrameWidth, parsedFrameColor] = useMemo(() => {
     if (!frame?.border) return [0, "#000"];
-    const parts = frame.border.split(" "); // ["8px","solid","#111"]
-    const widthPx = parseInt(parts[0], 10) || 0; // 8
-    const color = parts[2] || "#000"; // "#111"
+    const parts = frame.border.split(" ");
+    const widthPx = parseInt(parts[0], 10) || 0;
+    const color = parts[2] || "#000";
     return [widthPx, color];
   }, [frame]);
 
   return (
-    <div className="p-6 bg-white rounded-xl shadow-lg space-y-6">
+    <div className="p-4 sm:p-6 bg-white rounded-xl shadow-lg space-y-6 max-w-5xl mx-auto">
       {/* Material Selector */}
       <div>
         <h3 className="font-semibold mb-2">Material:</h3>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
           {materials.map((m) => (
             <label
               key={m.label}
@@ -87,7 +84,7 @@ export default function PrintCustomizer({
                   <img
                     src={m.thumbnail}
                     alt={m.label}
-                    className="object-cover rounded"
+                    className="object-cover rounded w-full h-full"
                   />
                 </div>
                 <span className="text-sm">{m.label}</span>
@@ -100,7 +97,7 @@ export default function PrintCustomizer({
       {/* Frame Selector */}
       <div>
         <h3 className="font-semibold mb-2">Frame:</h3>
-        <div className="flex gap-4 items-center">
+        <div className="flex flex-wrap gap-4 items-center">
           <button
             onClick={() => {
               setFrameAction(null);
@@ -122,10 +119,11 @@ export default function PrintCustomizer({
               className={`px-3 py-1 rounded bg-[url("/images/textures/${f.label
                 .split(" ")[0]
                 .trim()
-                .toLowerCase()
-                .trim()}-wood.png")] bg-cover bg-center bg-no-repeat ${f.label==='White'?'text-black':"text-white"} ${
+                .toLowerCase()}-wood.png")] bg-cover bg-center bg-no-repeat ${
+                f.label === "White" ? "text-black" : "text-white"
+              } ${
                 frame?.label === f.label &&
-                "border-2 border-transparent  outline outline-2 outline-purple-600 outline-offset-4"
+                "border-2 border-transparent outline outline-2 outline-purple-600 outline-offset-4"
               }`}
             >
               {f.label}
@@ -139,36 +137,24 @@ export default function PrintCustomizer({
         <h3 className="font-semibold mb-2">Preview:</h3>
         <div
           className={`
-      relative
-      w-full
-      p-10
-      cursor-zoom-in
-      overflow-hidden
-
-      /* center everything */
-      flex
-      items-center
-      justify-center
-
-      /* wall texture + light vignette */
-      ${
-        parsedFrameColor !== "#000" &&
-        "bg-[url('/images/textures/concrete-wall.png')]"
-      }
-      bg-cover
-      bg-center
-
-      before:content-['']
-      before:absolute before:inset-0
-      before:bg-white/30
-      before:mix-blend-overlay
-    `}
+            relative w-full max-w-3xl aspect-[4/3] mx-auto p-4 sm:p-6
+            cursor-zoom-in 
+            flex items-center justify-center
+            ${
+              parsedFrameColor !== "#000" &&
+              "bg-[url('/images/textures/concrete-wall.png')]"
+            }
+            bg-cover bg-center
+            before:content-['']
+            before:absolute before:inset-0
+            before:bg-white/30
+            before:mix-blend-overlay
+          `}
         >
-          <div className="inline-flex items-center justify-center bg-white">
+          <div className="inline-flex items-center justify-center bg-white shadow-md overflow-hidden">
             <ArtworkFrameSquare
               imageSrc={imageSrc}
               width={400}
-              // height={400}
               frameWidth={parsedFrameWidth}
               frameColor={parsedFrameColor}
               linerWidth={6}

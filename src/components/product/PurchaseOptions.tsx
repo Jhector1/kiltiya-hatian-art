@@ -26,7 +26,7 @@ export default function PurchaseOptions({
       <label className="block text-sm font-medium text-gray-700 mb-2">
         Purchase Options
       </label>
-      <div className="flex space-x-4">
+      <div className="flex justify-between space-x-4">
         {/* Digital Option */}
         <label className="cursor-pointer">
           <input

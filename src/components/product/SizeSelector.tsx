@@ -30,7 +30,7 @@ export default function SizeSelector({
       <label className="block text-sm font-medium text-gray-700 mb-2">
         Print Size
       </label>
-      <div className="inline-flex space-x-2">
+      <div className="flex gap-4 flex-wrap fle space-x-2">
         {options.map((opt) => (
           <label key={opt.label} className="cursor-pointer">
             <input

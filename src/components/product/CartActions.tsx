@@ -22,7 +22,7 @@ export default function CartActions({
 
 }) {
   return (
-    <div className="flex flex-col sm:flex-row gap-4">
+    <div className="flex w-full flex-col sm:flex-row gap-4">
       <button
         onClick={onToggleCart}
         disabled={!inCart && disabled || loading}
