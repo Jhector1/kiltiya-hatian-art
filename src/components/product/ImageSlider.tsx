@@ -41,11 +41,20 @@ export default function ImageSlider({ images = [] }: ImageSliderProps) {
     });
   };
 
-  const handleDragEnd = (_: any, info: any) => {
-    const offset = info.offset.x;
-    const newIndex = Math.round((-x.get() + offset) / slideWidth);
-    snapToIndex(newIndex);
-  };
+ const handleDragEnd = (_: any, info: any) => {
+  const offsetX = info.offset.x;
+
+  if (offsetX < -slideWidth * 0.25 && index < total - 1) {
+    // Swiped left to next
+    snapToIndex(index + 1);
+  } else if (offsetX > slideWidth * 0.25 && index > 0) {
+    // Swiped right to previous
+    snapToIndex(index - 1);
+  } else {
+    // Not enough swipe — snap back
+    snapToIndex(index);
+  }
+};
 
   if (total === 0) return null;
 
