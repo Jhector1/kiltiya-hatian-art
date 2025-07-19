@@ -105,8 +105,17 @@ import Testimonial from "@/components/home/Testimonial";
 import WhyHaitianArt from "@/components/home/WhyHaitianArt";
 import ProductForm from "@/components/upload/ProductForm";
 import categories from "@/data/categories";
+import ImageSlider from "@/components/product/ImageSlider";
 
 export default function Home() {
+  const images = [
+    "/images/haitian-artists.jpg",
+    "/images/haitian-artists.jpg",
+    "/images/haitian-artists.jpg",
+    "/images/haitian-artists.jpg",
+    "/images/haitian-artists.jpg",
+    "/images/haitian-artists.jpg",
+  ];
   return (
     <>
     {/* <h1 className="brush-logo">Strain</h1> */}
@@ -116,6 +125,7 @@ export default function Home() {
         description="Buy and explore uniquely crafted Haitian vector artworks."
       />
       <Hero />
+       <ImageSlider images={images} />;
       <PromoBanner />
       <CategorySlider categories={categories} />
       <CategoryGrid categories={categories} />

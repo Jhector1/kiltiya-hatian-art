@@ -28,6 +28,7 @@ import {
 import { useMemo } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { AnimatePresence, motion } from "framer-motion";
+import ImageSlider from "@/components/product/ImageSlider";
 
 export default function ProductDetail() {
   const { id } = useParams()!;
@@ -263,23 +264,15 @@ export default function ProductDetail() {
 
       <SEO title={product.title} description={product.description} />
       <div className="flex lg:flex-row flex-col w-full  lg:justify-around items-center mt-20 gap-20">
-        <div className="flex gap-5 lg:sticky top-5 lg:h-screen lg:justify-between center">
-          <div className="">
-            <ProductImagePreviews
-              scenarios={product.thumbnails}
-              onSelectAction={setPreview}
-              selected={preview}
-            />
-          </div>
+    <div className="hidden sm:flex gap-5 lg:sticky top-5 lg:h-screen lg:justify-between center">
+          <ProductImagePreviews scenarios={product.thumbnails} onSelectAction={setPreview} selected={preview} />
           <div className="w-[40vw] lg:h-screen">
-            {/* <div className="md:col-span-2 space-y-6"> */}
-            {/* <div className="flex w-[50vw] h-screen"> */}
-              {/* <h1 className="text-3xl font-bold">{product.title}</h1> */}
-              {/* <LikeButton liked={liked} onToggle={() => setLiked(!liked)} /> */}
-
-              <ProductImage src={preview.src} alt={preview.alt} />
-            {/* </div> */}
+            <ProductImage src={preview.src} alt={preview.alt} />
           </div>
+        </div>
+
+        <div className="block sm:hidden">
+          <ImageSlider images={product.thumbnails} />
         </div>
         <div className="flex flex-col gap-5">
            <h1 className="text-3xl font-bold">{product.title}</h1>
