@@ -40,6 +40,8 @@ export default function ProductDetail() {
   const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
     null
   );
+    const [finalPrice, setFinalPrice] = useState<number>(0);
+
   const [format, setFormat] = useState<string>("");
   const [size, setSize] = useState<{ label: string; multiplier: number }>({
     label: "11x14 in",
@@ -59,6 +61,7 @@ export default function ProductDetail() {
     digital: false,
     print: false,
   });
+  
   // const [liked, setLiked] = useState(false);
   const [isModalOpen, setModalOpen] = useState(false);
 
@@ -71,7 +74,7 @@ export default function ProductDetail() {
       },
       {
         label: "Glossy Paper",
-        multiplier: 1.2,
+        multiplier: 1,
         thumbnail: "/images/textures/glossy.png",
       },
       {
@@ -85,9 +88,10 @@ export default function ProductDetail() {
 
   const frames = useMemo(
     () => [
-      { label: "Black Wood", border: "8px solid #111" },
-      { label: "Natural Wood", border: "8px solid #a35" },
-      { label: "White", border: "8px solid #fff" },
+      
+      { label: "Black Wood", border: "8px solid #111", multiplier: 1.25 },
+      { label: "Natural Wood", border: "8px solid #a35" ,  multiplier: 1.5},
+      { label: "White", border: "8px solid #fff" ,  multiplier: 1.75},
     ],
     []
   );
@@ -103,45 +107,6 @@ export default function ProductDetail() {
     []
   );
 
-  // async function updateCart({
-  //   userId,
-  //   productId,
-  //   printVariantId,
-  //   key,
-  //   value,
-  // }: {
-  //   userId: string;
-  //   productId: string;
-  //   printVariantId: string;
-  //   key: string;
-  //   value: string;
-  // }) {
-  //   try {
-  //     const res = await fetch("/api/cart", {
-  //       method: "PATCH",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //       body: JSON.stringify({
-  //         userId,
-  //         productId,
-  //         printVariantId,
-  //         updates: {
-  //           [key]: value,
-  //         },
-  //       }),
-  //     });
-
-  //     const data = await res.json();
-  //     if (!res.ok) {
-  //       console.error("Failed to update cart:", data.error);
-  //     } else {
-  //       console.log("Cart updated:", data.message);
-  //     }
-  //   } catch (err) {
-  //     console.error("Error updating cart:", err);
-  //   }
-  // }
 
   // Load product and initialize options
   useEffect(() => {
@@ -198,21 +163,40 @@ export default function ProductDetail() {
       .catch(console.error);
   }, [id, loadingUser, materials, frames, optionSizes, user?.id, updateCart]);
 
+useEffect(() => {
+  if (!product) return;
+  // const type = options.digital ? "Digital" : "Print";
+const price =
+  (options.digital ? parseFloat(calculatePrice("Digital")) : 0) +
+  (options.print ? parseFloat(calculatePrice("Print")) : 0);
+  // alert(price)
+  setFinalPrice(price);
+}, [product, size, customSize, isCustom, options, material, frame]);
+
+
+
   if (!product || !preview) {
     return <div className="p-10 text-center">Loading product…</div>;
   }
 
   // Price calculation
-  const calculatePrice = (type: string) => {
-    const base = product.price;
-    if (type === "Digital") return (base * 0.6).toFixed(2);
-    const mul =
-      isCustom && customSize.width && customSize.height
-        ? (+customSize.width * +customSize.height) / 80
-        : size.multiplier;
+const calculatePrice = (type: string) => {
+  const base = product?.price || 0;
 
-    return (base * mul).toFixed(2);
-  };
+  if (type === "Digital") return (base * 0.6).toFixed(2);
+
+  const sizeMultiplier = isCustom && customSize.width && customSize.height
+    ? (+customSize.width * +customSize.height) / 80
+    : size.multiplier;
+
+  const materialMultiplier = material?.multiplier ?? 1;
+   const frameMultiplier = frame?.multiplier ?? 1;
+const total = (
+  base * sizeMultiplier * materialMultiplier * frameMultiplier +
+  (options?.digital ? base * 0.6 : 0)
+).toFixed(2);
+  return total;
+};
 
   const formats: Format[] = product.formats.map((url) => {
     const parts = url.split(".");
@@ -224,7 +208,7 @@ export default function ProductDetail() {
     (f) => !seen.has(f.type) && seen.add(f.type)
   );
   // alert(JSON.stringify(formats))
-  const inCart = cart.find((item) => item.productListItem.id === product.id);
+  const inCart = cart.find((item) => item.id === product.id);
   const loading = loadingAdd;
 
   const handleToggleCart = async () => {
@@ -232,13 +216,15 @@ export default function ProductDetail() {
       setModalOpen(true);
       return;
     }
+    // alert(product.price)
 
     if (!inCart) {
       await addToCart(
         id?.toString() || "",
         options.digital ? "Digital" : null,
         options.print ? "Print" : null,
-        parseFloat(calculatePrice(options.digital ? "Digital" : "Print")),
+        finalPrice,
+        //parseFloat(calculatePrice(options.digital ? "Digital" : "Print")),
 
         format,
         size.label,
@@ -258,15 +244,19 @@ export default function ProductDetail() {
   return (
     <>
       <UniversalModal isOpen={isModalOpen} onClose={() => setModalOpen(false)}>
-        <AuthenticationForm/>
-         {/* closeModalAction={() => setModalOpen(false)} /> */}
+        <AuthenticationForm />
+        {/* closeModalAction={() => setModalOpen(false)} /> */}
       </UniversalModal>
 
       <SEO title={product.title} description={product.description} />
-      <div className="flex lg:flex-row flex-col w-full  lg:justify-around items-center mt-20 gap-20">
-    <div className="hidden sm:flex gap-5 lg:sticky top-5 lg:h-screen lg:justify-between center">
-          <ProductImagePreviews scenarios={product.thumbnails} onSelectAction={setPreview} selected={preview} />
-          <div className="w-[40vw] lg:h-screen">
+      <div className="flex lg:flex-row flex-col w-full items-center lg:justify-around p-2 mt-20 gap-20">
+        <div className="hidden sm:flex gap-5 lg:sticky top-5 lg:h-screen lg:justify-between cenbter">
+          <ProductImagePreviews
+            scenarios={product.thumbnails}
+            onSelectAction={setPreview}
+            selected={preview}
+          />
+          <div className="w-[50vw] lg:h-screen">
             <ProductImage src={preview.src} alt={preview.alt} />
           </div>
         </div>
@@ -274,8 +264,8 @@ export default function ProductDetail() {
         <div className="block sm:hidden">
           <ImageSlider images={product.thumbnails} />
         </div>
-        <div className="flex flex-col gap-5">
-           <h1 className="text-3xl font-bold">{product.title}</h1>
+        <div className="flex self-start flex-col gap-5">
+          <h1 className="text-3xl font-bold">{product.title}</h1>
           <h3 className="font-bold">Description:</h3>
           <p className="pb-10">{product.description}</p>
 
@@ -348,14 +338,12 @@ export default function ProductDetail() {
                     })
                   }
                 />
-                <br/>
-            
-
+                <br />
 
                 <PrintCustomizer
-                  basePrice={product.price}
-                  formatMultiplier={1}
-                  sizeMultiplier={size.multiplier}
+                  total={finalPrice}
+                  // formatMultiplier={1}
+                  // sizeMultiplier={size.multiplier}
                   imageSrc={product.imageUrl}
                   setFrameAction={setFrame}
                   frame={frame || null}

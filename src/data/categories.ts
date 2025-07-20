@@ -40,3 +40,45 @@ const categories: HomeCategory[] = [
 ];
 
 export default categories;
+
+
+
+
+
+  const materials =
+    [
+      {
+        label: "Matte Paper",
+        multiplier: 1,
+        thumbnail: "/images/textures/matte.png",
+      },
+      {
+        label: "Glossy Paper",
+        multiplier: 1.2,
+        thumbnail: "/images/textures/glossy.png",
+      },
+      {
+        label: "Canvas",
+        multiplier: 1.5,
+        thumbnail: "/images/textures/canvas.png",
+      },
+    ];
+
+  const frames =[
+      
+      { label: "Black Wood", border: "8px solid #111", multiplier: 1.25 },
+      { label: "Natural Wood", border: "8px solid #a35" ,  multiplier: 1.5},
+      { label: "White", border: "8px solid #fff" ,  multiplier: 1.75},
+    ];
+
+  const optionSizes = 
+    [
+      { label: "8x10 in", multiplier: 1 },
+      { label: "11x14 in", multiplier: 1.25 },
+      { label: "16x20 in", multiplier: 1.5 },
+      { label: "18x24 in", multiplier: 2 },
+      { label: "Custom", multiplier: 0 },
+    ]
+    
+
+  export {optionSizes, materials, frames}

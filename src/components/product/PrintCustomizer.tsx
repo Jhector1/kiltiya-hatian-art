@@ -11,9 +11,10 @@ import {
 import { ArtworkFrameSquare } from "./artworkFrameSquare";
 
 interface PrintCustomizerProps {
-  basePrice: number;
-  formatMultiplier: number;
-  sizeMultiplier: number;
+  // basePrice: number;
+  total: number;
+  // formatMultiplier: number;
+  // sizeMultiplier: number;
   imageSrc: string;
   materials: MaterialOption[];
   frames: FrameOption[];
@@ -26,9 +27,10 @@ interface PrintCustomizerProps {
 }
 
 export default function PrintCustomizer({
-  basePrice,
-  formatMultiplier,
-  sizeMultiplier,
+  // basePrice,
+  total,
+  // formatMultiplier,
+  // sizeMultiplier,
   imageSrc,
   materials,
   frames,
@@ -39,11 +41,11 @@ export default function PrintCustomizer({
   updateCart,
   inCart,
 }: PrintCustomizerProps) {
-  const price = useMemo(() => {
-    const raw =
-      basePrice * formatMultiplier * sizeMultiplier * material.multiplier;
-    return raw.toFixed(2);
-  }, [basePrice, formatMultiplier, sizeMultiplier, material]);
+  // const price = useMemo(() => {
+  //   const raw =
+  //     basePrice * formatMultiplier * sizeMultiplier * material.multiplier;
+  //   return raw.toFixed(2);
+  // }, [basePrice, formatMultiplier, sizeMultiplier, material]);
 
   const [parsedFrameWidth, parsedFrameColor] = useMemo(() => {
     if (!frame?.border) return [0, "#000"];
@@ -172,7 +174,7 @@ export default function PrintCustomizer({
 
       {/* Price Display */}
       <div className="flex justify-between items-center">
-        <span className="text-xl font-bold">${price}</span>
+        <span className="text-xl font-bold">${total}</span>
       </div>
     </div>
   );

@@ -33,6 +33,7 @@ export type FrameOption = {
    * (e.g. "8px solid #111" for a black wood frame)
    */
   border: string;
+  multiplier: number;
 };
 
 export type Format = { type: string; resolution: string; multiplier: number };
@@ -135,22 +136,20 @@ export const productListSelect = {
   price: true,
   thumbnails: true,
   publicId: true,
-  
+
   category: { select: { name: true } },
 } as const;
 
 export type ProductListItem = Prisma.ProductGetPayload<{
   select: typeof productListSelect;
 }>;
-export interface CartSelectedItem {
+export type CartSelectedItem = ProductListItem & {
   cartItemId: string;
   cartPrice: number;
   cartQuantity: number;
- digital: ProductVariant | null;
-  print:   ProductVariant | null;
-
-  productListItem: ProductListItem;
-}
+  digital: ProductVariant | null;
+  print: ProductVariant | null;
+};
 // exactly the return type of
 //   prisma.review.findMany({ include: { user: true } })
 export type ProductReview = Prisma.ReviewGetPayload<{
@@ -188,7 +187,7 @@ export interface HomeCategory {
   gradient: string;
 }
 // --- Types ----------------------------------------------------------------
-export type VariantType = 'DIGITAL' | 'PRINT' | 'ALL';
+export type VariantType = "DIGITAL" | "PRINT" | "ALL";
 
 export type CollectionItem = {
   id: string;
@@ -199,7 +198,7 @@ export type CollectionItem = {
   };
   digitalVariant?: { url: string } | null;
   printVariant?: { url: string } | null;
-  order: { placedAt: string; stripeSessionId: string};
+  order: { placedAt: string; stripeSessionId: string };
 };
 
 export type ProductListAndOrderCount = ProductListItem & {

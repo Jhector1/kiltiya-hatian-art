@@ -1,20 +1,22 @@
 "use client";
+
 import SEO from "@/components/SEO";
 import Gallery from "@/components/store/Gallery";
 import { useCart } from "@/contexts/CartContext";
-import { useUser } from "@/contexts/UserContext"; // assuming this gives you user.id
-// import { useRouter } from 'next/router';
-import { toast } from "react-hot-toast"; // optional but nice
+import { useUser } from "@/contexts/UserContext";
+import { toast } from "react-hot-toast";
 import { loadStripe } from "@stripe/stripe-js";
+import { useState } from "react";
 
 export default function CartPage() {
   const { cart, loadingCart, totalPrice } = useCart();
   const { user } = useUser();
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
-  // Outside the component so it's only loaded once
   const stripePromise = loadStripe(
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
   );
+
   const handleCheckout = async () => {
     if (!user) {
       toast.error("You must be logged in to checkout.");
@@ -22,11 +24,12 @@ export default function CartPage() {
     }
 
     const stripe = await stripePromise;
-
     if (!stripe) {
       toast.error("Stripe failed to initialize.");
       return;
     }
+
+    setIsCheckingOut(true); // Start loading
 
     try {
       const response = await fetch("/api/checkout", {
@@ -37,11 +40,10 @@ export default function CartPage() {
           cartProductList: cart.map((data) => ({
             quantity: data.cartQuantity,
             myProduct: {
-              id: data.productListItem.id,
-              title: data.productListItem.title,
-              price: data.productListItem.price,
-              imageUrl:
-                data.productListItem.thumbnails[0] || "/placeholder.png",
+              id: data.id,
+              title: data.title,
+              price: data.price,
+              imageUrl: data.thumbnails[0] || "/placeholder.png",
               digital: data.digital
                 ? {
                     id: data.digital.id,
@@ -77,15 +79,14 @@ export default function CartPage() {
         console.error("Stripe redirect error:", result.error);
       }
     } catch (error: unknown) {
-      // start with a default
       let message = "Unexpected error";
-
-      // narrow to Error and read .message safely
       if (error instanceof Error) {
         message = error.message;
       }
       toast.error(message || "Failed to start checkout");
       console.error("Checkout error:", error);
+    } finally {
+      setIsCheckingOut(false); // End loading in case of failure
     }
   };
 
@@ -105,21 +106,21 @@ export default function CartPage() {
           <p className="text-gray-600">Your cart is empty.</p>
         ) : (
           <>
-            <Gallery
-              products={cart.map((product) => product.productListItem)}
-              // showBuyButton={false}
-              showLikeButton={false}
-              // showViewSizeControls={false}
-            />
+            <Gallery products={cart} showLikeButton={false} />
             <div className="mt-10 flex justify-between items-center border-t pt-6">
               <span className="text-xl font-semibold text-gray-800">
                 Total: ${totalPrice.toFixed(2)}
               </span>
               <button
                 onClick={handleCheckout}
-                className="bg-green-600 text-white px-6 py-2 rounded-full shadow hover:bg-green-700 transition"
+                disabled={isCheckingOut}
+                className={`px-6 py-2 rounded-full shadow transition text-white ${
+                  isCheckingOut
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
               >
-                Proceed to Checkout
+                {isCheckingOut ? "Processing..." : "Proceed to Checkout"}
               </button>
             </div>
           </>

@@ -11,10 +11,18 @@ import UniversalModal from "../modal/UniversalModal";
 import AuthenticationForm from "../authenticate/AuthenticationFom";
 import { useFavorites } from "@/contexts/FavoriteContext";
 import { useUser } from "@/contexts/UserContext";
-import type { ProductListAndOrderCount, ProductListItem } from "@/types";
+import type {
+  CartSelectedItem,
+  ProductListAndOrderCount,
+  ProductListItem,
+} from "@/types";
+// import { frames } from "@/data/categories";
 
 interface GalleryProps {
-  products: Array<ProductListAndOrderCount> | ProductListItem[];
+  products:
+    | Array<ProductListAndOrderCount>
+    | ProductListItem[]
+    | Array<CartSelectedItem>;
   showLikeButton?: boolean;
   onLikeToggle?: (id: string, liked: boolean) => void;
 }
@@ -39,6 +47,7 @@ export default function Gallery({
     toggleFavorite(id);
     onLikeToggle?.(id, liked);
   };
+  console.log(JSON.stringify(products), 75885858);
 
   return (
     <>
@@ -56,98 +65,155 @@ export default function Gallery({
           visible: { opacity: 1, transition: { staggerChildren: 0.05 } },
         }}
       >
-        {products.map((p) => {
+        {products.map((p, i) => {
           const liked = isFavorite(p.id);
           return (
             <motion.div
               key={p.id}
-              className="relative group bg-gray-100 rounkded-lg shadow-sm hover:shadow-md transition overflow-hidden py-8 px-6"
+              className="gap-3 items-center flex w-full"
+              // className="relative group bg-gray-100 rounkded-lg shadow-sm hover:shadow-md transition overflow-hidden py-8 px-6"
               variants={{
                 hidden: { opacity: 0, y: 20 },
                 visible: { opacity: 1, y: 0 },
               }}
             >
-              {showLikeButton && (
-                <button
-                  onClick={() => handleLikeClick(p.id)}
-                  className="absolute top-2 right-2 z-10 bg-white p-1 rounded-full shadow"
-                  aria-label="Toggle favorite"
-                >
-                  {liked ? (
-                    <HeartSolid className="w-5 h-5 text-red-500" />
-                  ) : (
-                    <HeartOutline className="w-5 h-5 text-gray-400 hover:text-red-400 transition" />
-                  )}
-                </button>
-              )}
-
-              {/* Image container */}
-              <div
-                className="w-full relative bg-grbay-100 p-4 overflow-hidden cursor-pointer"
-                style={{ paddingBottom: "75%" }}
-                onClick={() => router.push(`/store/${p.id}`)}
+              <motion.div
+                key={`${p.id} - ${i}`}
+                className="w-3/3 relative group bg-gray-100 rounkded-lg shadow-sm hover:shadow-md transition overflow-hidden py-8 px-6"
+                variants={{
+                  hidden: { opacity: 0, y: 20 },
+                  visible: { opacity: 1, y: 0 },
+                }}
               >
-                <Image
-                  src={p.thumbnails[0] || "/placeholder.png"}
-                  alt={p.title}
-                  fill
-                  className="object-contain transition-transform duration-300 group-hover:scale-105"
-                  onLoadingComplete={() =>
-                    setLoaded((prev) => ({ ...prev, [p.id]: true }))
-                  }
-                  style={{ opacity: loaded[p.id] ? 1 : 0 }}
-                />
-                {!loaded[p.id] && (
-                  <div className="absolute inset-0 bg-gray-300 animate-pulse" />
+                {showLikeButton && (
+                  <button
+                    onClick={() => handleLikeClick(p.id)}
+                    className="absolute top-2 right-2 z-10 bg-white p-1 rounded-full shadow"
+                    aria-label="Toggle favorite"
+                  >
+                    {liked ? (
+                      <HeartSolid className="w-5 h-5 text-red-500" />
+                    ) : (
+                      <HeartOutline className="w-5 h-5 text-gray-400 hover:text-red-400 transition" />
+                    )}
+                  </button>
                 )}
-              </div>
 
-              {/* Metadata */}
+                {/* Image container */}
+                <div
+                  className="w-full relative bg-grbay-100 p-4 overflow-hidden cursor-pointer"
+                  style={{ paddingBottom: "75%" }}
+                  onClick={() => router.push(`/store/${p.id}`)}
+                >
+                  <Image
+                    src={p.thumbnails[0] || "/placeholder.png"}
+                    alt={p.title}
+                    fill
+                    className="object-contain transition-transform duration-300 group-hover:scale-105"
+                    onLoadingComplete={() =>
+                      setLoaded((prev) => ({ ...prev, [p.id]: true }))
+                    }
+                    style={{ opacity: loaded[p.id] ? 1 : 0 }}
+                  />
+                  {!loaded[p.id] && (
+                    <div className="absolute inset-0 bg-gray-300 animate-pulse" />
+                  )}
+                </div>
 
-         {/* Always show title, price, etc. */}
-<div className="mt-6 space-y-2 text-left">
-  <h3
-    onClick={() => router.push(`/store/${p.id}`)}
-    className="text-base font-semibold text-gray-900 hover:underline cursor-pointer"
-  >
-    {p.title}
-  </h3>
+                {/* Metadata */}
 
-  {/* Optional: show dimensions if present */}
-  {"dimensions" in p && <p className="text-xs text-gray-500">{p.dimensions}</p>}
+                {/* Always show title, price, etc. */}
+                <div className="mt-6 space-y-2 text-left">
+                  <h3
+                    onClick={() => router.push(`/store/${p.id}`)}
+                    className="text-base font-semibold text-gray-900 hover:underline cursor-pointer"
+                  >
+                    {p.title}
+                  </h3>
 
-  {/* Price (with optional discount) */}
-  <p className="text-sm font-bold text-gray-900">
-    {"originalPrice" in p && p.originalPrice ? (
-      <>
-        <span className="line-through text-gray-400">
-          ${p.originalPrice.toFixed(2)}
-        </span>{' '}
-        <span>${p.price.toFixed(2)}</span>{' '}
-        <span className="text-red-600">
-          -{Math.round((1 - p.price / p.originalPrice) * 100)}%
-        </span>
-      </>
-    ) : (
-      <>${p.price.toFixed(2)}</>
-    )}
-  </p>
+                  {/* Optional: show dimensions if present */}
+                  {"dimensions" in p && (
+                    <p className="text-xs text-gray-500">{p.dimensions}</p>
+                  )}
 
-  {/* Optional artist name */}
-  {"artistName" in p && <p className="text-xs text-gray-500">{p.artistName}</p>}
+                  {/* Price (with optional discount) */}
+                  <p className="text-sm font-bold text-gray-900">
+                    {"originalPrice" in p && p.originalPrice ? (
+                      <>
+                        <span className="line-through text-gray-400">
+                          ${p.originalPrice.toFixed(2)}
+                        </span>{" "}
+                        <span>${p.price.toFixed(2)}</span>
+                        <span className="text-red-600">
+                          -{Math.round((1 - p.price / p.originalPrice) * 100)}%
+                        </span>
+                      </>
+                    ) : (
+                      <span>${p.price.toFixed(2)}</span>
+                    )}
+                  </p>
+                  {isCartSelectedItem(p)&&<><i>{p.print&& 'Print'}</i> <i>{p.digital&& '& Digital'}</i></>}
 
-  {/* Optional purchase count */}
-  {"purchaseCount" in p && (
-    <p className="text-xs text-gray-500">
-      Purchased: {p.purchaseCount}
-    </p>
-  )}
-</div>
+                  {/* Optional artist name */}
+                  {"artistName" in p && (
+                    <p className="text-xs text-gray-500">{p.artistName}</p>
+                  )}
 
+                  {/* Optional purchase count */}
+                  {"purchaseCount" in p && (
+                    <p className="text-xs text-gray-500">
+                      Purchased: {p.purchaseCount}
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+
+              {isCartSelectedItem(p) && p.print?.frame && (
+                <>
+                  <h1>+</h1>
+                  <div
+                    className="w-2/3 relative p-4 overflow-hidden cursor-pointer"
+                    style={{ paddingBottom: "75%" }}
+                    onClick={() => router.push(`/store/${p.id}`)}
+                  >
+                    <Image
+                      src={`/images/${p.print.frame
+                        .toLowerCase()
+                        .split(" ")
+                        .join("-")}.png`}
+                      alt={p.title}
+                      fill
+                      className="object-contain transition-transform duration-300 group-hover:scale-105"
+                      onLoadingComplete={() =>
+                        setLoaded((prev) => ({ ...prev, [p.id]: true }))
+                      }
+                      style={{ opacity: loaded[p.id] ? 1 : 0 }}
+                    />
+                    <p className="w-1/3 text-xs text-gray-500">
+                      {p.print.material || "lllll"}
+                    </p>
+
+                    {!loaded[p.id] && (
+                      <div className="absolute inset-0 bg-gray-300 animate-pulse" />
+                    )}
+                  </div>
+                </>
+              )}
             </motion.div>
           );
         })}
       </motion.div>
     </>
+  );
+}
+
+function isCartSelectedItem(
+  p: ProductListItem | unknown
+): p is CartSelectedItem {
+  return (
+    typeof p === "object" &&
+    p !== null &&
+    "print" in p &&
+    (p as CartSelectedItem).print !== null
   );
 }

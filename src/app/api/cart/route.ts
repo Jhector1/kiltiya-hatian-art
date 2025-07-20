@@ -76,7 +76,8 @@ export async function GET(req: NextRequest) {
     cartQuantity:    ci.quantity,
     digital:         ci.digitalVariant,
     print:           ci.printVariant,
-    productListItem: ci.product,
+   
+    ... ci.product, price: ci.price,
   }));
   return NextResponse.json(products);
 }
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
     frame    = null,
   } = await req.json();
 
-  console.log(productId, digitalType, printType, price, format)
+  // console.log(productId, digitalType, printType, price, format)
 
   if (!productId || (!digitalType && !printType) || price == null) {
     return NextResponse.json(
