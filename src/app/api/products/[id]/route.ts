@@ -13,6 +13,65 @@ async function getUserId(): Promise<string | null> {
   return session?.user?.id ?? null;
 }
 
+
+
+import { Metadata } from "next";
+
+// ─────────────────────────────────────────────
+// METADATA FOR SEO + SOCIAL
+// ─────────────────────────────────────────────
+export async function generateMetadata({
+  params,
+}: {
+  params: { id: string };
+}): Promise<Metadata> {
+  const product = await db.product.findUnique({
+    where: { id: params.id },
+  });
+
+  if (!product) {
+    return {
+      title: "Product Not Found | ZileDigital Haitian Art",
+      description: "This product does not exist or is no longer available.",
+    };
+  }
+
+  const title = `${product.title} | ZileDigital Haitian Art`;
+  const description =
+    product.description?.slice(0, 155) ||
+    "Explore Haitian art in digital and printable formats.";
+  const imageUrl = product.thumbnails[0] || "/placeholder.png";
+  const url = `${process.env.NEXT_PUBLIC_SITE_URL}/products/${product.id}`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url,
+      type: "website",
+      siteName: "ZileDigital",
+      images: [
+        {
+          url: imageUrl,
+          width: 1200,
+          height: 630,
+          alt: `${product.title} - Haitian Art`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [imageUrl],
+    },
+  };
+}
+
+
+
 export async function GET(req: NextRequest) {
   // 1️⃣ Extract product ID from the pathname
   const url      = new URL(req.url);

@@ -31,6 +31,12 @@ import { loadStripe } from "@stripe/stripe-js";
 import { AnimatePresence, motion } from "framer-motion";
 import ImageSlider from "@/components/product/ImageSlider";
 
+
+
+
+
+
+
 export default function ProductDetail() {
   const { id } = useParams()!;
   const { isLoggedIn } = useUser();
@@ -486,6 +492,13 @@ let data: AddToCartResponse | null = null;
       </div>
 
       <ReviewsSection productId={product.id} />
+
+      {/* Embed structured data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(product) }}
+      />
+
     </>
   );
 }
