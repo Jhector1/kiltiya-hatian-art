@@ -145,9 +145,9 @@ export default function Header() {
               userEmail={user?.email || ""}
               userRole="Pro User"
               menuItems={[
-                { label: "Dashboard", href: "/profile" },
-                { label: "Settings", href: "/settings" },
-                { label: "Earnings", href: "/earnings" },
+                { label: "Dashboard", href: "/profile" , disable: false},
+                { label: "Settings", href: "/settings"  , disable: true},
+                { label: "Earnings", href: "/earnings"  , disable: true},
                 // add a logout entry here:
                 // { label: "Sign Out", href: "#" },
               ]}

@@ -1,7 +1,7 @@
-
 /* File: components/PurchaseOptions.tsx */
 "use client";
 import { AddOptions, CartSelectedItem, CartUpdates } from "@/types";
+// import { format } from "path";
 import React from "react";
 
 export default function PurchaseOptions({
@@ -11,6 +11,8 @@ export default function PurchaseOptions({
   onToggle,
   updateCart,
   updateCart2,
+  removeFromCart,
+  removeFromCart2,
   inCart,
 }: {
   digitalPrice: string;
@@ -19,6 +21,8 @@ export default function PurchaseOptions({
   onToggle: (key: "digital" | "print") => void;
   updateCart: (updates: CartUpdates) => void;
   updateCart2: (updates: CartUpdates) => void;
+  removeFromCart: (updates: CartUpdates) => void;
+  removeFromCart2: (updates: CartUpdates) => void;
   inCart: CartSelectedItem | null;
 }) {
   return (
@@ -35,8 +39,10 @@ export default function PurchaseOptions({
             checked={options.digital}
             onChange={() => {
               onToggle("digital");
-              if (inCart)
-                updateCart2({ format: "jpg" });
+              if (inCart) {
+                if (options.digital) removeFromCart2({});
+                else updateCart2({ format: "jpg" });
+              }
             }}
           />
           <div className="flex items-center px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-purple-600 peer-checked:text-white transition">
@@ -52,14 +58,17 @@ export default function PurchaseOptions({
             checked={options.print}
             onChange={() => {
               onToggle("print");
-              if (inCart)
-                updateCart({
-                  format: "jpg",
-                  size: "11x14 in",
-                  material: "Matte Paper",
-                  frame: null,
-                  quantity: 1,
-                });
+              if (inCart) {
+                if (options.print) removeFromCart({});
+                else
+                  updateCart({
+                    format: "jpg",
+                    size: "11x14 in",
+                    material: "Matte Paper",
+                    frame: null,
+                    quantity: 1,
+                  });
+              }
             }}
           />
           <div className="flex items-center px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-purple-600 peer-checked:text-white transition">

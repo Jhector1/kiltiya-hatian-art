@@ -298,6 +298,22 @@ const total = (
                 updates,
               })
             }
+                removeFromCart={(updates) =>
+              updateCart({
+                // userId: user?.id || "",
+                productId: product.id,
+                printVariantId: "REMOVE",
+                updates,
+              })
+            }
+                removeFromCart2={(updates) =>
+              updateCart({
+                // userId: user?.id || "",
+                productId: product.id,
+                digitalVariantId: "REMOVE",
+                updates,
+              })
+            }
             updateCart2={(updates) => {
               // alert(options.digitalVariantId)
               updateCart({
@@ -306,7 +322,10 @@ const total = (
                 digitalVariantId: "ADD",
                 updates,
               });
-            }}
+            }
+            
+          
+          }
           />
           <AnimatePresence initial={false}>
             {options.print && (
@@ -374,9 +393,9 @@ const total = (
                 setModalOpen(true);
                 return;
               }
-              // let data = null;
+             let data = null;
               if (!inCart) {
-                await addToCart(
+               data= await addToCart(
                   id?.toString() || "",
                   options.digital ? "Digital" : null,
                   options.print ? "Print" : null,
@@ -407,7 +426,7 @@ const total = (
                     ? {
                         id:
                           options.digitalVariantId ||
-                          // data?.result.digitalVariantId ||
+                           data?.result.digitalVariantId ||
                           "temp-digital-id", // fallback if not in cart yet
                         format,
                       }
@@ -416,7 +435,7 @@ const total = (
                     ? {
                         id:
                           options.printVariantId ||
-                          // data?.result?.digitalVariantId ||
+                          data?.result?.digitalVariantId ||
                           "temp-print-id",
                         format,
                         size: size.label,

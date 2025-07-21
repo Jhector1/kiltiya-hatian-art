@@ -147,10 +147,33 @@ export async function POST(req: NextRequest) {
   };
   await prisma.cartItem.create({ data });
 
-  return NextResponse.json({
-    message: "Item added with new variant.",
-    result:  data,
-  });
+ return NextResponse.json({
+  message: "Item added with new variant.",
+  result: {
+    cartId,
+    productId,
+    digitalVariantId: digitalVariant?.id || null,
+    printVariantId: printVariant?.id || null,
+    price: parseFloat(price),
+    quantity,
+    digital: digitalVariant
+      ? {
+          id: digitalVariant.id,
+          format: digitalVariant.format,
+        }
+      : null,
+    print: printVariant
+      ? {
+          id: printVariant.id,
+          format: printVariant.format,
+          size: printVariant.size,
+          material: printVariant.material,
+          frame: printVariant.frame,
+        }
+      : null,
+  },
+});
+
 }
 
 // ─── DELETE /api/cart ────────────────────────────────────────────────
@@ -185,15 +208,14 @@ export async function DELETE(req: NextRequest) {
     message: `Removed ${items.length} item(s) and ${variantIds.length} variant(s).`,
   });
 }
-
 // ─── PATCH /api/cart ────────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
   const userId = await requireUser();
   const {
     productId,
     digitalVariantId = null,
-    printVariantId   = null,
-    updates          = {},
+    printVariantId = null,
+    updates = {},
   } = await req.json();
 
   if (!productId || (!digitalVariantId && !printVariantId)) {
@@ -207,69 +229,132 @@ export async function PATCH(req: NextRequest) {
     where: { userId },
     include: { items: { where: { productId } } },
   });
+
   if (!cart || cart.items.length === 0) {
     return NextResponse.json(
       { error: "Product not found in user's cart." },
       { status: 404 }
     );
   }
-  const cartItem = cart.items[0];
 
-  // digital variant logic
-if (typeof digitalVariantId === "string" && digitalVariantId.toUpperCase() === "ADD") {
+  const cartItem = cart.items[0];
+  const cartItemId = cartItem.id;
+
+  // ─── Remove DIGITAL variant ──────────────────────────────
+  if (typeof digitalVariantId === "string" && digitalVariantId.toUpperCase() === "REMOVE") {
+    const oldDigitalId = cartItem.digitalVariantId;
+    await prisma.cartItem.update({
+      where: { id: cartItemId },
+      data: { digitalVariantId: null },
+    });
+
+    // Delete the variant if not used elsewhere
+    if (oldDigitalId) {
+      const count = await prisma.cartItem.count({
+        where: { digitalVariantId: oldDigitalId },
+      });
+      if (count === 0) {
+        await prisma.productVariant.delete({ where: { id: oldDigitalId } });
+      }
+    }
+  }
+
+  // ─── Remove PRINT variant ────────────────────────────────
+  if (typeof printVariantId === "string" && printVariantId.toUpperCase() === "REMOVE") {
+    const oldPrintId = cartItem.printVariantId;
+    await prisma.cartItem.update({
+      where: { id: cartItemId },
+      data: { printVariantId: null },
+    });
+
+    if (oldPrintId) {
+      const count = await prisma.cartItem.count({
+        where: { printVariantId: oldPrintId },
+      });
+      if (count === 0) {
+        await prisma.productVariant.delete({ where: { id: oldPrintId } });
+      }
+    }
+  }
+
+  // ─── Delete Cart Item if Empty ───────────────────────────
+  const updatedItem = await prisma.cartItem.findUnique({
+    where: { id: cartItemId },
+    select: { id: true, digitalVariantId: true, printVariantId: true },
+  });
+
+  if (!updatedItem?.digitalVariantId && !updatedItem?.printVariantId) {
+    await prisma.cartItem.delete({ where: { id: cartItemId } });
+    return NextResponse.json({
+      message: "Cart item removed because both variants were removed.",
+    });
+  }
+
+  // ─── Add or Update DIGITAL ───────────────────────────────
+  if (typeof digitalVariantId === "string" && digitalVariantId.toUpperCase() === "ADD") {
     const newDigital = await prisma.productVariant.create({
       data: {
         productId,
-        type:   "DIGITAL",
+        type: "DIGITAL",
         format: updates.format ?? "jpg",
       },
     });
     await prisma.cartItem.update({
-      where: { id: cartItem.id },
-      data:  { digitalVariantId: newDigital.id },
+      where: { id: cartItemId },
+      data: { digitalVariantId: newDigital.id },
     });
-} else if (typeof digitalVariantId === "string") {
+  } else if (
+    typeof digitalVariantId === "string" &&
+    digitalVariantId !== "REMOVE"
+  ) {
     const variant = await prisma.productVariant.findUnique({ where: { id: digitalVariantId } });
     if (!variant || variant.productId !== productId) {
       return NextResponse.json({ error: "Invalid digital variant." }, { status: 403 });
     }
     await prisma.productVariant.update({
       where: { id: digitalVariantId },
-      data:  { format: updates.format ?? undefined },
+      data: {
+        format: updates.format ?? undefined,
+      },
     });
   }
 
-  // print variant logic
-if (typeof printVariantId === "string" && printVariantId.toUpperCase() === "ADD") {
+  // ─── Add or Update PRINT ─────────────────────────────────
+  if (typeof printVariantId === "string" && printVariantId.toUpperCase() === "ADD") {
     const newPrint = await prisma.productVariant.create({
       data: {
         productId,
-        type:     "PRINT",
-        format:   updates.format ?? "jpg",
-        size:     updates.size ?? undefined,
+        type: "PRINT",
+        format: updates.format ?? "jpg",
+        size: updates.size ?? undefined,
         material: updates.material ?? undefined,
-        frame:    updates.frame ?? undefined,
+        frame: updates.frame ?? undefined,
       },
     });
     await prisma.cartItem.update({
-      where: { id: cartItem.id },
-      data:  { printVariantId: newPrint.id },
+      where: { id: cartItemId },
+      data: { printVariantId: newPrint.id },
     });
-} else if (typeof printVariantId === "string") {
+  } else if (
+    typeof printVariantId === "string" &&
+    printVariantId !== "REMOVE"
+  ) {
     const variant = await prisma.productVariant.findUnique({ where: { id: printVariantId } });
     if (!variant || variant.productId !== productId) {
       return NextResponse.json({ error: "Invalid print variant." }, { status: 403 });
     }
     await prisma.productVariant.update({
       where: { id: printVariantId },
-      data:  {
-        format:   updates.format ?? undefined,
-        size:     updates.size   ?? undefined,
+      data: {
+        format: updates.format ?? undefined,
+        size: updates.size ?? undefined,
         material: updates.material ?? undefined,
-        frame:    updates.frame  ?? undefined,
+        frame: updates.frame ?? undefined,
       },
     });
   }
 
-  return NextResponse.json({ message: "Variant(s) updated or created and linked to cart." });
+  return NextResponse.json({
+    message: "Variant(s) updated, added, or removed successfully.",
+  });
 }

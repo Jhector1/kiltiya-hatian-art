@@ -6,6 +6,7 @@ import Image from 'next/image';
 type MenuItem = {
   label: string;
   href: string;
+  disable: boolean;
 };
 
 interface UserMenuProps {
@@ -83,8 +84,9 @@ export default function UserMenu({
             {menuItems.map((item) => (
               <li key={item.label}>
                 <a
-                  href={item.href}
-                  className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white"
+                
+                  href={!item.disable?item.href: '#'}
+                  className={`${!item.disable?'block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white': ' px-4 py-2 block pointer-events-none text-gray-400 cursor-not-allowed'}`}
                 >
                   {item.label}
                 </a>
