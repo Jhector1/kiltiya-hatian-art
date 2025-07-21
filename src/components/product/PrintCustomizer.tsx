@@ -174,7 +174,7 @@ export default function PrintCustomizer({
 
       {/* Price Display */}
       <div className="flex justify-between items-center">
-        <span className="text-xl font-bold">${total}</span>
+        <span className="text-xl font-bold">${total.toFixed(2)}</span>
       </div>
     </div>
   );
