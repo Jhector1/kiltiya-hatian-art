@@ -19,6 +19,7 @@ import AuthenticationForm from "@/components/authenticate/AuthenticationFom";
 import { useCart } from "@/contexts/CartContext";
 import {
   AddOptions,
+  AddToCartResponse,
   CartUpdates,
   Format,
   FrameOption,
@@ -393,7 +394,7 @@ const total = (
                 setModalOpen(true);
                 return;
               }
-             let data = null;
+let data: AddToCartResponse | null = null;
               if (!inCart) {
                data= await addToCart(
                   id?.toString() || "",
@@ -426,7 +427,7 @@ const total = (
                     ? {
                         id:
                           options.digitalVariantId ||
-                           data?.result.digitalVariantId ||
+                           data?.result?.digitalVariantId ||
                           "temp-digital-id", // fallback if not in cart yet
                         format,
                       }

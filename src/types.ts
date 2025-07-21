@@ -208,3 +208,10 @@ export type ProductListAndOrderCount = ProductListItem & {
   originalPrice?: number;
   description: string;
 };
+export type AddToCartResponse = {
+  result?: {
+    digitalVariantId?: string;
+    printVariantId?: string;
+  };
+};
+

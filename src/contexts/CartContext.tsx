@@ -1,7 +1,7 @@
 'use client'
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useUser } from "@/contexts/UserContext";
-import { CartSelectedItem, CartUpdates } from "@/types";
+import { AddToCartResponse, CartSelectedItem, CartUpdates } from "@/types";
 
 export type CartContextType = {
   cart: CartSelectedItem[];
@@ -19,7 +19,7 @@ export type CartContextType = {
     material: string,
     frame: string,
     quantity?: number
-  ) => Promise<void>;
+  ) => Promise<AddToCartResponse>;
   removeFromCart: (
     productId: string,
     digitalVariantId: string,
@@ -39,7 +39,7 @@ const defaultContext = {
   loadingAdd: false,
   totalPrice: 0,
   refreshCart: async () => {},
-  addToCart: async () => {},
+addToCart: async () => ({ result: undefined }),
   removeFromCart: async () => {},
   updateCart: async () => {},
 };
@@ -77,43 +77,57 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const addToCart = async (
-    productId: string,
-    digitalType: string | null,
-    printType: string | null,
-    price: number,
-    format: string,
-    size: string,
-    material: string,
-    frame: string,
-    quantity: number = 1
-  ) => {
-    if (!isLoggedIn) return;
-    setLoadingAdd(true);
-    try {
-      await fetch("/api/cart", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId,
-          digitalType,
-          printType,
-          price,
-          quantity,
-          format,
-          size,
-          material,
-          frame,
-        }),
-      });
-      await fetchCart();
-    } catch (err) {
-      console.error("Failed to add to cart:", err);
-    } finally {
-      setLoadingAdd(false);
-    }
-  };
+const addToCart = async (
+  productId: string,
+  digitalType: string | null,
+  printType: string | null,
+  price: number,
+  format: string,
+  size: string,
+  material: string,
+  frame: string,
+  quantity: number = 1
+): Promise<AddToCartResponse> => {
+  if (!isLoggedIn) return { result: undefined };
+
+  setLoadingAdd(true);
+  try {
+    const res = await fetch("/api/cart", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        productId,
+        digitalType,
+        printType,
+        price,
+        quantity,
+        format,
+        size,
+        material,
+        frame,
+      }),
+    });
+
+    const data = await res.json();
+
+    await fetchCart();
+
+    return {
+      result: {
+        digitalVariantId: data?.digitalVariantId,
+        printVariantId: data?.printVariantId,
+      },
+    };
+  } catch (err) {
+    console.error("Failed to add to cart:", err);
+    return { result: undefined };
+  } finally {
+    setLoadingAdd(false);
+  }
+};
+
+
 
   const removeFromCart = async (
     productId: string,
