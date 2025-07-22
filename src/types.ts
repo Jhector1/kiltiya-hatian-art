@@ -67,6 +67,8 @@ export interface AddOptions {
   printVariantId?: string;
   digital?: boolean;
   print?: boolean;
+  // printPrice: number;
+  // digitalPrice: number;
 }
 
 export interface AuthResponse {

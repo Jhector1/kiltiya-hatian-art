@@ -1,8 +1,8 @@
 // File: src/app/api/cart/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession }         from "next-auth/next";
-import { PrismaClient }             from "@prisma/client";
-import { v2 as cloudinary }         from "cloudinary";
+import { getServerSession } from "next-auth/next";
+import { PrismaClient } from "@prisma/client";
+import { v2 as cloudinary } from "cloudinary";
 import { CartSelectedItem, productListSelect } from "@/types";
 import { authOptions } from "@/lib/auth";
 
@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
-  api_key:    process.env.CLOUDINARY_API_KEY!,
+  api_key: process.env.CLOUDINARY_API_KEY!,
   api_secret: process.env.CLOUDINARY_API_SECRET!,
 });
 
@@ -19,10 +19,9 @@ cloudinary.config({
 async function requireUser() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    throw new NextResponse(
-      JSON.stringify({ error: "Not authenticated" }),
-      { status: 401 }
-    );
+    throw new NextResponse(JSON.stringify({ error: "Not authenticated" }), {
+      status: 401,
+    });
   }
   return session.user.id;
 }
@@ -30,54 +29,55 @@ async function requireUser() {
 // ─── GET /api/cart?productId=&digitalVariantId=&printVariantId= ─────
 export async function GET(req: NextRequest) {
   const userId = await requireUser();
-  const url    = new URL(req.url);
-  const productId        = url.searchParams.get("productId");
+  const url = new URL(req.url);
+  const productId = url.searchParams.get("productId");
   const digitalVariantId = url.searchParams.get("digitalVariantId");
-  const printVariantId   = url.searchParams.get("printVariantId");
+  const printVariantId = url.searchParams.get("printVariantId");
 
   // 1️⃣ existence-check mode
   if (productId && (digitalVariantId || printVariantId)) {
     const cart = await prisma.cart.findUnique({
-      where:  { userId },
+      where: { userId },
       select: { id: true },
     });
     if (!cart) {
       return NextResponse.json({ inCart: false });
     }
-    const where: Record<string,string> = { cartId: cart.id, productId };
+    const where: Record<string, string> = { cartId: cart.id, productId };
     if (digitalVariantId) where.digitalVariantId = digitalVariantId;
-    if (printVariantId)   where.printVariantId   = printVariantId;
+    if (printVariantId) where.printVariantId = printVariantId;
     const item = await prisma.cartItem.findFirst({ where });
     return NextResponse.json({ inCart: Boolean(item) });
   }
 
   // 2️⃣ full-cart fetch
   const cart = await prisma.cart.findUnique({
-    where:  { userId },
+    where: { userId },
     select: { id: true },
   });
   if (!cart) {
     return NextResponse.json([] as CartSelectedItem[]);
   }
   const items = await prisma.cartItem.findMany({
-    where:  { cartId: cart.id },
+    where: { cartId: cart.id },
     select: {
-      id:             true,
-      price:          true,
-      quantity:       true,
-      printVariant:   true,
+      id: true,
+      price: true,
+      quantity: true,
+      printVariant: true,
       digitalVariant: true,
-      product:        { select: productListSelect },
+      product: { select: productListSelect },
     },
   });
-  const products: CartSelectedItem[] = items.map(ci => ({
-    cartItemId:      ci.id,
-    cartPrice:       ci.price,
-    cartQuantity:    ci.quantity,
-    digital:         ci.digitalVariant,
-    print:           ci.printVariant,
-   
-    ... ci.product, price: ci.price,
+  const products: CartSelectedItem[] = items.map((ci) => ({
+    cartItemId: ci.id,
+    cartPrice: ci.price,
+    cartQuantity: ci.quantity,
+    digital: ci.digitalVariant,
+    print: ci.printVariant,
+
+    ...ci.product,
+    price: ci.price,
   }));
   return NextResponse.json(products);
 }
@@ -90,11 +90,11 @@ export async function POST(req: NextRequest) {
     digitalType, // 'Digital' or 'Print'
     printType,
     price,
-    quantity  = 1,
-    format='png',
-    size     = null,
+    quantity = 1,
+    format = "png",
+    size = null,
     material = null,
-    frame    = null,
+    frame = null,
   } = await req.json();
 
   // console.log(productId, digitalType, printType, price, format)
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
     digitalVariant = await prisma.productVariant.create({
       data: {
         productId,
-        type:   digitalType.toUpperCase() as "DIGITAL" | "PRINT",
+        type: digitalType.toUpperCase() as "DIGITAL" | "PRINT",
         format,
       },
     });
@@ -127,11 +127,11 @@ export async function POST(req: NextRequest) {
     printVariant = await prisma.productVariant.create({
       data: {
         productId,
-        type:     printType.toUpperCase() as "DIGITAL" | "PRINT",
+        type: printType.toUpperCase() as "DIGITAL" | "PRINT",
         format,
-        size:     printType === "Print" ? size : null,
+        size: printType === "Print" ? size : null,
         material: printType === "Print" ? material : null,
-        frame:    printType === "Print" ? frame : null,
+        frame: printType === "Print" ? frame : null,
       },
     });
   }
@@ -141,44 +141,43 @@ export async function POST(req: NextRequest) {
     cartId,
     productId,
     digitalVariantId: digitalVariant?.id,
-    printVariantId:   printVariant?.id,
-    price:            parseFloat(price),
+    printVariantId: printVariant?.id,
+    price: parseFloat(price),
     quantity,
   };
   await prisma.cartItem.create({ data });
 
- return NextResponse.json({
-  message: "Item added with new variant.",
-  result: {
-    cartId,
-    productId,
-    digitalVariantId: digitalVariant?.id || null,
-    printVariantId: printVariant?.id || null,
-    price: parseFloat(price),
-    quantity,
-    digital: digitalVariant
-      ? {
-          id: digitalVariant.id,
-          format: digitalVariant.format,
-        }
-      : null,
-    print: printVariant
-      ? {
-          id: printVariant.id,
-          format: printVariant.format,
-          size: printVariant.size,
-          material: printVariant.material,
-          frame: printVariant.frame,
-        }
-      : null,
-  },
-});
-
+  return NextResponse.json({
+    message: "Item added with new variant.",
+    result: {
+      cartId,
+      productId,
+      digitalVariantId: digitalVariant?.id || null,
+      printVariantId: printVariant?.id || null,
+      price: parseFloat(price),
+      quantity,
+      digital: digitalVariant
+        ? {
+            id: digitalVariant.id,
+            format: digitalVariant.format,
+          }
+        : null,
+      print: printVariant
+        ? {
+            id: printVariant.id,
+            format: printVariant.format,
+            size: printVariant.size,
+            material: printVariant.material,
+            frame: printVariant.frame,
+          }
+        : null,
+    },
+  });
 }
 
 // ─── DELETE /api/cart ────────────────────────────────────────────────
 export async function DELETE(req: NextRequest) {
-  const userId    = await requireUser();
+  const userId = await requireUser();
   const { productId } = await req.json();
 
   if (!productId) {
@@ -195,19 +194,26 @@ export async function DELETE(req: NextRequest) {
   const cartId = cart.id;
 
   // find & delete items and any created variants
-  const items = await prisma.cartItem.findMany({ where: { cartId, productId } });
-  const variantIds = items.flatMap(i =>
-    [i.digitalVariantId, i.printVariantId].filter((v): v is string => Boolean(v))
+  const items = await prisma.cartItem.findMany({
+    where: { cartId, productId },
+  });
+  const variantIds = items.flatMap((i) =>
+    [i.digitalVariantId, i.printVariantId].filter((v): v is string =>
+      Boolean(v)
+    )
   );
   await prisma.cartItem.deleteMany({ where: { cartId, productId } });
   if (variantIds.length) {
-    await prisma.productVariant.deleteMany({ where: { id: { in: variantIds } } });
+    await prisma.productVariant.deleteMany({
+      where: { id: { in: variantIds } },
+    });
   }
 
   return NextResponse.json({
     message: `Removed ${items.length} item(s) and ${variantIds.length} variant(s).`,
   });
 }
+// ─── PATCH /api/cart ────────────────────────────────────────────────
 // ─── PATCH /api/cart ────────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
   const userId = await requireUser();
@@ -218,6 +224,10 @@ export async function PATCH(req: NextRequest) {
     updates = {},
   } = await req.json();
 
+  const rawPrice = updates.price;
+  const variantPrice = Number.isFinite(Number(rawPrice))
+    ? parseFloat(rawPrice)
+    : 0;
   if (!productId || (!digitalVariantId && !printVariantId)) {
     return NextResponse.json(
       { error: "Missing required fields or no variant to update." },
@@ -241,14 +251,20 @@ export async function PATCH(req: NextRequest) {
   const cartItemId = cartItem.id;
 
   // ─── Remove DIGITAL variant ──────────────────────────────
-  if (typeof digitalVariantId === "string" && digitalVariantId.toUpperCase() === "REMOVE") {
+  if (
+    typeof digitalVariantId === "string" &&
+    digitalVariantId.toUpperCase() === "REMOVE"
+  ) {
     const oldDigitalId = cartItem.digitalVariantId;
+
     await prisma.cartItem.update({
       where: { id: cartItemId },
-      data: { digitalVariantId: null },
+      data: {
+        digitalVariantId: null,
+        price: { decrement: variantPrice },
+      },
     });
 
-    // Delete the variant if not used elsewhere
     if (oldDigitalId) {
       const count = await prisma.cartItem.count({
         where: { digitalVariantId: oldDigitalId },
@@ -260,11 +276,18 @@ export async function PATCH(req: NextRequest) {
   }
 
   // ─── Remove PRINT variant ────────────────────────────────
-  if (typeof printVariantId === "string" && printVariantId.toUpperCase() === "REMOVE") {
+  if (
+    typeof printVariantId === "string" &&
+    printVariantId.toUpperCase() === "REMOVE"
+  ) {
     const oldPrintId = cartItem.printVariantId;
+
     await prisma.cartItem.update({
       where: { id: cartItemId },
-      data: { printVariantId: null },
+      data: {
+        printVariantId: null,
+        price: { decrement: variantPrice },
+      },
     });
 
     if (oldPrintId) {
@@ -290,8 +313,11 @@ export async function PATCH(req: NextRequest) {
     });
   }
 
-  // ─── Add or Update DIGITAL ───────────────────────────────
-  if (typeof digitalVariantId === "string" && digitalVariantId.toUpperCase() === "ADD") {
+  // ─── Add DIGITAL variant ───────────────────────────────
+  if (
+    typeof digitalVariantId === "string" &&
+    digitalVariantId.toUpperCase() === "ADD"
+  ) {
     const newDigital = await prisma.productVariant.create({
       data: {
         productId,
@@ -301,26 +327,18 @@ export async function PATCH(req: NextRequest) {
     });
     await prisma.cartItem.update({
       where: { id: cartItemId },
-      data: { digitalVariantId: newDigital.id },
-    });
-  } else if (
-    typeof digitalVariantId === "string" &&
-    digitalVariantId !== "REMOVE"
-  ) {
-    const variant = await prisma.productVariant.findUnique({ where: { id: digitalVariantId } });
-    if (!variant || variant.productId !== productId) {
-      return NextResponse.json({ error: "Invalid digital variant." }, { status: 403 });
-    }
-    await prisma.productVariant.update({
-      where: { id: digitalVariantId },
       data: {
-        format: updates.format ?? undefined,
+        digitalVariantId: newDigital.id,
+        price: { increment: variantPrice },
       },
     });
   }
 
-  // ─── Add or Update PRINT ─────────────────────────────────
-  if (typeof printVariantId === "string" && printVariantId.toUpperCase() === "ADD") {
+  // ─── Add PRINT variant ─────────────────────────────────
+  if (
+    typeof printVariantId === "string" &&
+    printVariantId.toUpperCase() === "ADD"
+  ) {
     const newPrint = await prisma.productVariant.create({
       data: {
         productId,
@@ -333,17 +351,34 @@ export async function PATCH(req: NextRequest) {
     });
     await prisma.cartItem.update({
       where: { id: cartItemId },
-      data: { printVariantId: newPrint.id },
+      data: {
+        printVariantId: newPrint.id,
+        price: { increment: variantPrice },
+      },
     });
-  } else if (
+  }
+
+  // ─── Update existing DIGITAL ───────────────────────────
+  if (
+    typeof digitalVariantId === "string" &&
+    digitalVariantId !== "ADD" &&
+    digitalVariantId !== "REMOVE"
+  ) {
+    await prisma.productVariant.update({
+      where: { id: digitalVariantId },
+      data: {
+        format: updates.format ?? undefined,
+      },
+    });
+  }
+
+  // ─── Update existing PRINT ─────────────────────────────
+  if (
     typeof printVariantId === "string" &&
+    printVariantId !== "ADD" &&
     printVariantId !== "REMOVE"
   ) {
-    const variant = await prisma.productVariant.findUnique({ where: { id: printVariantId } });
-    if (!variant || variant.productId !== productId) {
-      return NextResponse.json({ error: "Invalid print variant." }, { status: 403 });
-    }
-    await prisma.productVariant.update({
+    const newPrint = await prisma.productVariant.update({
       where: { id: printVariantId },
       data: {
         format: updates.format ?? undefined,
@@ -352,9 +387,19 @@ export async function PATCH(req: NextRequest) {
         frame: updates.frame ?? undefined,
       },
     });
+
+    console.log(variantPrice,'price')
+
+    await prisma.cartItem.update({
+      where: { id: cartItemId },
+      data: {
+        printVariantId: newPrint.id,
+        price: { set: variantPrice },
+      },
+    });
   }
 
   return NextResponse.json({
-    message: "Variant(s) updated, added, or removed successfully.",
+    message: "Cart item updated successfully.",
   });
 }

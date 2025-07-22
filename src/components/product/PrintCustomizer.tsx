@@ -13,6 +13,8 @@ import { ArtworkFrameSquare } from "./artworkFrameSquare";
 interface PrintCustomizerProps {
   // basePrice: number;
   total: number;
+  // finalPrice: number,
+  calculatePrice: (type: string, frame?: string, newMultipler?: number) => string;
   // formatMultiplier: number;
   // sizeMultiplier: number;
   imageSrc: string;
@@ -21,6 +23,7 @@ interface PrintCustomizerProps {
   setFrameAction: (frame: FrameOption | null) => void;
   frame: FrameOption | null;
   material: MaterialOption;
+
   setMaterialAction: (material: MaterialOption) => void;
   updateCart: (updates: CartUpdates) => void;
   inCart: CartSelectedItem | null;
@@ -29,6 +32,7 @@ interface PrintCustomizerProps {
 export default function PrintCustomizer({
   // basePrice,
   total,
+  calculatePrice,
   // formatMultiplier,
   // sizeMultiplier,
   imageSrc,
@@ -37,6 +41,7 @@ export default function PrintCustomizer({
   setFrameAction,
   frame,
   material,
+
   setMaterialAction,
   updateCart,
   inCart,
@@ -78,7 +83,11 @@ export default function PrintCustomizer({
                 checked={material.label === m.label}
                 onChange={() => {
                   setMaterialAction(m);
-                  if (inCart) updateCart({ material: m.label });
+                  if (inCart)
+                    updateCart({
+                      material: m.label,
+                      price: String(Number(calculatePrice("Print", "material", m.multiplier))+ Number(calculatePrice('Digital'))),
+                    });
                 }}
               />
               <div className="flex flex-col items-center gap-1">
@@ -112,28 +121,31 @@ export default function PrintCustomizer({
             None
           </button>
           {frames.map((f) => (
-          <button
-  key={f.label}
-  onClick={() => {
-    setFrameAction(f);
-    if (inCart) updateCart({ frame: f.label });
-  }}
-  className={`px-3 py-1 rounded bg-cover bg-center bg-no-repeat ${
-    f.label === "White" ? "text-black" : "text-white"
-  } ${
-    frame?.label === f.label &&
-    "border-2 border-transparent outline outline-2 outline-purple-600 outline-offset-4"
-  }`}
-  style={{
-    backgroundImage: `url("/images/textures/${f.label
-      .split(" ")[0]
-      .trim()
-      .toLowerCase()}-wood.png")`,
-  }}
->
-  {f.label}
-</button>
-
+            <button
+              key={f.label}
+              onClick={() => {
+                setFrameAction(f);
+                if (inCart)
+                  updateCart({
+                    frame: f.label,
+                    price: String(Number(calculatePrice("Print", "material", f.multiplier))+ Number(calculatePrice('Digital'))),
+                  });
+              }}
+              className={`px-3 py-1 rounded bg-cover bg-center bg-no-repeat ${
+                f.label === "White" ? "text-black" : "text-white"
+              } ${
+                frame?.label === f.label &&
+                "border-2 border-transparent outline outline-2 outline-purple-600 outline-offset-4"
+              }`}
+              style={{
+                backgroundImage: `url("/images/textures/${f.label
+                  .split(" ")[0]
+                  .trim()
+                  .toLowerCase()}-wood.png")`,
+              }}
+            >
+              {f.label}
+            </button>
           ))}
         </div>
       </div>

@@ -40,8 +40,8 @@ export default function PurchaseOptions({
             onChange={() => {
               onToggle("digital");
               if (inCart) {
-                if (options.digital) removeFromCart2({});
-                else updateCart2({ format: "jpg" });
+                if (options.digital) removeFromCart2({ price:digitalPrice});
+                else updateCart2({ format: "jpg", price: digitalPrice});
               }
             }}
           />
@@ -59,7 +59,7 @@ export default function PurchaseOptions({
             onChange={() => {
               onToggle("print");
               if (inCart) {
-                if (options.print) removeFromCart({});
+                if (options.print) removeFromCart({ price: printPrice});
                 else
                   updateCart({
                     format: "jpg",
@@ -67,6 +67,7 @@ export default function PurchaseOptions({
                     material: "Matte Paper",
                     frame: null,
                     quantity: 1,
+                    price: printPrice
                   });
               }
             }}

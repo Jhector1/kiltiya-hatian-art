@@ -31,12 +31,6 @@ import { loadStripe } from "@stripe/stripe-js";
 import { AnimatePresence, motion } from "framer-motion";
 import ImageSlider from "@/components/product/ImageSlider";
 
-
-
-
-
-
-
 export default function ProductDetail() {
   const { id } = useParams()!;
   const { isLoggedIn } = useUser();
@@ -47,7 +41,7 @@ export default function ProductDetail() {
   const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
     null
   );
-    const [finalPrice, setFinalPrice] = useState<number>(0);
+  const [finalPrice, setFinalPrice] = useState<number>(0);
 
   const [format, setFormat] = useState<string>("");
   const [size, setSize] = useState<{ label: string; multiplier: number }>({
@@ -68,7 +62,7 @@ export default function ProductDetail() {
     digital: false,
     print: false,
   });
-  
+
   // const [liked, setLiked] = useState(false);
   const [isModalOpen, setModalOpen] = useState(false);
 
@@ -95,10 +89,9 @@ export default function ProductDetail() {
 
   const frames = useMemo(
     () => [
-      
       { label: "Black Wood", border: "8px solid #111", multiplier: 1.25 },
-      { label: "Natural Wood", border: "8px solid #a35" ,  multiplier: 1.5},
-      { label: "White", border: "8px solid #fff" ,  multiplier: 1.75},
+      { label: "Natural Wood", border: "8px solid #a35", multiplier: 1.5 },
+      { label: "White", border: "8px solid #fff", multiplier: 1.75 },
     ],
     []
   );
@@ -113,7 +106,6 @@ export default function ProductDetail() {
     ],
     []
   );
-
 
   // Load product and initialize options
   useEffect(() => {
@@ -170,40 +162,71 @@ export default function ProductDetail() {
       .catch(console.error);
   }, [id, loadingUser, materials, frames, optionSizes, user?.id, updateCart]);
 
-useEffect(() => {
-  if (!product) return;
-  // const type = options.digital ? "Digital" : "Print";
-const price =
-  (options.digital ? parseFloat(calculatePrice("Digital")) : 0) +
-  (options.print ? parseFloat(calculatePrice("Print")) : 0);
-  // alert(price)
-  setFinalPrice(price);
-}, [product, size, customSize, isCustom, options, material, frame]);
-
-
+  useEffect(() => {
+    if (!product) return;
+    // const type = options.digital ? "Digital" : "Print";
+    const price =
+      (options.digital ? parseFloat(calculatePrice("Digital")) : 0) +
+      (options.print ? parseFloat(calculatePrice("Print")) : 0);
+    // alert(price)
+    setFinalPrice(price);
+  }, [product, size, customSize, isCustom, options, material, frame]);
 
   if (!product || !preview) {
     return <div className="p-10 text-center">Loading product…</div>;
   }
 
   // Price calculation
-const calculatePrice = (type: string) => {
-  const base = product?.price || 0;
+  const calculatePrice = (type: string,  eraser='', newMultipler=0 ) => {
+    const base = product?.price || 0;
 
-  if (type === "Digital") return (base * 0.6).toFixed(2);
+    if (type === "Digital") return String(base);
 
-  const sizeMultiplier = isCustom && customSize.width && customSize.height
-    ? (+customSize.width * +customSize.height) / 80
-    : size.multiplier;
+    const sizeMultiplier =
+      isCustom && customSize.width && customSize.height
+        ? (+customSize.width * +customSize.height) / 80
+        : size.multiplier;
 
-  const materialMultiplier = material?.multiplier ?? 1;
-   const frameMultiplier = frame?.multiplier ?? 1;
-const total = (
-  base * sizeMultiplier * materialMultiplier * frameMultiplier +
-  (options?.digital ? base * 0.6 : 0)
-).toFixed(2);
-  return total;
-};
+    let materialMultiplier =  material?.multiplier ?? 1;
+    let frameMultiplier =frame?.multiplier ?? 1;
+    if(eraser === 'material'){
+        materialMultiplier=newMultipler
+    }
+     if(eraser === 'frame'){
+        frameMultiplier=newMultipler
+    }
+    const total = (
+      base * sizeMultiplier * materialMultiplier * frameMultiplier +
+      (options?.digital ? base : 0)
+    ).toFixed(2);
+    return String(total);
+  };
+
+
+function calculatePrice2({
+  base,
+  type,
+  sizeMultiplier,
+  materialMultiplier,
+  frameMultiplier,
+  includeDigital,
+}: {
+  base: number;
+  type: "Print" | "Digital";
+  sizeMultiplier: number;
+  materialMultiplier: number;
+  frameMultiplier: number;
+  includeDigital: boolean;
+}): number {
+  if (type === "Digital") return base;
+
+  const printPrice = base * sizeMultiplier * materialMultiplier * frameMultiplier;
+  const digitalAddon = includeDigital ? base : 0;
+
+  return parseFloat((printPrice + digitalAddon).toFixed(2));
+}
+
+
 
   const formats: Format[] = product.formats.map((url) => {
     const parts = url.split(".");
@@ -299,13 +322,13 @@ const total = (
             inCart={inCart || null}
             updateCart={(updates) =>
               updateCart({
-                // userId: user?.id || "",
                 productId: product.id,
                 printVariantId: "ADD",
                 updates,
+              
               })
             }
-                removeFromCart={(updates) =>
+            removeFromCart={(updates) =>
               updateCart({
                 // userId: user?.id || "",
                 productId: product.id,
@@ -313,7 +336,7 @@ const total = (
                 updates,
               })
             }
-                removeFromCart2={(updates) =>
+            removeFromCart2={(updates) =>
               updateCart({
                 // userId: user?.id || "",
                 productId: product.id,
@@ -329,10 +352,7 @@ const total = (
                 digitalVariantId: "ADD",
                 updates,
               });
-            }
-            
-          
-          }
+            }}
           />
           <AnimatePresence initial={false}>
             {options.print && (
@@ -368,6 +388,8 @@ const total = (
 
                 <PrintCustomizer
                   total={finalPrice}
+                  calculatePrice={calculatePrice}
+
                   // formatMultiplier={1}
                   // sizeMultiplier={size.multiplier}
                   imageSrc={product.imageUrl}
@@ -400,9 +422,9 @@ const total = (
                 setModalOpen(true);
                 return;
               }
-let data: AddToCartResponse | null = null;
+              let data: AddToCartResponse | null = null;
               if (!inCart) {
-               data= await addToCart(
+                data = await addToCart(
                   id?.toString() || "",
                   options.digital ? "Digital" : null,
                   options.print ? "Print" : null,
@@ -433,7 +455,7 @@ let data: AddToCartResponse | null = null;
                     ? {
                         id:
                           options.digitalVariantId ||
-                           data?.result?.digitalVariantId ||
+                          data?.result?.digitalVariantId ||
                           "temp-digital-id", // fallback if not in cart yet
                         format,
                       }
@@ -493,12 +515,11 @@ let data: AddToCartResponse | null = null;
 
       <ReviewsSection productId={product.id} />
 
-      {/* Embed structured data
+      {/* Embed structured data */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(product) }}
-      /> */}
-
+      />
     </>
   );
 }
