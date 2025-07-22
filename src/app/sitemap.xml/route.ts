@@ -1,14 +1,13 @@
-// ✅ Step 2: Create `sitemap.xml` handler in App Router
-// File: src/app/sitemap.xml/route.ts
-
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma"; // Update the path to your Prisma client
+import { prisma } from "@/lib/prisma"; // Make sure this path is correct for your project
 
-export const runtime = "edge"; // Optional for better performance
+export const runtime = "nodejs"; // Required: Prisma does NOT support edge
+
 export async function GET() {
   try {
-    const baseUrl = "https://ziledigital.com";
+    const baseUrl = "https://ziledigital.com"; // Update to your correct domain
 
+    // Fetch dynamic product URLs
     const products = await prisma.product.findMany({
       select: {
         id: true,
@@ -16,8 +15,8 @@ export async function GET() {
       },
     });
 
+    // Static pages
     const staticPages = ["", "/about", "/contact", "/store"];
-
     const staticUrls = staticPages.map(
       (path) => `
       <url>
@@ -27,6 +26,7 @@ export async function GET() {
       </url>`
     );
 
+    // Product pages
     const productUrls = products.map(
       (product) => `
       <url>
@@ -36,9 +36,10 @@ export async function GET() {
       </url>`
     );
 
+    // Full XML string
     const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
     <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-      ${[...staticUrls, ...productUrls].join("\n")}  
+      ${[...staticUrls, ...productUrls].join("\n")}
     </urlset>`;
 
     return new NextResponse(sitemap, {
