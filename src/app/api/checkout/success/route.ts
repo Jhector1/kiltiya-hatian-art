@@ -27,10 +27,14 @@ export async function GET(req: NextRequest) {
   const order = await prisma.order.findUnique({
     where: { stripeSessionId: sessionId },
     include: {
-      items: {
-        where: { type: "DIGITAL" },
-        include: { product: true },
-      },
+     items: {
+  where: { type: "DIGITAL" },
+  include: {
+    product: true,
+    digitalVariant: true, // 👈 Fetch the actual variant
+  },
+},
+
     },
   });
 

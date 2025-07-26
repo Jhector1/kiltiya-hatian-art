@@ -95,15 +95,24 @@ export default function CheckoutSuccessPage() {
                 key={`${art.id}-${i}`}
                 className="flex gap-4 items-center border-b pb-4"
               >
-                <img
-                  src={art.downloadUrl}
-                  alt={art.title}
-                  className="w-24 h-24 object-cover rounded shadow"
-                />
+                {art.format.toLowerCase() === "pdf" ? (
+                  <iframe
+                    src={art.downloadUrl}
+                    title={art.title}
+                    className="w-24 h-24 rounded shadow border"
+                  />
+                ) : (
+                  <img
+                    src={art.downloadUrl}
+                    alt={art.title}
+                    className="w-24 h-24 object-cover rounded shadow"
+                  />
+                )}
+
                 <div className="flex-1">
                   <p className="font-semibold">{art.title}</p>
                   <p className="text-sm text-gray-500 mb-2">
-                    Format: {art.format}
+                    Format: {art.downloadUrl}
                   </p>
                   <button
                     onClick={() =>

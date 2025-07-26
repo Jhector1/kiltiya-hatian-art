@@ -53,6 +53,7 @@ export default function PurchaseOptions({
         {/* Print Option */}
         <label className="cursor-pointer">
           <input
+          disabled={true}
             type="checkbox"
             className="sr-only peer"
             checked={options.print}
@@ -72,8 +73,8 @@ export default function PurchaseOptions({
               }
             }}
           />
-          <div className="flex items-center px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-purple-600 peer-checked:text-white transition">
-            Print – <span className="font-medium ml-1">${printPrice}</span>
+          <div className="flex cursor-not-allowed items-center px-4 py-2 border border-gray-300 text-gray-300 rounded-lg peer-checked:bg-purple-600 peer-checked:text-white transition">
+            Print – <span className="font-medium ml-1 text-gray-300">${printPrice}</span>
           </div>
         </label>
       </div>

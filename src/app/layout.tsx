@@ -87,7 +87,7 @@ export default function RootLayout({
                   <Header />
                   <main className="px-4 md:px-10 lg:px-20">{children}</main>
                   <footer className="text-center text-sm py-6">
-                    &copy; 2024 Haitian Digital Market
+                    &copy; 2024 ZileDigital Market
                   </footer>
                 </div>
               </FavoriteProvider>
