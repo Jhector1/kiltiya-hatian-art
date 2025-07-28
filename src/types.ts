@@ -217,3 +217,10 @@ export type AddToCartResponse = {
   };
 };
 
+export type LicenseOption = {
+     type: string,
+    name: string,
+    price: number,
+    description: string,
+  
+}

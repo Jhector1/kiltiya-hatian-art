@@ -16,6 +16,7 @@ import type {
   ProductListAndOrderCount,
   ProductListItem,
 } from "@/types";
+import { useCart } from "@/contexts/CartContext";
 // import { frames } from "@/data/categories";
 
 interface GalleryProps {
@@ -23,6 +24,7 @@ interface GalleryProps {
     | Array<ProductListAndOrderCount>
     | ProductListItem[]
     | Array<CartSelectedItem>;
+      showCartItem?: boolean;
   showLikeButton?: boolean;
   onLikeToggle?: (id: string, liked: boolean) => void;
 }
@@ -31,12 +33,14 @@ export default function Gallery({
   products,
   showLikeButton = true,
   onLikeToggle,
+  showCartItem=false
 }: GalleryProps) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const { isLoggedIn } = useUser();
   const [loaded, setLoaded] = useState<Record<string, boolean>>({});
   const [modalOpen, setModalOpen] = useState(false);
   const router = useRouter();
+  const { removeFromCart } = useCart();
 
   const handleLikeClick = (id: string) => {
     if (!isLoggedIn) {
@@ -123,47 +127,68 @@ export default function Gallery({
                 {/* Metadata */}
 
                 {/* Always show title, price, etc. */}
-                <div className="mt-6 space-y-2 text-left">
-                  <h3
-                    onClick={() => router.push(`/store/${p.id}`)}
-                    className="text-base font-semibold text-gray-900 hover:underline cursor-pointer"
-                  >
-                    {p.title}
-                  </h3>
+                <div className="flex justify-between items-center">
+                  <div className="mt-6 space-y-2 text-left">
+                    <h3
+                      onClick={() => router.push(`/store/${p.id}`)}
+                      className="text-base font-semibold text-gray-900 hover:underline cursor-pointer"
+                    >
+                      {p.title}
+                    </h3>
 
-                  {/* Optional: show dimensions if present */}
-                  {"dimensions" in p && (
-                    <p className="text-xs text-gray-500">{p.dimensions}</p>
-                  )}
-
-                  {/* Price (with optional discount) */}
-                  <p className="text-sm font-bold text-gray-900">
-                    {"originalPrice" in p && p.originalPrice ? (
-                      <>
-                        <span className="line-through text-gray-400">
-                          ${p.originalPrice.toFixed(2)}
-                        </span>{" "}
-                        <span>${p.price.toFixed(2)}</span>
-                        <span className="text-red-600">
-                          -{Math.round((1 - p.price / p.originalPrice) * 100)}%
-                        </span>
-                      </>
-                    ) : (
-                      <span>${p.price.toFixed(2)}</span>
+                    {/* Optional: show dimensions if present */}
+                    {"dimensions" in p && (
+                      <p className="text-xs text-gray-500">{p.dimensions}</p>
                     )}
-                  </p>
-                  {isCartSelectedItem(p)&&<><i>{p.print&& 'Print'}</i> <i>{p.digital&& '& Digital'}</i></>}
 
-                  {/* Optional artist name */}
-                  {"artistName" in p && (
-                    <p className="text-xs text-gray-500">{p.artistName}</p>
-                  )}
-
-                  {/* Optional purchase count */}
-                  {"purchaseCount" in p && (
-                    <p className="text-xs text-gray-500">
-                      Purchased: {p.purchaseCount}
+                    {/* Price (with optional discount) */}
+                    <p className="text-sm font-bold text-gray-900">
+                      {"originalPrice" in p && p.originalPrice ? (
+                        <>
+                          <span className="line-through text-gray-400">
+                            ${p.originalPrice.toFixed(2)}
+                          </span>{" "}
+                          <span>${p.price.toFixed(2)}</span>
+                          <span className="text-red-600">
+                            -{Math.round((1 - p.price / p.originalPrice) * 100)}
+                            %
+                          </span>
+                        </>
+                      ) : (
+                        <span>${p.price.toFixed(2)}</span>
+                      )}
                     </p>
+                    {isCartSelectedItem(p) && (
+                      <>
+                        <i>{p.print && "Print"}</i>{" "}
+                        <i>{p.digital && "& Digital"}</i>
+                      </>
+                    )}
+
+                    {/* Optional artist name */}
+                    {"artistName" in p && (
+                      <p className="text-xs text-gray-500">{p.artistName}</p>
+                    )}
+
+                    {/* Optional purchase count */}
+                    {"purchaseCount" in p && (
+                      <p className="text-xs text-gray-500">
+                        Purchased: {p.purchaseCount}
+                      </p>
+                    )}
+                  </div>
+                  {showCartItem && (
+                    <small
+                      onClick={async () => {
+                        const digitalId = (p as CartSelectedItem)?.digital?.id;
+                        const printId = (p as CartSelectedItem)?.print?.id;
+
+                        await removeFromCart(p.id, digitalId||'', printId||'');
+                      }}
+                      className="cursor-pointer text-sm text-red-500 hover:text-red-700 transition-colors"
+                    >
+                      Remove
+                    </small>
                   )}
                 </div>
               </motion.div>

@@ -106,7 +106,7 @@ export default function CartPage() {
           <p className="text-gray-600">Your cart is empty.</p>
         ) : (
           <>
-            <Gallery products={cart} showLikeButton={false} />
+            <Gallery showCartItem={true} products={cart} showLikeButton={false} />
             <div className="mt-10 flex justify-between items-center border-t pt-6">
               <span className="text-xl font-semibold text-gray-800">
                 Total: ${totalPrice.toFixed(2)}

@@ -23,6 +23,7 @@ import {
   CartUpdates,
   Format,
   FrameOption,
+  LicenseOption,
   MaterialOption,
   ProductDetailResult,
 } from "@/types";
@@ -30,12 +31,19 @@ import { useMemo } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { AnimatePresence, motion } from "framer-motion";
 import ImageSlider from "@/components/product/ImageSlider";
+import LicenseSelector from "@/components/product/LicenseSelector";
 
 export default function ProductDetail() {
   const { id } = useParams()!;
   const { isLoggedIn } = useUser();
   const { cart, loadingAdd, addToCart, updateCart, removeFromCart } = useCart();
   const { user, loading: loadingUser } = useUser();
+  const [license, setLicense] = useState<LicenseOption>({
+    type: "personal",
+    name: "Personal Use",
+    price: 0,
+    description: "For personal projects and non-commercial use.",
+  });
 
   const [product, setProduct] = useState<ProductDetailResult | null>(null);
   const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
@@ -122,6 +130,7 @@ export default function ProductDetail() {
         const digitalVariant = p.variants?.find(
           (v) => v.type?.toUpperCase() === "DIGITAL" && v.inUserCart
         );
+        // setLicense({...license,price: p.price})
 
         setOptions({
           digital: !!digitalVariant,
@@ -168,16 +177,16 @@ export default function ProductDetail() {
     const price =
       (options.digital ? parseFloat(calculatePrice("Digital")) : 0) +
       (options.print ? parseFloat(calculatePrice("Print")) : 0);
-    // alert(price)
-    setFinalPrice(price);
-  }, [product, size, customSize, isCustom, options, material, frame]);
+    //  alert(license.price)
+    setFinalPrice(price + license.price);
+  }, [product, license, size, customSize, isCustom, options, material, frame]);
 
   if (!product || !preview) {
     return <div className="p-10 text-center">Loading product…</div>;
   }
 
   // Price calculation
-  const calculatePrice = (type: string,  eraser='', newMultipler=0 ) => {
+  const calculatePrice = (type: string, eraser = "", newMultipler = 0) => {
     const base = product?.price || 0;
 
     if (type === "Digital") return String(base);
@@ -187,13 +196,13 @@ export default function ProductDetail() {
         ? (+customSize.width * +customSize.height) / 80
         : size.multiplier;
 
-    let materialMultiplier =  material?.multiplier ?? 1;
-    let frameMultiplier =frame?.multiplier ?? 1;
-    if(eraser === 'material'){
-        materialMultiplier=newMultipler
+    let materialMultiplier = material?.multiplier ?? 1;
+    let frameMultiplier = frame?.multiplier ?? 1;
+    if (eraser === "material") {
+      materialMultiplier = newMultipler;
     }
-     if(eraser === 'frame'){
-        frameMultiplier=newMultipler
+    if (eraser === "frame") {
+      frameMultiplier = newMultipler;
     }
     const total = (
       base * sizeMultiplier * materialMultiplier * frameMultiplier +
@@ -202,31 +211,28 @@ export default function ProductDetail() {
     return String(total);
   };
 
+  // function calculatePrice2({
+  //   base,
+  //   type,
+  //   sizeMultiplier,
+  //   materialMultiplier,
+  //   frameMultiplier,
+  //   includeDigital,
+  // }: {
+  //   base: number;
+  //   type: "Print" | "Digital";
+  //   sizeMultiplier: number;
+  //   materialMultiplier: number;
+  //   frameMultiplier: number;
+  //   includeDigital: boolean;
+  // }): number {
+  //   if (type === "Digital") return base;
 
-function calculatePrice2({
-  base,
-  type,
-  sizeMultiplier,
-  materialMultiplier,
-  frameMultiplier,
-  includeDigital,
-}: {
-  base: number;
-  type: "Print" | "Digital";
-  sizeMultiplier: number;
-  materialMultiplier: number;
-  frameMultiplier: number;
-  includeDigital: boolean;
-}): number {
-  if (type === "Digital") return base;
+  //   const printPrice = base * sizeMultiplier * materialMultiplier * frameMultiplier;
+  //   const digitalAddon = includeDigital ? base : 0;
 
-  const printPrice = base * sizeMultiplier * materialMultiplier * frameMultiplier;
-  const digitalAddon = includeDigital ? base : 0;
-
-  return parseFloat((printPrice + digitalAddon).toFixed(2));
-}
-
-
+  //   return parseFloat((printPrice + digitalAddon).toFixed(2));
+  // }
 
   const formats: Format[] = product.formats.map((url) => {
     const parts = url.split(".");
@@ -298,24 +304,10 @@ function calculatePrice2({
           <h1 className="text-3xl font-bold">{product.title}</h1>
           <h3 className="font-bold">Description:</h3>
           <p className="pb-10">{product.description}</p>
-
-          <FormatSelector
-            formats={uniqueFormats}
-            selected={format}
-            onChangeAction={setFormat}
-            inCart={inCart || null}
-            updateCart={(updates: CartUpdates) =>
-              updateCart({
-                // userId: user?.id || "",
-                productId: product.id,
-                printVariantId: options.printVariantId,
-                updates,
-              })
-            }
-          />
-
           <PurchaseOptions
-            digitalPrice={calculatePrice("Digital")}
+            digitalPrice={
+              options.digital ? String(finalPrice) : String(product.price + finalPrice)
+            }
             printPrice={calculatePrice("Print")}
             options={options}
             onToggle={(t) => setOptions((o) => ({ ...o, [t]: !o[t] }))}
@@ -325,7 +317,6 @@ function calculatePrice2({
                 productId: product.id,
                 printVariantId: "ADD",
                 updates,
-              
               })
             }
             removeFromCart={(updates) =>
@@ -354,6 +345,23 @@ function calculatePrice2({
               });
             }}
           />
+          <LicenseSelector onSelect={setLicense} selected={license} />
+
+          <FormatSelector
+            formats={uniqueFormats}
+            selected={format}
+            onChangeAction={setFormat}
+            inCart={inCart || null}
+            updateCart={(updates: CartUpdates) =>
+              updateCart({
+                // userId: user?.id || "",
+                productId: product.id,
+                printVariantId: options.printVariantId,
+                updates,
+              })
+            }
+          />
+
           <AnimatePresence initial={false}>
             {options.print && (
               <motion.div
@@ -389,7 +397,6 @@ function calculatePrice2({
                 <PrintCustomizer
                   total={finalPrice}
                   calculatePrice={calculatePrice}
-
                   // formatMultiplier={1}
                   // sizeMultiplier={size.multiplier}
                   imageSrc={product.imageUrl}
@@ -428,10 +435,9 @@ function calculatePrice2({
                   id?.toString() || "",
                   options.digital ? "Digital" : null,
                   options.print ? "Print" : null,
-                  parseFloat(
-                    calculatePrice(options.digital ? "Digital" : "Print")
-                  ),
-
+                  //   parseFloat(
+                  finalPrice,
+                  // calculatePrice(options.digital ? "Digital" : "Print")+ license.price
                   format,
                   size.label,
                   material?.label || "",
@@ -447,9 +453,7 @@ function calculatePrice2({
                 myProduct: {
                   id: productId,
                   title: product.title,
-                  price: parseFloat(
-                    calculatePrice(options.digital ? "Digital" : "Print")
-                  ),
+                  price: finalPrice,
                   imageUrl: product.imageUrl || "/placeholder.png",
                   digital: options.digital
                     ? {
