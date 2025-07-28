@@ -17,7 +17,6 @@ import Hero from "@/components/home/Hero";
 import PromoBanner from "@/components/home/PromoBanner";
 import Testimonial from "@/components/home/Testimonial";
 import WhyHaitianArt from "@/components/home/WhyHaitianArt";
-import ProductForm from "@/components/upload/ProductForm";
 import categories from "@/data/categories";
 // import ImageSlider from "@/components/product/ImageSlider";
 
@@ -40,7 +39,7 @@ export default function Home() {
       <WhyHaitianArt />
       <AboutComponent/>
       <Testimonial />
-      <ProductForm/>
+ 
       {/* <DigitalCardWrapper /> */}
       
     </>
