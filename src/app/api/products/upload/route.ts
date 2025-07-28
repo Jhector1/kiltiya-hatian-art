@@ -42,13 +42,15 @@ export async function POST(request: Request) {
     const formatFiles = formData
       .getAll("formats")
       .filter((f): f is File => f instanceof File);
+      const myUUID = crypto.randomUUID();
+// console.log(myUUID);
 
     // 2. Upload main image with watermark
     let mainRes;
     try {
       const mainUri = await fileToDataUri(mainFile);
       mainRes = await cloudinary.uploader.upload(mainUri, {
-        folder: `temp_uploads/main`,
+        folder: `products/${categoryName}/${myUUID}/main`,
         public_id: "original",
         resource_type: "image",
         transformation: [
@@ -78,7 +80,8 @@ export async function POST(request: Request) {
         thumbFiles.map(async (file, i) => {
           const uri = await fileToDataUri(file);
           return cloudinary.uploader.upload(uri, {
-            folder: `temp_uploads/thumbnails`,
+            folder: `products/${categoryName}/${myUUID}/thumbnails`,
+
             public_id: `thumb_${i + 1}`,
             resource_type: "image",
           });
@@ -101,7 +104,7 @@ export async function POST(request: Request) {
           const uri = await fileToDataUri(file);
           const isPdf = file.type === "application/pdf";
           const uploaded = await cloudinary.uploader.upload(uri, {
-            folder: `temp_uploads/formats`,
+            folder:  `products/${categoryName}/${myUUID}/formats`,
             public_id: baseName,
             resource_type: isPdf ? "raw" : "auto",
               use_filename: true,
