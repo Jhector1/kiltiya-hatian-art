@@ -10,7 +10,7 @@ import { useState } from "react";
 
 export default function CartPage() {
   const { cart, loadingCart, totalPrice } = useCart();
-  const { user } = useUser();
+  const { user, guestId } = useUser();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const stripePromise = loadStripe(
@@ -18,7 +18,7 @@ export default function CartPage() {
   );
 
   const handleCheckout = async () => {
-    if (!user) {
+    if (!user && !guestId) {
       toast.error("You must be logged in to checkout.");
       return;
     }
@@ -36,7 +36,7 @@ export default function CartPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customerId: user.id,
+          customerId: user?.id ?? guestId,
           cartProductList: cart.map((data) => ({
             quantity: data.cartQuantity,
             myProduct: {

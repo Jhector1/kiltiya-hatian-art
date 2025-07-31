@@ -22,11 +22,11 @@ export async function GET(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    console.log('token', token)
+  
     let payload: unknown;
     try {
       payload = jwt.verify(token, secret || 'my secret');
-      console.log(payload)
+  
     } catch (err) {
       console.log(err);
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });

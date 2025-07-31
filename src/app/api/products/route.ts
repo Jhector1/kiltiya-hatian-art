@@ -20,6 +20,6 @@ export async function GET() {
     ...p,
     purchaseCount: p._count.orderItems,
   }));
-console.log(payload)
+
   return NextResponse.json(payload);
 }

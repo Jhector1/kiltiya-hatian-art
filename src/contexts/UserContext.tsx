@@ -3,6 +3,7 @@
 
 import React, { createContext, useContext } from 'react';
 import { SessionProvider, useSession, signIn, signOut } from 'next-auth/react';
+import { getOrCreateGuestId } from '@/utils/client-only/getOrCreateGuestId';
 
 export type User = {
   id:       string;
@@ -18,6 +19,7 @@ export type UserContextType = {
   loading:    boolean;
   isLoggedIn: boolean;
   // Optional helpers:
+  guestId: string| null;
   login:      () => void;
   logout:     () => void;
 };
@@ -26,6 +28,7 @@ const UserContext = createContext<UserContextType>({
   user:       null,
   loading:    true,
   isLoggedIn: false,
+  guestId: null,
   login:      () => {},
   logout:     () => {},
 });
@@ -55,9 +58,10 @@ export function UserContextInner({ children }: { children: React.ReactNode }) {
 
   const login  = () => signIn('credentials'); // or open your modal
   const logout = () => signOut({ redirect: false });
+const guestId :string | null= !isLoggedIn ? getOrCreateGuestId() : null;
 
   return (
-    <UserContext.Provider value={{ user: user ?? null, loading, isLoggedIn, login, logout }}>
+    <UserContext.Provider value={{ user: user ?? null, loading, isLoggedIn, login, logout, guestId }}>
       {children}
     </UserContext.Provider>
   );

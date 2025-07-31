@@ -6,6 +6,7 @@ import { CartProvider } from "@/contexts/CartContext";
 import Header from "@/components/Header";
 import { FavoriteProvider } from "@/contexts/FavoriteContext";
 import Head from "next/head";
+// import GuestInit from "@/components/GuessInit";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -85,6 +86,8 @@ export default function RootLayout({
               <FavoriteProvider>
                 <div className="bg-[#0f0f1a] bg-dot-grid bg-[length:var(--tw-background-size-dot-grid)] min-h-screen bg-gradient-to-r from-amber-100 via-white to-slate-100 text-gray-900">
                   <Header />
+                      {/* <GuestInit/> */}
+
                   <main className="px-4 md:px-10 lg:px-20">{children}</main>
                   <footer className="text-center text-sm py-6">
                     &copy; 2024 ZileDigital Market

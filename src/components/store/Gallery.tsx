@@ -51,7 +51,6 @@ export default function Gallery({
     toggleFavorite(id);
     onLikeToggle?.(id, liked);
   };
-  console.log(JSON.stringify(products), 75885858);
 
   return (
     <>

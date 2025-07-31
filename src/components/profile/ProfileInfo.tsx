@@ -17,7 +17,6 @@ export default function ProfileInfo({ user }: { user: Partial<User> }) {
 
   const handleSave = () => {
     // 🔒 You can send this to your API here
-    console.log('Saving...', formData);
     setEditMode(false);
   };
 

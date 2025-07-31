@@ -65,7 +65,7 @@ export type MyProduct = {
 export interface AddOptions {
   digitalVariantId?: string;
   printVariantId?: string;
-  digital?: boolean;
+  digital: boolean;
   print?: boolean;
   // printPrice: number;
   // digitalPrice: number;

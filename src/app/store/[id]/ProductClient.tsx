@@ -1,43 +1,44 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import SEO from "@/components/SEO";
-import ProductImage from "@/components/product/ProductImage";
-import FormatSelector from "@/components/product/FormatSelector";
-import SizeSelector from "@/components/product/SizeSelector";
-import PurchaseOptions from "@/components/product/PurchaseOptions";
-import CartActions from "@/components/product/CartActions";
-// import LikeButton from "@/components/product/LikeButton";
-import PrintCustomizer from "@/components/product/PrintCustomizer";
-import ProductImagePreviews from "@/components/product/ProductImagePreviews";
+import ProductImageGallery from "@/components/product/detail/ProductImageGallery";
+import ProductConfigurator from "@/components/product/detail//ProductConfigurator";
+import ProductDescriptionBlock from "@/components/product/detail/ProductDescriptionBlock";
 import ReviewsSection from "@/components/product/review/ReviewSection";
-import { fetchProductById } from "@/utils/fetchProductById";
-import { useUser } from "@/contexts/UserContext";
 import UniversalModal from "@/components/modal/UniversalModal";
 import AuthenticationForm from "@/components/authenticate/AuthenticationFom";
+import CartActions from "@/components/product/CartActions";
+import { fetchProductById } from "@/utils/fetchProductById";
+import { useUser } from "@/contexts/UserContext";
 import { useCart } from "@/contexts/CartContext";
-import {
-  AddOptions,
-  AddToCartResponse,
-  CartUpdates,
-  Format,
-  FrameOption,
-  LicenseOption,
-  MaterialOption,
+
+import type {
   ProductDetailResult,
+  AddOptions,
+  LicenseOption,
+  FrameOption,
+  MaterialOption,
 } from "@/types";
-import { useMemo } from "react";
-import { loadStripe } from "@stripe/stripe-js";
-import { AnimatePresence, motion } from "framer-motion";
-import ImageSlider from "@/components/product/ImageSlider";
-import LicenseSelector from "@/components/product/LicenseSelector";
+import { usePriceCalculator } from "@/hooks/usePriceCalculator";
+import { handleCheckout } from "@/utils/handleCheckout";
 
 export default function ProductDetail() {
-  const { id } = useParams()!;
-  const { isLoggedIn } = useUser();
+  const { id } = (useParams<{ id?: string }>() ?? {}) as { id?: string };
+  const { user, isLoggedIn, guestId } = useUser();
   const { cart, loadingAdd, addToCart, updateCart, removeFromCart } = useCart();
-  const { user, loading: loadingUser } = useUser();
+
+  const [product, setProduct] = useState<ProductDetailResult | null>(null);
+  const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
+    null
+  );
+  const [options, setOptions] = useState<AddOptions>({
+    digital: false,
+    print: false,
+    digitalVariantId: "",
+    printVariantId: "",
+  });
   const [license, setLicense] = useState<LicenseOption>({
     type: "personal",
     name: "Personal Use",
@@ -45,34 +46,17 @@ export default function ProductDetail() {
     description: "For personal projects and non-commercial use.",
   });
 
-  const [product, setProduct] = useState<ProductDetailResult | null>(null);
-  const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
-    null
-  );
-  const [finalPrice, setFinalPrice] = useState<number>(0);
-
-  const [format, setFormat] = useState<string>("");
-  const [size, setSize] = useState<{ label: string; multiplier: number }>({
-    label: "11x14 in",
-    multiplier: 1.25,
-  });
-  const [isCustom, setIsCustom] = useState(false);
+  const [size, setSize] = useState({ label: "11x14 in", multiplier: 1.25 });
   const [customSize, setCustomSize] = useState({ width: "", height: "" });
+  const [isCustom, setIsCustom] = useState(false);
   const [material, setMaterial] = useState<MaterialOption>({
     label: "Matte Paper",
     multiplier: 1,
     thumbnail: "/images/textures/matte.png",
   });
   const [frame, setFrame] = useState<FrameOption | null>(null);
-  const [options, setOptions] = useState<AddOptions>({
-    digitalVariantId: "",
-    printVariantId: "",
-    digital: false,
-    print: false,
-  });
-
-  // const [liked, setLiked] = useState(false);
   const [isModalOpen, setModalOpen] = useState(false);
+  const [finalPrice, setFinalPrice] = useState<number>(0);
 
   const materials = useMemo(
     () => [
@@ -115,411 +99,203 @@ export default function ProductDetail() {
     []
   );
 
-  // Load product and initialize options
+  const calculatePrice = usePriceCalculator(
+    product!,
+    size,
+    material,
+    frame,
+    options,
+    customSize,
+    isCustom,
+    license
+  );
+
   useEffect(() => {
-    if (!id || loadingUser) return;
-    //  console.log(user,'66868868686')
-    fetchProductById(id.toString(), user?.id || "")
+    if (!id) return;
+    fetchProductById(id.toString(), user?.id || guestId || "")
       .then((p) => {
+        // alert(JSON.stringify(p.variants))
         setProduct(p);
         setPreview({ src: p.imageUrl || "", alt: p.title });
-
-        const printVariant = p.variants?.find(
-          (v) => v.type?.toUpperCase() === "PRINT" && v.inUserCart
+        const digital = p.variants?.find(
+          (v) => v.type === "DIGITAL" && v.inUserCart
         );
-        const digitalVariant = p.variants?.find(
-          (v) => v.type?.toUpperCase() === "DIGITAL" && v.inUserCart
+        const print = p.variants?.find(
+          (v) => v.type === "PRINT" && v.inUserCart
         );
-        // setLicense({...license,price: p.price})
-
         setOptions({
-          digital: !!digitalVariant,
-          print: !!printVariant,
-          digitalVariantId: digitalVariant?.id || "",
-          printVariantId: printVariant?.id || "",
+          digital: !!digital,
+          print: !!print,
+          digitalVariantId: digital?.id || "",
+          printVariantId: print?.id || "",
         });
-
-        const currentSize =
-          printVariant &&
-          optionSizes.find(
-            (s) => s.label.toLowerCase() === printVariant.size?.toLowerCase()
-          );
-        const currentMaterial =
-          printVariant &&
-          materials.find(
-            (m) =>
-              m.label.toLowerCase() === printVariant.material?.toLowerCase()
-          );
-        const currentFrame =
-          printVariant &&
-          frames.find(
-            (f) => f.label.toLowerCase() === printVariant.frame?.toLowerCase()
-          );
-
-        setSize(currentSize || optionSizes[1]); // default to 11x14
-        setMaterial(currentMaterial || materials[0]);
-        setFrame(currentFrame || null);
-
-        // Optional: default format
-        if (p.formats.length) {
-          const ext = p.formats[0].split(".").pop();
-          if (ext) setFormat(ext);
-        } else {
-          setFormat(""); // fallback
-        }
       })
       .catch(console.error);
-  }, [id, loadingUser, materials, frames, optionSizes, user?.id, updateCart]);
+  }, [id, user, guestId]);
 
   useEffect(() => {
     if (!product) return;
-    // const type = options.digital ? "Digital" : "Print";
     const price =
       (options.digital ? parseFloat(calculatePrice("Digital")) : 0) +
       (options.print ? parseFloat(calculatePrice("Print")) : 0);
-    //  alert(license.price)
     setFinalPrice(price + license.price);
   }, [product, license, size, customSize, isCustom, options, material, frame]);
 
-  if (!product || !preview) {
-    return <div className="p-10 text-center">Loading product…</div>;
-  }
+  //   alert(guestId)
+  //     useEffect(() => {
+  //     const run = async () => {
+  //       const fromGuestLogin = sessionStorage.getItem("guest_logged_in");
+  //       const guestId = document.cookie.match(/guest_id=([^;]+)/)?.[1];
 
-  // Price calculation
-  const calculatePrice = (type: string, eraser = "", newMultipler = 0) => {
-    const base = product?.price || 0;
+  //       if (guestId && fromGuestLogin) {
+  //         sessionStorage.removeItem("guest_logged_in"); // clean up
+  //  alert(guestId);
+  //         if (!inCart) {
+  //           await addToCart(
+  //             id?.toString() || "",
+  //             options.digital ? "Digital" : null,
+  //             options.print ? "Print" : null,
+  //             finalPrice,
+  //             product?.formats[0]?.split(".").pop() || "",
+  //             size.label,
+  //             material.label,
+  //             frame?.label || "",
+  //             1
+  //           );
+  //         }
+  //       }
+  //     };
 
-    if (type === "Digital") return String(base);
-
-    const sizeMultiplier =
-      isCustom && customSize.width && customSize.height
-        ? (+customSize.width * +customSize.height) / 80
-        : size.multiplier;
-
-    let materialMultiplier = material?.multiplier ?? 1;
-    let frameMultiplier = frame?.multiplier ?? 1;
-    if (eraser === "material") {
-      materialMultiplier = newMultipler;
-    }
-    if (eraser === "frame") {
-      frameMultiplier = newMultipler;
-    }
-    const total = (
-      base * sizeMultiplier * materialMultiplier * frameMultiplier +
-      (options?.digital ? base : 0)
-    ).toFixed(2);
-    return String(total);
-  };
-
-  // function calculatePrice2({
-  //   base,
-  //   type,
-  //   sizeMultiplier,
-  //   materialMultiplier,
-  //   frameMultiplier,
-  //   includeDigital,
-  // }: {
-  //   base: number;
-  //   type: "Print" | "Digital";
-  //   sizeMultiplier: number;
-  //   materialMultiplier: number;
-  //   frameMultiplier: number;
-  //   includeDigital: boolean;
-  // }): number {
-  //   if (type === "Digital") return base;
-
-  //   const printPrice = base * sizeMultiplier * materialMultiplier * frameMultiplier;
-  //   const digitalAddon = includeDigital ? base : 0;
-
-  //   return parseFloat((printPrice + digitalAddon).toFixed(2));
-  // }
-
-  const formats: Format[] = product.formats.map((url) => {
-    const parts = url.split(".");
-    return { type: parts.pop() || "", resolution: "n/a", multiplier: 1 };
-  });
-
-  const seen = new Set<string>();
-  const uniqueFormats = formats.filter(
-    (f) => !seen.has(f.type) && seen.add(f.type)
-  );
-  // alert(JSON.stringify(formats))
+  //     run();
+  //   }, []);
+  if (!product) return <div className="p-10 text-center">Loading product…</div>;
   const inCart = cart.find((item) => item.id === product.id);
-  const loading = loadingAdd;
-
-  const handleToggleCart = async () => {
-    if (!isLoggedIn) {
-      setModalOpen(true);
-      return;
-    }
-    // alert(product.price)
-
-    if (!inCart) {
-      await addToCart(
-        id?.toString() || "",
-        options.digital ? "Digital" : null,
-        options.print ? "Print" : null,
-        finalPrice,
-        //parseFloat(calculatePrice(options.digital ? "Digital" : "Print")),
-
-        format,
-        size.label,
-        material?.label || "",
-        frame?.label || "",
-        1
-      );
-    } else {
-      await removeFromCart(
-        product.id,
-        options.digitalVariantId!,
-        options.printVariantId!
-      );
-    }
-  };
 
   return (
     <>
       <UniversalModal isOpen={isModalOpen} onClose={() => setModalOpen(false)}>
-        <AuthenticationForm />
-        {/* closeModalAction={() => setModalOpen(false)} /> */}
+        <AuthenticationForm
+          handlerAction={async () => {
+            if (!isLoggedIn && !guestId) setModalOpen(true); // ⛔️ block only if both are missing
+
+            if (!inCart) {
+              await addToCart(
+                id?.toString() || "",
+                options.digital ? "Digital" : null,
+                options.print ? "Print" : null,
+                finalPrice,
+                product.formats[0]?.split(".").pop() || "",
+                size.label,
+                material.label,
+                frame?.label || "",
+                1
+              );
+            } else {
+              await removeFromCart(
+                product.id,
+                options.digitalVariantId!,
+                options.printVariantId!
+              );
+            }
+          }}
+        />
       </UniversalModal>
 
       <SEO title={product.title} description={product.description} />
-      <div className="flex lg:flex-row flex-col w-full items-center lg:justify-around p-2 mt-20 gap-20">
-        <div className="hidden sm:flex gap-5 lg:sticky top-5 lg:h-screen lg:justify-between cenbter">
-          <ProductImagePreviews
-            scenarios={product.thumbnails}
-            onSelectAction={setPreview}
-            selected={preview}
-          />
-          <div className="w-[50vw] lg:h-screen">
-            <ProductImage src={preview.src} alt={preview.alt} />
-          </div>
-        </div>
 
-        <div className="block sm:hidden">
-          <ImageSlider images={product.thumbnails} />
-        </div>
+      <div className="flex flex-col lg:flex-row w-full items-center lg:justify-around p-2 mt-20 gap-20">
+        <ProductImageGallery
+          product={product}
+          preview={preview}
+          setPreview={setPreview}
+        />
+
         <div className="flex self-start flex-col gap-5">
-          <h1 className="text-3xl font-bold">{product.title}</h1>
-          <h3 className="font-bold">Description:</h3>
-          <p className="pb-10">{product.description}</p>
-          <PurchaseOptions
-            digitalPrice={
-              options.digital ? String(finalPrice) : String(product.price + finalPrice)
-            }
-            printPrice={calculatePrice("Print")}
-            options={options}
-            onToggle={(t) => setOptions((o) => ({ ...o, [t]: !o[t] }))}
-            inCart={inCart || null}
+          <ProductDescriptionBlock product={product} />
+          <ProductConfigurator
+            product={product}
+            inCart={inCart!}
+            materials={materials}
+            frames={frames}
+            optionSizes={optionSizes}
+            formatData={{ options, setOptions }}
+            licenseData={{ license, setLicense }}
+            sizeData={{
+              size,
+              setSize,
+              customSize,
+              setCustomSize,
+              isCustom,
+              setIsCustom,
+            }}
+            materialData={{ material, setMaterial }}
+            frameData={{ frame, setFrame }}
             updateCart={(updates) =>
               updateCart({
                 productId: product.id,
-                printVariantId: "ADD",
+                printVariantId: options.print
+                  ? options.printVariantId
+                  : undefined,
+                digitalVariantId: options.digital
+                  ? options.digitalVariantId
+                  : undefined,
                 updates,
               })
             }
-            removeFromCart={(updates) =>
-              updateCart({
-                // userId: user?.id || "",
-                productId: product.id,
-                printVariantId: "REMOVE",
-                updates,
-              })
-            }
-            removeFromCart2={(updates) =>
-              updateCart({
-                // userId: user?.id || "",
-                productId: product.id,
-                digitalVariantId: "REMOVE",
-                updates,
-              })
-            }
-            updateCart2={(updates) => {
-              // alert(options.digitalVariantId)
-              updateCart({
-                // userId: user?.id || "",
-                productId: product.id,
-                digitalVariantId: "ADD",
-                updates,
-              });
-            }}
+            calculatePrice={calculatePrice}
+            finalPrice={finalPrice}
           />
-          <LicenseSelector onSelect={setLicense} selected={license} />
-
-          <FormatSelector
-            formats={uniqueFormats}
-            selected={format}
-            onChangeAction={setFormat}
-            inCart={inCart || null}
-            updateCart={(updates: CartUpdates) =>
-              updateCart({
-                // userId: user?.id || "",
-                productId: product.id,
-                printVariantId: options.printVariantId,
-                updates,
-              })
-            }
-          />
-
-          <AnimatePresence initial={false}>
-            {options.print && (
-              <motion.div
-                key="print-settings"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 1.0, ease: "easeInOut" }}
-                style={{ overflow: "hidden" }}
-              >
-                <SizeSelector
-                  options={optionSizes}
-                  selected={size}
-                  isCustom={isCustom}
-                  customSize={customSize}
-                  onSizeChange={(s, custom) => {
-                    setSize(s);
-                    setIsCustom(s.label === "Custom");
-                    if (custom) setCustomSize(custom);
-                  }}
-                  inCart={inCart!}
-                  updateCart={(updates) =>
-                    updateCart({
-                      // userId: user?.id || "",
-                      productId: product.id,
-                      printVariantId: options.printVariantId,
-                      updates,
-                    })
-                  }
-                />
-                <br />
-
-                <PrintCustomizer
-                  total={finalPrice}
-                  calculatePrice={calculatePrice}
-                  // formatMultiplier={1}
-                  // sizeMultiplier={size.multiplier}
-                  imageSrc={product.imageUrl}
-                  setFrameAction={setFrame}
-                  frame={frame || null}
-                  setMaterialAction={setMaterial}
-                  material={material}
-                  materials={materials}
-                  frames={frames}
-                  inCart={inCart || null}
-                  updateCart={(updates) =>
-                    updateCart({
-                      // userId: user?.id || "",
-                      productId: product.id,
-                      printVariantId: options.printVariantId,
-                      updates,
-                    })
-                  }
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           <CartActions
             inCart={inCart || null}
-            loading={loading}
-            onToggleCart={handleToggleCart}
-            onCheckout={async () => {
-              if (!isLoggedIn) {
-                setModalOpen(true);
-                return;
-              }
-              let data: AddToCartResponse | null = null;
+            loading={loadingAdd}
+            disabled={!options.digital && !options.print}
+            onToggleCart={async () => {
+              if (!isLoggedIn && !guestId) setModalOpen(true); // ⛔️ block only if both are missing
+
               if (!inCart) {
-                data = await addToCart(
+                await addToCart(
                   id?.toString() || "",
                   options.digital ? "Digital" : null,
                   options.print ? "Print" : null,
-                  //   parseFloat(
                   finalPrice,
-                  // calculatePrice(options.digital ? "Digital" : "Print")+ license.price
-                  format,
+                  product.formats[0]?.split(".").pop() || "",
                   size.label,
-                  material?.label || "",
+                  material.label,
                   frame?.label || "",
                   1
                 );
-              }
-              // alert(JSON.stringify(data));
-
-              const productId = product.id;
-              const productItem = {
-                quantity: 1,
-                myProduct: {
-                  id: productId,
-                  title: product.title,
-                  price: finalPrice,
-                  imageUrl: product.imageUrl || "/placeholder.png",
-                  digital: options.digital
-                    ? {
-                        id:
-                          options.digitalVariantId ||
-                          data?.result?.digitalVariantId ||
-                          "temp-digital-id", // fallback if not in cart yet
-                        format,
-                      }
-                    : undefined,
-                  print: options.print
-                    ? {
-                        id:
-                          options.printVariantId ||
-                          data?.result?.digitalVariantId ||
-                          "temp-print-id",
-                        format,
-                        size: size.label,
-                        material: material?.label,
-                        frame: frame?.label || "",
-                      }
-                    : undefined,
-                },
-              };
-
-              try {
-                const res = await fetch("/api/checkout", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    customerId: user?.id,
-                    cartProductList: [productItem],
-                  }),
-                });
-
-                const data = await res.json();
-
-                if (!res.ok) {
-                  throw new Error(
-                    data.error || "Failed to create checkout session"
-                  );
-                }
-
-                const stripe = await loadStripe(
-                  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
+              } else {
+                await removeFromCart(
+                  product.id,
+                  options.digitalVariantId!,
+                  options.printVariantId!
                 );
-
-                if (!stripe) throw new Error("Stripe failed to load");
-
-                await stripe.redirectToCheckout({ sessionId: data.sessionId });
-              } catch (err) {
-                if (err instanceof Error) {
-                  console.error("Checkout error:", err.message);
-                } else {
-                  console.error("Checkout error:", err);
-                }
               }
             }}
-            disabled={!options.digital && !options.print}
+            onCheckout={() =>
+              handleCheckout({
+                user,
+                guestId,
+                inCart,
+                addToCart,
+                product,
+                options,
+                format: product.formats[0]?.split(".").pop() || "",
+                size,
+                material,
+                frame,
+                license,
+                setModalOpen,
+                id: id?.toString() || "",
+              })
+            }
           />
         </div>
       </div>
 
       <ReviewsSection productId={product.id} />
 
-      {/* Embed structured data */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(product) }}

@@ -51,7 +51,7 @@ export async function GET() {
       avgOrderValue,
     ] as const;
   });
-console.log(downloadCount)
+
   return NextResponse.json({
     favoriteCount,
     downloadCount,

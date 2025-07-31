@@ -19,7 +19,7 @@ export default function ReviewList({ reviews, currentUserId, onDelete }: ReviewL
       {reviews.map((rev) => (
         <li key={rev.id} className="border-b pb-4">
           <div className="flex justify-between items-center mb-2">
-            <span className="font-medium">{rev.user.name}</span>
+            <span className="font-medium">{rev?.user?.name||'Anonymous'}</span>
             <span className="text-sm text-gray-500">
               {new Date(rev.createdAt).toLocaleDateString()}
             </span>

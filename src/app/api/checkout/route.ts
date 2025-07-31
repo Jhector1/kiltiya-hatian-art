@@ -4,23 +4,19 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe }                  from "@/lib/stripe";
-import { getServerSession }        from "next-auth/next";
+// import { getServerSession }        from "next-auth/next";
 import type { OrderList }          from "@/types";
-import { authOptions } from "@/lib/auth";
+import { getCustomerIdFromRequest } from "@/utils/guest";
+// import { authOptions } from "@/lib/auth";
+// import { getCustomerId } from "@/utils/guest";
 
 export async function POST(req: NextRequest) {
-  // ─── 0️⃣ Authenticate ──────────────────────────────────────────
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json(
-      { error: "Not authenticated" },
-      { status: 401 }
-    );
-  }
-  const customerId = session.user.id;
-
   try {
-    // ─── 1️⃣ Parse & validate body ───────────────────────────────
+    // ─── 0️⃣ Authenticate or get guest ID ──────
+    const { userId, guestId } = await getCustomerIdFromRequest(req);
+    // const customerId = userId ?? guestId!;
+
+    // ─── 1️⃣ Parse & validate body ─────────────
     const body = (await req.json()) as OrderList;
     if (!Array.isArray(body.cartProductList)) {
       return NextResponse.json(
@@ -29,15 +25,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ─── 2️⃣ Build Stripe line items ─────────────────────────────
+    // ─── 2️⃣ Build Stripe line items ───────────
     const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] =
       await Promise.all(
         body.cartProductList.map(async (item) => {
           const p = item.myProduct;
-          const metadata: Stripe.MetadataParam = { 
+          const metadata: Stripe.MetadataParam = {
             productId: p.id,
-            customerId,                  // use session-derived user ID
           };
+          if (userId) metadata.userId = userId;
+          if (guestId) metadata.guestId = guestId;
+
           if (p.digital) {
             metadata.digitalVariantId = p.digital.id;
             metadata.digitalFormat    = p.digital.format;
@@ -50,14 +48,12 @@ export async function POST(req: NextRequest) {
             if (p.print.frame)    metadata.printFrame    = p.print.frame;
           }
 
-          // Create Stripe Product
           const stripeProduct = await stripe.products.create({
-            name:     p.title,
-            images:   [p.imageUrl],
+            name:   p.title,
+            images: [p.imageUrl],
             metadata,
           });
 
-          // Create Stripe Price
           const price = await stripe.prices.create({
             unit_amount: Math.round(Number(p.price) * 100),
             currency:    "usd",
@@ -71,27 +67,28 @@ export async function POST(req: NextRequest) {
         })
       );
 
-    // ─── 3️⃣ Create the Stripe session ────────────────────────────
+    // ─── 3️⃣ Create Stripe Checkout Session ─────
     const CLIENT_URL = process.env.NEXT_PUBLIC_CLIENT_URL!;
     const sessionObj = await stripe.checkout.sessions.create({
-      payment_method_types:      ["card"],
-      mode:                      "payment",
-      success_url:               `${CLIENT_URL}/cart/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url:                `${CLIENT_URL}/cart`,
+      payment_method_types: ["card"],
+      mode: "payment",
+      success_url: `${CLIENT_URL}/cart/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url:  `${CLIENT_URL}/cart`,
       shipping_address_collection: { allowed_countries: ["US", "CA", "GB", "FR"] },
-      consent_collection:          { terms_of_service: "required" },
-      automatic_tax:               { enabled: true },
+      consent_collection: { terms_of_service: "required" },
+      automatic_tax: { enabled: true },
       line_items,
-      metadata: { customerId }, // again, your userId
+      metadata: {
+        ...(userId && { userId }),
+        ...(guestId && { guestId }),
+      },
     });
 
     return NextResponse.json({ sessionId: sessionObj.id });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unexpected error";
     console.error("[CHECKOUT_ERROR]", message);
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+

@@ -70,15 +70,15 @@ export async function POST(req: NextRequest) {
     },
     include: { user: true },
   });
+return NextResponse.json({
+  id:     newReview.id,
+  userId: newReview.userId,
+  user:   newReview.user?.name ?? newReview.user?.email ?? "Unknown user",
+  rating: newReview.rating,
+  text:   newReview.comment ?? "",
+  date:   newReview.createdAt.toISOString().split("T")[0],
+});
 
-  return NextResponse.json({
-    id:     newReview.id,
-    userId: newReview.userId,
-    user:   newReview.user.name ?? newReview.user.email,
-    rating: newReview.rating,
-    text:   newReview.comment ?? "",
-    date:   newReview.createdAt.toISOString().split("T")[0],
-  });
 }
 
 // ─── DELETE /api/products/[id]/reviews ────────────────────────────────

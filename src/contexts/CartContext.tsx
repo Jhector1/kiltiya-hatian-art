@@ -48,7 +48,7 @@ const CartContext = createContext<CartContextType>(defaultContext as CartContext
 export const useCart = () => useContext(CartContext);
 
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
-  const { isLoggedIn } = useUser();
+  const { isLoggedIn, guestId } = useUser();
 
   const [cart, setCart] = useState<CartSelectedItem[]>([]);
   const [loadingCart, setLoadingCart] = useState(true);
@@ -56,11 +56,11 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
 
   const fetchCart = async () => {
     setLoadingCart(true);
-    if (!isLoggedIn) {
-      setCart([]);
-      setLoadingCart(false);
-      return;
-    }
+    // if (!isLoggedIn) {
+    //   setCart([]);
+    //   setLoadingCart(false);
+    //   return;
+    // }
     try {
       const res = await fetch("/api/cart", {
         method: "GET",
@@ -77,6 +77,8 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+// const { isLoggedIn, guestId } = useUser();
+
 const addToCart = async (
   productId: string,
   digitalType: string | null,
@@ -88,7 +90,7 @@ const addToCart = async (
   frame: string,
   quantity: number = 1
 ): Promise<AddToCartResponse> => {
-  if (!isLoggedIn) return { result: undefined };
+  if (!isLoggedIn && !guestId) return { result: undefined }; // ⛔️ block only if both are missing
 
   setLoadingAdd(true);
   try {
@@ -106,17 +108,17 @@ const addToCart = async (
         size,
         material,
         frame,
+        guestId, // ✅ send guestId to backend
       }),
     });
 
     const data = await res.json();
-
     await fetchCart();
 
     return {
       result: {
-        digitalVariantId: data?.digitalVariantId,
-        printVariantId: data?.printVariantId,
+        digitalVariantId: data?.result?.digitalVariantId,
+        printVariantId: data?.result?.printVariantId,
       },
     };
   } catch (err) {
@@ -129,12 +131,13 @@ const addToCart = async (
 
 
 
+
   const removeFromCart = async (
     productId: string,
     digitalVariantId: string,
     printVariantId: string
   ) => {
-    if (!isLoggedIn) return;
+if (!isLoggedIn && !guestId) return ;
     setLoadingAdd(true);
     try {
       await fetch("/api/cart", {
@@ -162,7 +165,7 @@ const addToCart = async (
     digitalVariantId?: string;
     updates: CartUpdates;
   }) => {
-    if (!isLoggedIn) return;
+if (!isLoggedIn && !guestId) return;
     try {
       const res = await fetch("/api/cart", {
         method: "PATCH",

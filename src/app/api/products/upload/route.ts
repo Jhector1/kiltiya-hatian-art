@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { v2 as cloudinary } from "cloudinary";
+import slugify from "slugify";          //  npm i slugify
 
 export const runtime = "nodejs";
 export const config = { api: { bodyParser: false } };
 
 const db = new PrismaClient();
+
+const env= process.env.NEXT_ENV
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
@@ -35,33 +38,37 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
+const safeCategory = slugify(categoryName || "uncategorized", {
+  lower: true,          // tools-crafts
+  strict: true,         // keeps only [a-z0-9\-]
+});
     const thumbFiles = formData
       .getAll("thumbnails")
       .filter((f): f is File => f instanceof File);
     const formatFiles = formData
       .getAll("formats")
       .filter((f): f is File => f instanceof File);
-      const myUUID = crypto.randomUUID();
-// console.log(myUUID);
+    const myUUID = crypto.randomUUID();
 
     // 2. Upload main image with watermark
     let mainRes;
     try {
       const mainUri = await fileToDataUri(mainFile);
+   
       mainRes = await cloudinary.uploader.upload(mainUri, {
-        folder: `products/${categoryName}/${myUUID}/main`,
+        folder: `products-${env}/${safeCategory}/${myUUID}/main`,
         public_id: "original",
         resource_type: "image",
         transformation: [
           { quality: "auto", fetch_format: "auto" },
           {
             overlay: { public_id: "watermark" },
-            width: "1.0",
+            width: "1.0", // or 0.25 if tiling
+            height: "1.0", // omit if tiling
+            crop: "fill", // omit if tiling
             gravity: "center",
-            crop: "fill",
             opacity: 10,
-            flags: ["relative"],
+            flags: ["relative" /*, "tiled" */], // add "tiled" to repeat
           },
         ],
       });
@@ -77,12 +84,15 @@ export async function POST(request: Request) {
     let thumbRes = [];
     try {
       thumbRes = await Promise.all(
-        thumbFiles.map(async (file, i) => {
+        thumbFiles.map(async (file) => {
           const uri = await fileToDataUri(file);
           return cloudinary.uploader.upload(uri, {
-            folder: `products/${categoryName}/${myUUID}/thumbnails`,
+            folder: `products-${env}/${safeCategory}/${myUUID}/thumbnails`,
 
-            public_id: `thumb_${i + 1}`,
+            // public_id: `thumb_${i + 1}`,
+            use_filename: true, // readable name
+            unique_filename: true, // avoid overwrites
+
             resource_type: "image",
           });
         })
@@ -104,11 +114,14 @@ export async function POST(request: Request) {
           const uri = await fileToDataUri(file);
           const isPdf = file.type === "application/pdf";
           const uploaded = await cloudinary.uploader.upload(uri, {
-            folder:  `products/${categoryName}/${myUUID}/formats`,
-            public_id: baseName,
+            folder: `products-${env}/${safeCategory}/${myUUID}/formats`,
+            // public_id: baseName,
+            use_filename: true, // readable name
+            unique_filename: true, // avoid overwrites
+
             resource_type: isPdf ? "raw" : "auto",
-              use_filename: true,
-  unique_filename: false,
+            // use_filename: true,
+            // unique_filename: false,
           });
 
           return { ...uploaded, formatName: baseName };

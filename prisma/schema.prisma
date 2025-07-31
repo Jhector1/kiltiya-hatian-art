@@ -82,9 +82,14 @@ model Cart {
   id        String     @id @default(cuid())
   user      User?      @relation(fields: [userId], references: [id])
   userId    String?    @unique
+  guestId   String?    @unique // ✅ ADD THIS LINE
+
   items     CartItem[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+
+    @@index([guestId]) // ✅ optional but helpful
+
 }
 
 /// Items in Cart, optionally pointing at one of the two variant types
@@ -120,34 +125,42 @@ enum VariantType {
 /// Favorites / Wishlist
 model Favorite {
   id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
+ user   User?    @relation(fields: [userId], references: [id])
+userId String? // ✅ make nullable for guests
+    guestId String? // ✅ track anonymous customer session
+
   product   Product  @relation(fields: [productId], references: [id])
   productId String
   createdAt DateTime @default(now())
-
-  @@unique([userId, productId])
+@@unique([userId, productId])
+@@unique([guestId, productId])
 }
 
 /// Product Reviews
 model Review {
   id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
+ user   User?  @relation(fields: [userId], references: [id])
+userId String?
+guestId String?
   product   Product  @relation(fields: [productId], references: [id])
   productId String
   rating    Int      @default(5)
   comment   String?
   createdAt DateTime @default(now())
 
-  @@index([productId])
+@@index([productId])
+@@index([userId])
+@@index([guestId])
+
 }
 
 /// Orders & Payments
 model Order {
   id              String      @id @default(cuid())
-  user            User        @relation(fields: [userId], references: [id])
-  userId          String
+user   User?    @relation(fields: [userId], references: [id])
+userId String? // ✅ make nullable for guests
+    guestId String? // ✅ track anonymous customer session
+
   items           OrderItem[]
   total           Float
   status          String      @default("PENDING")
@@ -158,6 +171,8 @@ model Order {
   shippingId      String?
   // store the Stripe Checkout Session ID so we can look up this order by session
   stripeSessionId String?     @unique
+    @@index([guestId]) // ✅ optional but helpful
+
 }
 
 model OrderItem {
@@ -187,8 +202,10 @@ model OrderItem {
 /// Addresses (User & Shipping)
 model Address {
   id         String   @id @default(cuid())
-  user       User     @relation(fields: [userId], references: [id])
-  userId     String
+user   User?    @relation(fields: [userId], references: [id])
+userId String? // ✅ make nullable for guests
+    guestId String? // ✅ track anonymous customer session
+
   label      String?
   street     String
   city       String
@@ -198,6 +215,8 @@ model Address {
   createdAt  DateTime @default(now())
 
   orders Order[] @relation("Order_shipping")
+  @@index([guestId]) // ✅ optional but helpful
+
 }
 
 /// Payment Records

@@ -1,7 +1,7 @@
 // File: src/components/AuthenticationForm.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   GlobeAltIcon,
@@ -9,20 +9,19 @@ import {
   CubeIcon,
 } from "@heroicons/react/24/outline";
 import { signIn } from "next-auth/react";
+// import { getOrCreateGuestId } from "@/utils/client-only/getOrCreateGuestId";
 // import { useUser } from "@/contexts/UserContext";
 // import { useCart } from "@/contexts/CartContext";
 // import { useFavorites } from "@/contexts/FavoriteContext";
 
-// interface AuthenticationFormProps {
-//   closeModalAction: () => void;
-// }
+interface AuthenticationFormProps {
+  handlerAction?: () => void;
+}
 
-export default function AuthenticationForm(
-//   {
-//   // closeModalAction,
-// }: AuthenticationFormProps
-
-) {
+export default function AuthenticationForm({handlerAction= ()=>{}}: AuthenticationFormProps) {
+  //   {
+  //   // closeModalAction,
+  // }: AuthenticationFormProps
   // const { setUser } = useUser();
   // const { refreshCart } = useCart();
   // const { refreshFavorites } = useFavorites();
@@ -33,6 +32,23 @@ export default function AuthenticationForm(
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const handleGuestLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  const match = document.cookie.match(/guest_id=([^;]+)/);
+  if (match) {
+    // already has guest_id, so just trigger
+    handlerAction?.();
+    return;
+  }
+
+  const guestId = crypto.randomUUID();
+  document.cookie = `guest_id=${guestId}; max-age=${60 * 60 * 24 * 30}; path=/; SameSite=Lax`;
+
+  // Save a flag to sessionStorage so we know this reload was triggered by guest login
+  sessionStorage.setItem("guest_logged_in", "true");
+
+  window.location.reload();
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +87,7 @@ export default function AuthenticationForm(
       //    (you could also call `/api/auth/me`, but useSession will update)
       //    For simplicity, we’ll reload the page so that useSession context populates:
       window.location.reload();
+
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
@@ -90,6 +107,9 @@ export default function AuthenticationForm(
       transition: { duration: 0.3 },
     },
   };
+
+
+
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 bg-white rounded-2xl shadow-xl">
@@ -194,6 +214,15 @@ export default function AuthenticationForm(
         <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition">
           <CubeIcon className="h-6 w-6 text-gray-600" />
         </button>
+
+        {/* 🟨 Add Guest Button */}
+
+        <button
+          className="text-sm text-gray-500 hover:text-gray-700 hover:underline mt-4"
+          onClick={handleGuestLogin}
+        >
+          Continue as Guest
+        </button>
       </motion.div>
 
       <motion.div
@@ -201,7 +230,9 @@ export default function AuthenticationForm(
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { delay: 0.8 } }}
       >
-        {mode === "login" ? "Don't have an account?" : "Already have an account?"}
+        {mode === "login"
+          ? "Don't have an account?"
+          : "Already have an account?"}
         <button
           className="ml-1 text-indigo-500 hover:underline focus:outline-none"
           onClick={() => setMode(mode === "login" ? "signup" : "login")}

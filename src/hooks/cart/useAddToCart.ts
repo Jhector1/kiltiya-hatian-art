@@ -13,13 +13,7 @@ export default function useAddToCart(userId: string, product: { id: string; pric
 
     try {
       for (const item of items) {
-        console.log({
-     userId,
-            productId: product.id,
-            type: item.type,
-            price: parseFloat(item.price),
-            quantity: 1,
-});
+
 
         await fetch('/api/cart/add', {
           method: 'POST',

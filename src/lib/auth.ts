@@ -63,7 +63,6 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       authorize: async (creds) => {
-        console.log("[Auth] authorize() called for:", creds?.email);
         if (!creds?.email || !creds?.password) {
           console.log("[Auth] Missing email or password");
           return null;
