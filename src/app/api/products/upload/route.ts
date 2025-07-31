@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     const title = formData.get("title")?.toString().trim() || "";
     const description = formData.get("description")?.toString().trim() || "";
     const price = parseFloat(formData.get("price")?.toString() || "0");
-    const mainFile = formData.get("main");
+    const mainFile = formData.get("main");//,l
 
     if (!categoryName || !mainFile || !(mainFile instanceof File)) {
       return NextResponse.json(
