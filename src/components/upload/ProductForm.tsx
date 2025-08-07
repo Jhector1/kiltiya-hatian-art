@@ -1,16 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
+import categories from "@/data/categories";
 
-const CATEGORY_OPTIONS = [
-  "Veve Symbols",
-  "Fruits",
-  "Cultural Icons",
-  "Animals",
-  "Tools & Crafts",
-  "People & Figures",
-];
 
 export default function ProductForm() {
   const [category, setCategory] = useState("");
@@ -32,6 +25,7 @@ const [svgPreviewUrl, setSvgPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 // at the top of ProductForm()
 const [sizes, setSizes] = useState<string[]>([]);
+const CATEGORY_OPTIONS = useMemo(()=>categories, [])
 
 const addSizeField = () => setSizes([...sizes, ""]);
 const updateSize = (idx: number, val: string) => {
@@ -140,8 +134,8 @@ async function submit(e: React.FormEvent) {
               Select category
             </option>
             {CATEGORY_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
+              <option key={opt.title} value={opt.title}>
+                {opt.title}
               </option>
             ))}
           </select>
