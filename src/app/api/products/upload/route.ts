@@ -74,6 +74,10 @@ export async function POST(request: Request) {
           use_filename: true,
           unique_filename: true,
           resource_type: "image",
+          transformation: [
+            // ← auto-format + auto-quality
+            { fetch_format: "auto", quality: "auto" },
+          ],
         });
       })
     );
