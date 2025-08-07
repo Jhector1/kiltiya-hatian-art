@@ -15,7 +15,7 @@ export default function Hero() {
         <span className='texnt-blue-500'>Zile</span>Digital Art Market
       </h1>
       <p className="text-lg text-gray-700 max-w-2xl mx-auto">
-        Explore a vibrant collection of veve symbols, fruits, animals, and cultural icons inspired by Haitian heritage.
+        Explore a vibrant collection of veve symbols, historical, and cultural icons inspired by Haitian heritage.
       </p>
     </motion.div>
   );
