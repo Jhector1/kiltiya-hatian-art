@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+// import { useParams } from "next/navigation";
 import React, { useEffect, useState, useMemo } from "react";
 import SEO from "@/components/SEO";
 import ProductImageGallery from "@/components/product/detail/ProductImageGallery";
@@ -26,8 +26,8 @@ import { handleCheckout } from "@/utils/handleCheckout";
 import ReviewsSection from "@/components/product/review/ReviewSection";
 // import EditableCanvas, { SvgUrlEditor } from "@/components/SvgEditor";
 
-export default function ProductDetail() {
-  const { id } = (useParams<{ id?: string }>() ?? {}) as { id?: string };
+export default function ProductDetail({productId}: {productId: string}) {
+  // const { id } = (useParams<{ id?: string }>() ?? {}) as { id?: string };
   const { user, isLoggedIn, guestId } = useUser();
   const { cart, loadingAdd, addToCart, updateCart, removeFromCart } = useCart();
 
@@ -138,8 +138,8 @@ const licenses = [
   );
 
   useEffect(() => {
-    if (!id) return;
-    fetchProductById(id.toString(), user?.id || guestId || "")
+    if (!productId) return;
+    fetchProductById(productId.toString(), user?.id || guestId || "")
       .then((p) => {
         // alert(JSON.stringify(p.svgPreview))
         setProduct(p);
@@ -197,7 +197,7 @@ const licenses = [
       })
       
       .catch(console.error);
-  }, [id, user, guestId]);
+  }, [productId, user, guestId]);
 
   useEffect(() => {
     if (!product) return;
@@ -247,7 +247,7 @@ const licenses = [
 
             if (!inCart) {
               await addToCart(
-                id?.toString() || "",
+                productId?.toString() || "",
                 options.digital ? "Digital" : null,
                 options.print ? "Print" : null,
                 finalPrice,
@@ -324,7 +324,7 @@ const licenses = [
 
               if (!inCart) {
                 await addToCart(
-                  id?.toString() || "",
+                  productId?.toString() || "",
                   options.digital ? "Digital" : null,
                   options.print ? "Print" : null,
                   finalPrice,
@@ -357,7 +357,7 @@ const licenses = [
                 frame,
                 license,
                 setModalOpen,
-                id: id?.toString() || "",
+                id: productId?.toString() || "",
               })
             }
           />
