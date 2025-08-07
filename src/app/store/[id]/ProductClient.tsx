@@ -6,7 +6,7 @@ import SEO from "@/components/SEO";
 import ProductImageGallery from "@/components/product/detail/ProductImageGallery";
 import ProductConfigurator from "@/components/product/detail//ProductConfigurator";
 import ProductDescriptionBlock from "@/components/product/detail/ProductDescriptionBlock";
-import ReviewsSection from "@/components/product/review/ReviewSection";
+// import ReviewsSection from "@/components/product/review/ReviewSection";
 import UniversalModal from "@/components/modal/UniversalModal";
 import AuthenticationForm from "@/components/authenticate/AuthenticationFom";
 import CartActions from "@/components/product/CartActions";
@@ -23,6 +23,7 @@ import type {
 } from "@/types";
 import { usePriceCalculator } from "@/hooks/usePriceCalculator";
 import { handleCheckout } from "@/utils/handleCheckout";
+// import EditableCanvas, { SvgUrlEditor } from "@/components/SvgEditor";
 
 export default function ProductDetail() {
   const { id } = (useParams<{ id?: string }>() ?? {}) as { id?: string };
@@ -33,6 +34,7 @@ export default function ProductDetail() {
   const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
     null
   );
+    // const [previewSvg, setPreviewSvg] = useState<string>();
   const [options, setOptions] = useState<AddOptions>({
     digital: false,
     print: false,
@@ -79,6 +81,30 @@ export default function ProductDetail() {
     []
   );
 
+
+const licenses = [
+  {
+    type: "personal",
+    name: "Personal Use",
+    price: 0,
+    description: "For personal projects and non-commercial use.",
+  },
+  {
+    type: "commercial",
+    name: "Commercial Use",
+    price: 50,
+    description: "For business use: websites, client work, etc.",
+  },
+  {
+    type: "extended",
+    name: "Extended License",
+    price: 200,
+    description: "For resale or merchandise with unlimited copies.",
+  },
+];
+
+
+
   const frames = useMemo(
     () => [
       { label: "Black Wood", border: "8px solid #111", multiplier: 1.25 },
@@ -114,31 +140,70 @@ export default function ProductDetail() {
     if (!id) return;
     fetchProductById(id.toString(), user?.id || guestId || "")
       .then((p) => {
-        // alert(JSON.stringify(p.variants))
+        // alert(JSON.stringify(p.svgPreview))
         setProduct(p);
+        // setPreviewSvg(p.svgPreview)
         setPreview({ src: p.imageUrl || "", alt: p.title });
-        const digital = p.variants?.find(
-          (v) => v.type === "DIGITAL" && v.inUserCart
+      
+        const printVariant = p.variants?.find(
+          (v) => v.type?.toUpperCase() === "PRINT" && v.inUserCart
         );
-        const print = p.variants?.find(
-          (v) => v.type === "PRINT" && v.inUserCart
+        const digitalVariant = p.variants?.find(
+          (v) => v.type?.toUpperCase() === "DIGITAL" && v.inUserCart
         );
+
         setOptions({
-          digital: !!digital,
-          print: !!print,
-          digitalVariantId: digital?.id || "",
-          printVariantId: print?.id || "",
+          digital: !!digitalVariant,
+          print: !!printVariant,
+          digitalVariantId: digitalVariant?.id || "",
+          printVariantId: printVariant?.id || "",
         });
+
+        const currentSize =
+          printVariant &&
+          optionSizes.find(
+            (s) => s.label.toLowerCase() === printVariant.size?.toLowerCase()
+          );
+        const currentMaterial =
+          printVariant &&
+          materials.find(
+            (m) =>
+              m.label.toLowerCase() === printVariant.material?.toLowerCase()
+          );
+        const currentFrame =
+          printVariant &&
+          frames.find(
+            (f) => f.label.toLowerCase() === printVariant.frame?.toLowerCase()
+          );
+  const currentLicense =
+          digitalVariant &&
+          licenses.find(
+            (l) => l.type.toLowerCase() === digitalVariant.license?.toLowerCase()
+          );
+          // alert(JSON.stringify(digitalVariant.license))
+          setLicense(currentLicense||licenses[0])
+        setSize(currentSize || optionSizes[1]); // default to 11x14
+        setMaterial(currentMaterial || materials[0]);
+        setFrame(currentFrame || null);
+
+        // Optional: default format
+        // if (p.formats.length) {
+        //   const ext = p.formats[0].split(".").pop();
+        //   if (ext) setFormat(ext);
+        // } else {
+        //   setFormat(""); // fallback
+        // }
       })
+      
       .catch(console.error);
   }, [id, user, guestId]);
 
   useEffect(() => {
     if (!product) return;
     const price =
-      (options.digital ? parseFloat(calculatePrice("Digital")) : 0) +
-      (options.print ? parseFloat(calculatePrice("Print")) : 0);
-    setFinalPrice(price + license.price);
+      (options.digital ? parseFloat(calculatePrice("Digital").digitalPrice) : 0) +
+      (options.print ? parseFloat(calculatePrice("Print").printPrice) : 0);
+    setFinalPrice(price);
   }, [product, license, size, customSize, isCustom, options, material, frame]);
 
   //   alert(guestId)
@@ -175,6 +240,7 @@ export default function ProductDetail() {
     <>
       <UniversalModal isOpen={isModalOpen} onClose={() => setModalOpen(false)}>
         <AuthenticationForm
+        isGuest={true}
           handlerAction={async () => {
             if (!isLoggedIn && !guestId) setModalOpen(true); // ⛔️ block only if both are missing
 
@@ -188,6 +254,7 @@ export default function ProductDetail() {
                 size.label,
                 material.label,
                 frame?.label || "",
+                license.type,
                 1
               );
             } else {
@@ -217,6 +284,7 @@ export default function ProductDetail() {
             inCart={inCart!}
             materials={materials}
             frames={frames}
+            licenses={licenses}
             optionSizes={optionSizes}
             formatData={{ options, setOptions }}
             licenseData={{ license, setLicense }}
@@ -263,6 +331,7 @@ export default function ProductDetail() {
                   size.label,
                   material.label,
                   frame?.label || "",
+                  license.type,
                   1
                 );
               } else {
@@ -294,8 +363,9 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      <ReviewsSection productId={product.id} />
-
+      {/* <ReviewsSection productId={product.id} />
+      <EditableCanvas productId={product.id}/> */}
+            {/* <SvgUrlEditor svgUrl={previewSvg}/> */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(product) }}

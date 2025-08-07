@@ -2,7 +2,9 @@
 'use client';
 
 import AboutComponent from "@/components/AboutComponent";
+// import PngEditor from "@/components/PNGEditor";
 import SEO from "@/components/SEO";
+// import SvgEditor from "@/components/SvgEditor";
 // import DigitalCard from "@/components/digitalCard/DigitalCard";
 // import dynamic from "next/dynamic";
 
@@ -39,7 +41,10 @@ export default function Home() {
       <WhyHaitianArt />
       <AboutComponent/>
       <Testimonial />
- 
+
+      {/* <SvgEditor/>
+      <PngEditor/>
+  */}
       {/* <DigitalCardWrapper /> */}
       
     </>

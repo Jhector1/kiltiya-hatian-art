@@ -114,6 +114,7 @@ export interface OrderProductItem {
     digital?: {
       id: string;
       format: string;
+      license?: string;
     };
 
     print?: {
@@ -138,6 +139,7 @@ export const productListSelect = {
   price: true,
   thumbnails: true,
   publicId: true,
+  svgPreview: true,
 
   category: { select: { name: true } },
 } as const;
@@ -179,6 +181,7 @@ export interface ProductDetailResult {
   thumbnails: string[];
   formats: string[];
   variants: VariantWithInCart[];
+  svgPreview: string;
   reviews: Review[];
 }
 export type CartUpdates = Record<string, string | number | boolean | null>;

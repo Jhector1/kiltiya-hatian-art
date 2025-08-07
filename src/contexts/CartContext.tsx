@@ -18,6 +18,7 @@ export type CartContextType = {
     size: string,
     material: string,
     frame: string,
+    license: string,
     quantity?: number
   ) => Promise<AddToCartResponse>;
   removeFromCart: (
@@ -88,6 +89,7 @@ const addToCart = async (
   size: string,
   material: string,
   frame: string,
+  license: string,
   quantity: number = 1
 ): Promise<AddToCartResponse> => {
   if (!isLoggedIn && !guestId) return { result: undefined }; // ⛔️ block only if both are missing
@@ -107,6 +109,7 @@ const addToCart = async (
         format,
         size,
         material,
+        license,
         frame,
         guestId, // ✅ send guestId to backend
       }),

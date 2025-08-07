@@ -20,6 +20,8 @@ export default function ProductForm() {
   const [main, setMain] = useState<File | null>(null);
   const [thumbnails, setThumbnails] = useState<File[]>([]);
   const [formats, setFormats] = useState<File[]>([]);
+const [svgFile, setSvgFile] = useState<File | null>(null);
+const [svgPreviewUrl, setSvgPreviewUrl] = useState<string | null>(null);
 
   const [mainPreview, setMainPreview] = useState<string | null>(null);
   const [thumbPreviews, setThumbPreviews] = useState<string[]>([]);
@@ -28,6 +30,18 @@ export default function ProductForm() {
   >([]);
 
   const [uploading, setUploading] = useState(false);
+// at the top of ProductForm()
+const [sizes, setSizes] = useState<string[]>([]);
+
+const addSizeField = () => setSizes([...sizes, ""]);
+const updateSize = (idx: number, val: string) => {
+  const next = [...sizes];
+  next[idx] = val;
+  setSizes(next);
+};
+const removeSizeField = (idx: number) => {
+  setSizes(sizes.filter((_, i) => i !== idx));
+};
 
   useEffect(() => {
     if (main) setMainPreview(URL.createObjectURL(main));
@@ -51,43 +65,56 @@ export default function ProductForm() {
     files: FileList | null,
     setter: React.Dispatch<React.SetStateAction<File[]>>
   ) => setter(files ? Array.from(files) : []);
+async function submit(e: React.FormEvent) {
+  e.preventDefault();
+  if (!main) return alert("Please select a main image");
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!main) return alert("Please select a main image");
+  setUploading(true);
 
-    setUploading(true);
+  const data = new FormData();
+  data.append("category", category);
+  data.append("title", title);
+  data.append("description", description);
+  data.append("price", price);
+  data.append("main", main);
 
-    const data = new FormData();
-    data.append("category", category);
-    data.append("title", title);
-    data.append("description", description);
-    data.append("price", price);
-    data.append("main", main);
-    thumbnails.forEach((f) => data.append("thumbnails", f));
-    formats.forEach((f) => data.append("formats", f));
-
-    const res = await fetch("/api/products/upload", {
-      method: "POST",
-      body: data,
-    });
-
-    setUploading(false);
-
-    if (res.ok) {
-      alert("Product uploaded!");
-      setCategory("");
-      setTitle("");
-      setDescription("");
-      setPrice("");
-      setMain(null);
-      setThumbnails([]);
-      setFormats([]);
-    } else {
-      alert("Upload failed");
-      console.error(await res.text());
-    }
+  // ←— Add this block:
+  sizes.forEach((sz) => {
+    data.append("sizes", sz);
+  });
+  thumbnails.forEach((f) => data.append("thumbnails", f));
+  formats.forEach((f) => data.append("formats", f));
+  
+  // ✅ Add this line:
+  if (svgFile) {
+    data.append("svg", svgFile);
   }
+
+  const res = await fetch("/api/products/upload", {
+    method: "POST",
+    body: data,
+  });
+
+  setUploading(false);
+
+  if (res.ok) {
+    alert("Product uploaded!");
+    setCategory("");
+    setTitle("");
+    setDescription("");
+    setPrice("");
+    setMain(null);
+    setThumbnails([]);
+    setFormats([]);
+    setSizes([]);
+    setSvgFile(null); // also clear the SVG
+    setSvgPreviewUrl(null);
+  } else {
+    alert("Upload failed");
+    console.error(await res.text());
+  }
+}
+
 
   return (
     <motion.form
@@ -160,6 +187,40 @@ export default function ProductForm() {
         </div>
       </div>
 
+      {/* Available Sizes */}
+<div className="flex flex-col space-y-2">
+  <label className="font-medium text-gray-700">Available Sizes</label>
+  {sizes.map((size, idx) => (
+    <div key={idx} className="flex items-center space-x-2">
+      <input
+        type="text"
+        value={size}
+        onChange={e => updateSize(idx, e.target.value)}
+        placeholder="e.g. S, M, L"
+        className="flex-1 px-4 py-2 border rounded-xl"
+        disabled={uploading}
+      />
+      <button
+        type="button"
+        onClick={() => removeSizeField(idx)}
+        className="px-3 py-1 bg-red-200 rounded-xl"
+        disabled={uploading}
+      >
+        Remove
+      </button>
+    </div>
+  ))}
+  <button
+    type="button"
+    onClick={addSizeField}
+    className="self-start px-4 py-2 bg-purple-500 text-white rounded-xl"
+    disabled={uploading}
+  >
+    + Add Size
+  </button>
+</div>
+
+
       {/* Main Image Upload */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
         <div className="flex flex-col">
@@ -186,6 +247,10 @@ export default function ProductForm() {
           </div>
         )}
       </div>
+
+
+
+
 
       {/* Thumbnails */}
       <div>
@@ -220,6 +285,44 @@ export default function ProductForm() {
           </div>
         )}
       </div>
+
+{/* SVG Upload */}
+<div>
+  <label className="mb-2 block font-medium text-gray-700">
+    SVG File
+    <span className="block text-sm text-gray-500">
+      Upload one SVG file. A preview with watermark will be generated automatically.
+    </span>
+  </label>
+  <label className="inline-flex items-center px-6 py-3 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-purple-500 transition">
+    {svgFile ? "Change SVG File" : "Select SVG File"}
+    <input
+      type="file"
+      accept="image/svg+xml"
+      className="hidden"
+      onChange={(e) => {
+        const file = e.target.files?.[0] || null;
+        setSvgFile(file);
+        setSvgPreviewUrl(file ? URL.createObjectURL(file) : null);
+      }}
+      disabled={uploading}
+    />
+  </label>
+
+  {svgPreviewUrl && (
+    <div className="mt-4 h-40 w-40 rounded-xl overflow-hidden shadow-lg">
+      <img
+        src={svgPreviewUrl}
+        alt="SVG Preview"
+        className="object-contain h-full w-full"
+      />
+    </div>
+  )}
+</div>
+
+
+
+
 
       {/* Format Uploads */}
       <div>
@@ -265,6 +368,8 @@ export default function ProductForm() {
           </div>
         )}
       </div>
+
+      
 
       {/* Submit Button */}
       <motion.button

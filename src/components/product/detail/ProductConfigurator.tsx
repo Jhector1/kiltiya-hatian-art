@@ -18,11 +18,13 @@ import type {
 } from "@/types";
 import PurchaseOptions from "../PurchaseOptions";
 import { useCart } from "@/contexts/CartContext";
+import { PriceOptionsProps } from "@/hooks/usePriceCalculator";
 
 interface ProductConfiguratorProps {
   product: ProductDetailResult;
   inCart: CartSelectedItem;
   materials: MaterialOption[];
+  licenses: LicenseOption[];
   frames: FrameOption[];
   optionSizes: { label: string; multiplier: number }[];
   formatData: {
@@ -50,7 +52,11 @@ interface ProductConfiguratorProps {
     setFrame: (val: FrameOption | null) => void;
   };
   updateCart: (updates: CartUpdates) => void;
-  calculatePrice: (type: string, eraser?: string, newMultiplier?: number) => string;
+  calculatePrice: (
+      type: "Digital" | "Print",
+    eraser?: "material" | "frame" | "size" | "license" | "" ,
+    newMultiplier?: number
+  ) => PriceOptionsProps;
   finalPrice: number;
 }
 
@@ -65,13 +71,15 @@ export default function ProductConfigurator({
   sizeData,
   materialData,
   frameData,
-//   updateCart,
+  licenses,
+  //   updateCart,
   calculatePrice,
   finalPrice,
 }: ProductConfiguratorProps) {
   const { options, setOptions } = formatData;
   const { license, setLicense } = licenseData;
-  const { size, setSize, customSize, setCustomSize, isCustom, setIsCustom } = sizeData;
+  const { size, setSize, customSize, setCustomSize, isCustom, setIsCustom } =
+    sizeData;
   const { material, setMaterial } = materialData;
   const { frame, setFrame } = frameData;
   const [format, setFormat] = useState<string>("");
@@ -82,61 +90,92 @@ export default function ProductConfigurator({
   });
 
   const seen = new Set<string>();
-  const uniqueFormats = formats.filter((f) => !seen.has(f.type) && seen.add(f.type));
-  const {  updateCart } = useCart();
+  const uniqueFormats = formats.filter(
+    (f) => !seen.has(f.type) && seen.add(f.type)
+  );
+  const { updateCart } = useCart();
 
   return (
     <>
-       <PurchaseOptions
-                digitalPrice={
-                  options.digital ? String(finalPrice) : String(product.price + finalPrice)
-                }
-                printPrice={calculatePrice("Print")}
-                options={options}
-                onToggle={(t) => setOptions((o) => ({ ...o, [t]: !o[t] }))}
-                inCart={inCart || null}
-                updateCart={(updates) =>
-                  updateCart({
-                    productId: product.id,
-                    printVariantId: "ADD",
-                    updates,
-                  })
-                }
-                removeFromCart={(updates) =>
-                  updateCart({
-                    // userId: user?.id || "",
-                    productId: product.id,
-                    printVariantId: "REMOVE",
-                    updates,
-                  })
-                }
-                removeFromCart2={(updates) =>
-                  updateCart({
-                    // userId: user?.id || "",
-                    productId: product.id,
-                    digitalVariantId: "REMOVE",
-                    updates,
-                  })
-                }
-                updateCart2={(updates) => {
-                  // alert(options.digitalVariantId)
-                  updateCart({
-                    // userId: user?.id || "",
-                    productId: product.id,
-                    digitalVariantId: "ADD",
-                    updates,
-                  });
-                }}
-              />
-      <LicenseSelector onSelect={setLicense} selected={license} />
+      <PurchaseOptions
+        digitalPrice={calculatePrice("Digital").digitalPrice}
+        printPrice={calculatePrice("Print").printPrice}
+        options={options}
+        onToggle={(t) => setOptions((o) => ({ ...o, [t]: !o[t] }))}
+        inCart={inCart || null}
+        updateCart={(updates) =>
+          updateCart({
+            productId: product.id,
+            printVariantId: "ADD",
+            updates,
+          })
+        }
+        removeFromCart={(updates) =>
+          updateCart({
+            // userId: user?.id || "",
+            productId: product.id,
+            printVariantId: "REMOVE",
+            updates,
+          })
+        }
+        removeFromCart2={(updates) =>
+          updateCart({
+            // userId: user?.id || "",
+            productId: product.id,
+            digitalVariantId: "REMOVE",
+            updates,
+          })
+        }
+        updateCart2={(updates) => {
+          // alert(options.digitalVariantId)
+          updateCart({
+            // userId: user?.id || "",
+            productId: product.id,
+            digitalVariantId: "ADD",
+            updates,
+          });
+        }}
+      />
+      <AnimatePresence initial={false}>
+        {options.digital && (
+          <motion.div
+            key="print-settings"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 1.0, ease: "easeInOut" }}
+            style={{ overflow: "hidden" }}
+          >
+            {" "}
+            <LicenseSelector
+              calculatePrice={calculatePrice}
+              updateCart={(updates: CartUpdates) =>
+                updateCart({
+                  productId: product.id,
+                  digitalVariantId: options.digitalVariantId,
+                  updates,
+                })
+              }
+              inCart={inCart || null}
+              licenses={licenses}
+              onSelect={setLicense}
+              selected={license}
+            />{" "}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <FormatSelector
         formats={uniqueFormats}
         selected={format}
-            onChangeAction={setFormat}
+        onChangeAction={setFormat}
         inCart={inCart || null}
         updateCart={(updates: CartUpdates) =>
-          updateCart({ productId: product.id, printVariantId: options.printVariantId, updates })
+          updateCart({
+            productId: product.id,
+            printVariantId: options.printVariantId,
+            updates,
+          })
         }
       />
 
@@ -160,9 +199,14 @@ export default function ProductConfigurator({
                 setIsCustom(s.label === "Custom");
                 if (custom) setCustomSize(custom);
               }}
+              calculatePrice={calculatePrice}
               inCart={inCart!}
               updateCart={(updates) =>
-                updateCart({ productId: product.id, printVariantId: options.printVariantId, updates })
+                updateCart({
+                  productId: product.id,
+                  printVariantId: options.printVariantId,
+                  updates,
+                })
               }
             />
             <br />
@@ -178,7 +222,11 @@ export default function ProductConfigurator({
               frames={frames}
               inCart={inCart || null}
               updateCart={(updates) =>
-                updateCart({ productId: product.id, printVariantId: options.printVariantId, updates })
+                updateCart({
+                  productId: product.id,
+                  printVariantId: options.printVariantId,
+                  updates,
+                })
               }
             />
           </motion.div>

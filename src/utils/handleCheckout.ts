@@ -17,15 +17,16 @@ interface CheckoutProps {
   guestId: string | null;
   inCart: any;
   addToCart: (
-    productId: string,
+ productId: string,
     digitalType: string | null,
     printType: string | null,
-    finalPrice: number,
+    price: number,
     format: string,
     size: string,
     material: string,
     frame: string,
-    quantity: number
+    license: string,
+    quantity?: number
   ) => Promise<any>;
   product: ProductDetailResult;
   options: AddOptions;
@@ -70,7 +71,7 @@ export async function handleCheckout({
       size.label,
       material?.label || "",
       frame?.label || "",
-      1
+      '1'
     );
   }
 

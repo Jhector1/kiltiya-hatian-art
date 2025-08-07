@@ -1,7 +1,7 @@
 // File: src/components/AuthenticationForm.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   GlobeAltIcon,
@@ -16,9 +16,13 @@ import { signIn } from "next-auth/react";
 
 interface AuthenticationFormProps {
   handlerAction?: () => void;
+  isGuest?: boolean;
 }
 
-export default function AuthenticationForm({handlerAction= ()=>{}}: AuthenticationFormProps) {
+export default function AuthenticationForm({
+  handlerAction = () => {},
+  isGuest = false,
+}: AuthenticationFormProps) {
   //   {
   //   // closeModalAction,
   // }: AuthenticationFormProps
@@ -33,22 +37,24 @@ export default function AuthenticationForm({handlerAction= ()=>{}}: Authenticati
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const handleGuestLogin = async (e: React.FormEvent) => {
-  e.preventDefault();
-  const match = document.cookie.match(/guest_id=([^;]+)/);
-  if (match) {
-    // already has guest_id, so just trigger
-    handlerAction?.();
-    return;
-  }
+    e.preventDefault();
+    const match = document.cookie.match(/guest_id=([^;]+)/);
+    if (match) {
+      // already has guest_id, so just trigger
+      handlerAction?.();
+      return;
+    }
 
-  const guestId = crypto.randomUUID();
-  document.cookie = `guest_id=${guestId}; max-age=${60 * 60 * 24 * 30}; path=/; SameSite=Lax`;
+    const guestId = crypto.randomUUID();
+    document.cookie = `guest_id=${guestId}; max-age=${
+      60 * 60 * 24 * 30
+    }; path=/; SameSite=Lax`;
 
-  // Save a flag to sessionStorage so we know this reload was triggered by guest login
-  sessionStorage.setItem("guest_logged_in", "true");
+    // Save a flag to sessionStorage so we know this reload was triggered by guest login
+    sessionStorage.setItem("guest_logged_in", "true");
 
-  window.location.reload();
-};
+    window.location.reload();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +93,6 @@ export default function AuthenticationForm({handlerAction= ()=>{}}: Authenticati
       //    (you could also call `/api/auth/me`, but useSession will update)
       //    For simplicity, we’ll reload the page so that useSession context populates:
       window.location.reload();
-
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
@@ -107,9 +112,6 @@ export default function AuthenticationForm({handlerAction= ()=>{}}: Authenticati
       transition: { duration: 0.3 },
     },
   };
-
-
-
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 bg-white rounded-2xl shadow-xl">
@@ -217,12 +219,14 @@ export default function AuthenticationForm({handlerAction= ()=>{}}: Authenticati
 
         {/* 🟨 Add Guest Button */}
 
-        <button
-          className="text-sm text-gray-500 hover:text-gray-700 hover:underline mt-4"
-          onClick={handleGuestLogin}
-        >
-          Continue as Guest
-        </button>
+        {isGuest && (
+          <button
+            className="text-sm text-gray-500 hover:text-gray-700 hover:underline mt-4"
+            onClick={handleGuestLogin}
+          >
+            Continue as Guest
+          </button>
+        )}
       </motion.div>
 
       <motion.div

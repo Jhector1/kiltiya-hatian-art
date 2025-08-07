@@ -9,12 +9,17 @@ import {
   CartUpdates,
 } from "@/types";
 import { ArtworkFrameSquare } from "./artworkFrameSquare";
+import { PriceOptionsProps } from "@/hooks/usePriceCalculator";
 
 interface PrintCustomizerProps {
   // basePrice: number;
   total: number;
   // finalPrice: number,
-  calculatePrice: (type: string, frame?: string, newMultipler?: number) => string;
+  calculatePrice: (
+    type: "Digital" | "Print",
+    eraser?: "material" | "frame" | "size" | "license" | "" ,
+    newMultiplier?: number
+  ) => PriceOptionsProps;
   // formatMultiplier: number;
   // sizeMultiplier: number;
   imageSrc: string;
@@ -86,7 +91,13 @@ export default function PrintCustomizer({
                   if (inCart)
                     updateCart({
                       material: m.label,
-                      price: String(Number(calculatePrice("Print", "material", m.multiplier))+ Number(calculatePrice('Digital'))),
+                      price:
+                        String(
+                          Number(
+                            calculatePrice("Print", "material", m.multiplier)
+                              .printPrice
+                          ) + Number(calculatePrice("Digital").digitalPrice)
+                        ) ?? 0,
                     });
                 }}
               />
@@ -112,7 +123,15 @@ export default function PrintCustomizer({
           <button
             onClick={() => {
               setFrameAction(null);
-              if (inCart) updateCart({ frame: "" });
+              if (inCart)
+                updateCart({
+                  frame: "",
+                  price:
+                    String(
+                      Number(calculatePrice("Print", "frame", 1).printPrice) +
+                        Number(calculatePrice("Digital").digitalPrice)
+                    ) ?? 0,
+                });
             }}
             className={`px-3 py-1 rounded ${
               frame === null ? "bg-purple-600 text-white" : "bg-gray-100"
@@ -128,7 +147,13 @@ export default function PrintCustomizer({
                 if (inCart)
                   updateCart({
                     frame: f.label,
-                    price: String(Number(calculatePrice("Print", "material", f.multiplier))+ Number(calculatePrice('Digital'))),
+                    price:
+                      String(
+                        Number(
+                          calculatePrice("Print", "frame", f.multiplier)
+                            .printPrice
+                        ) + Number(calculatePrice("Digital").digitalPrice)
+                      ) ?? 0,
                   });
               }}
               className={`px-3 py-1 rounded bg-cover bg-center bg-no-repeat ${
@@ -186,7 +211,7 @@ export default function PrintCustomizer({
 
       {/* Price Display */}
       <div className="flex justify-between items-center">
-        <span className="text-xl font-bold">${total.toFixed(2)}</span>
+        <span className="text-xl font-bold">Due: ${total.toFixed(2)}</span>
       </div>
     </div>
   );

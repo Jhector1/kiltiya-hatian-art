@@ -75,11 +75,13 @@ export async function POST(req: NextRequest) {
     digitalType,
     printType,
     price,
+    license = 'personal',
     quantity = 1,
     format = "png",
     size = null,
     material = null,
     frame = null,
+    
   } = await req.json();
 
   if (!productId || (!digitalType && !printType) || price == null) {
@@ -102,6 +104,7 @@ export async function POST(req: NextRequest) {
           productId,
           type: "DIGITAL",
           format,
+          license,
         },
       })
     : null;
@@ -140,7 +143,7 @@ export async function POST(req: NextRequest) {
       price: parseFloat(price),
       quantity,
       digital: digitalVariant
-        ? { id: digitalVariant.id, format: digitalVariant.format }
+        ? { id: digitalVariant.id, format: digitalVariant.format, license: digitalVariant.license }
         : null,
       print: printVariant
         ? {
@@ -195,146 +198,140 @@ export async function DELETE(req: NextRequest) {
 }
 
 // ─── PATCH /api/cart ────────────────────────────────────────────────
+// ─── PATCH /api/cart ────────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
   const { userId, guestId } = await getCustomerIdFromRequest(req);
   const {
     productId,
-    digitalVariantId = null,
-    printVariantId = null,
+    digitalVariantId = null,   // "ADD" | "REMOVE" | existing ID | null
+    printVariantId   = null,   // "ADD" | "REMOVE" | existing ID | null
     updates = {},
   } = await req.json();
 
-  const rawPrice = updates.price;
-  const variantPrice = Number.isFinite(Number(rawPrice))
-    ? parseFloat(rawPrice)
-    : 0;
-
+  /* 1️⃣  Guard clauses */
   if (!productId || (!digitalVariantId && !printVariantId)) {
     return NextResponse.json(
       { error: "Missing required fields or no variant to update." },
       { status: 400 }
     );
   }
+console.log('nuuuuooip ',updates)
+  const fullPrice = parseFloat(updates.price);
+  if (!Number.isFinite(fullPrice)) {
+    return NextResponse.json(
+      { error: "`updates.price` must be a valid number." },
+      { status: 400 }
+    );
+  }
 
+  /* 2️⃣  Locate the cart & item */
   const cart = await prisma.cart.findFirst({
     where: { OR: [{ userId }, { guestId }] },
     include: { items: { where: { productId } } },
   });
-
   if (!cart || cart.items.length === 0) {
     return NextResponse.json({ error: "Product not found in cart." }, { status: 404 });
   }
 
-  const cartItem = cart.items[0];
-  const cartItemId = cartItem.id;
+  const cartItem    = cart.items[0];
+  const cartItemId  = cartItem.id;
 
+  /* 3️⃣  Helper for later — always set the new full price */
+  const setNewPrice = () =>
+    prisma.cartItem.update({
+      where: { id: cartItemId },
+      data: { price: fullPrice },
+    });
+
+  /* 4️⃣  DIGITAL variant ops  -------------------------------------- */
   if (digitalVariantId === "REMOVE") {
     const oldId = cartItem.digitalVariantId;
     await prisma.cartItem.update({
       where: { id: cartItemId },
-      data: { digitalVariantId: null, price: { decrement: variantPrice } },
+      data: { digitalVariantId: null },
     });
     if (oldId) {
       const count = await prisma.cartItem.count({ where: { digitalVariantId: oldId } });
       if (count === 0) await prisma.productVariant.delete({ where: { id: oldId } });
     }
+    await setNewPrice();
+  } else if (digitalVariantId === "ADD") {
+    const newDigital = await prisma.productVariant.create({
+      data: {
+        productId,
+        type: "DIGITAL",
+        format: updates.format ?? "jpg",
+        license: updates.license 
+
+      },
+    });
+    await prisma.cartItem.update({
+      where: { id: cartItemId },
+      data: { digitalVariantId: newDigital.id },
+    });
+    await setNewPrice();
+  } else if (typeof digitalVariantId === "string") {
+    await prisma.productVariant.update({
+      where: { id: digitalVariantId },
+      data: { format: updates.format ?? undefined,license: updates.license  },
+    });
+    await setNewPrice();
   }
 
+  /* 5️⃣  PRINT variant ops  ---------------------------------------- */
   if (printVariantId === "REMOVE") {
     const oldId = cartItem.printVariantId;
     await prisma.cartItem.update({
       where: { id: cartItemId },
-      data: { printVariantId: null, price: { decrement: variantPrice } },
+      data: { printVariantId: null },
     });
     if (oldId) {
       const count = await prisma.cartItem.count({ where: { printVariantId: oldId } });
       if (count === 0) await prisma.productVariant.delete({ where: { id: oldId } });
     }
+    await setNewPrice();
+  } else if (printVariantId === "ADD") {
+    const newPrint = await prisma.productVariant.create({
+      data: {
+        productId,
+        type: "PRINT",
+        format:   updates.format   ?? "jpg",
+        size:     updates.size     ?? undefined,
+        material: updates.material ?? undefined,
+        frame:    updates.frame    ?? undefined,
+      },
+    });
+    await prisma.cartItem.update({
+      where: { id: cartItemId },
+      data: { printVariantId: newPrint.id },
+    });
+    await setNewPrice();
+  } else if (typeof printVariantId === "string") {
+    await prisma.productVariant.update({
+      where: { id: printVariantId },
+      data: {
+        format:   updates.format   ?? undefined,
+        size:     updates.size     ?? undefined,
+        material: updates.material ?? undefined,
+        frame:    updates.frame    ?? undefined,
+      },
+    });
+    await setNewPrice();
   }
 
-  const updated = await prisma.cartItem.findUnique({
+  /* 6️⃣  If all variants were removed, delete the cart item */
+  const finalState = await prisma.cartItem.findUnique({
     where: { id: cartItemId },
     select: { digitalVariantId: true, printVariantId: true },
   });
-
-  if (!updated?.digitalVariantId && !updated?.printVariantId) {
+  if (!finalState?.digitalVariantId && !finalState?.printVariantId) {
     await prisma.cartItem.delete({ where: { id: cartItemId } });
     return NextResponse.json({
       message: "Cart item removed because both variants were removed.",
     });
   }
 
-  if (digitalVariantId === "ADD") {
-    const newDigital = await prisma.productVariant.create({
-      data: {
-        productId,
-        type: "DIGITAL",
-        format: updates.format ?? "jpg",
-      },
-    });
-    await prisma.cartItem.update({
-      where: { id: cartItemId },
-      data: {
-        digitalVariantId: newDigital.id,
-        price: { increment: variantPrice },
-      },
-    });
-  }
-
-  if (printVariantId === "ADD") {
-    const newPrint = await prisma.productVariant.create({
-      data: {
-        productId,
-        type: "PRINT",
-        format: updates.format ?? "jpg",
-        size: updates.size ?? undefined,
-        material: updates.material ?? undefined,
-        frame: updates.frame ?? undefined,
-      },
-    });
-    await prisma.cartItem.update({
-      where: { id: cartItemId },
-      data: {
-        printVariantId: newPrint.id,
-        price: { increment: variantPrice },
-      },
-    });
-  }
-
-  if (
-    typeof digitalVariantId === "string" &&
-    digitalVariantId !== "ADD" &&
-    digitalVariantId !== "REMOVE"
-  ) {
-    await prisma.productVariant.update({
-      where: { id: digitalVariantId },
-      data: { format: updates.format ?? undefined },
-    });
-  }
-
-  if (
-    typeof printVariantId === "string" &&
-    printVariantId !== "ADD" &&
-    printVariantId !== "REMOVE"
-  ) {
-    const newPrint = await prisma.productVariant.update({
-      where: { id: printVariantId },
-      data: {
-        format: updates.format ?? undefined,
-        size: updates.size ?? undefined,
-        material: updates.material ?? undefined,
-        frame: updates.frame ?? undefined,
-      },
-    });
-
-    await prisma.cartItem.update({
-      where: { id: cartItemId },
-      data: {
-        printVariantId: newPrint.id,
-        price: { set: variantPrice },
-      },
-    });
-  }
-
-  return NextResponse.json({ message: "Cart item updated successfully." });
+  /* 7️⃣  Done */
+  return NextResponse.json({ message: "Cart item updated successfully.", price: fullPrice });
 }
+

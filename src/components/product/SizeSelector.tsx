@@ -1,5 +1,6 @@
 /* File: components/SizeSelector.tsx */
 "use client";
+import { PriceOptionsProps } from "@/hooks/usePriceCalculator";
 import { CartSelectedItem, CartUpdates } from "@/types";
 import React from "react";
 
@@ -13,6 +14,8 @@ export default function SizeSelector({
   onSizeChange,
   updateCart,
   inCart,
+  calculatePrice
+
 }: {
   options: Option[];
   selected: Option;
@@ -24,6 +27,10 @@ export default function SizeSelector({
   ) => void;
   updateCart: (updates: CartUpdates) => void;
   inCart: CartSelectedItem;
+  calculatePrice: (   type: "Digital" | "Print",
+    eraser?: "material" | "frame" | "size" | "license" | "" ,
+    newMultiplier?: number) => PriceOptionsProps;
+
 }) {
   return (
     <div>
@@ -41,7 +48,13 @@ export default function SizeSelector({
               checked={selected.label === opt.label}
               onChange={() => {
                 onSizeChange(opt);
-                if (inCart) updateCart({ size: opt.label });
+                if (inCart) updateCart({ size: opt.label ,   price:
+                        String(
+                          Number(
+                            calculatePrice("Print", "size", opt.multiplier)
+                              .printPrice
+                          ) + Number(calculatePrice("Digital").digitalPrice)
+                        ) ?? 0,});
               }}
             />
             <span className="px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-purple-600 peer-checked:text-white transition">
@@ -64,10 +77,21 @@ export default function SizeSelector({
                     height: customSize.height,
                   });
                   if (inCart)
-                    updateCart({ size: `${e.target.value}x${customSize.height} in` });
+                    updateCart({
+                      size: `${e.target.value}x${customSize.height} in`, price:
+                        String(
+                          Number(
+                            calculatePrice("Print", "size")
+                              .printPrice
+                          ) + Number(calculatePrice("Digital").digitalPrice)
+                        ) ?? 0
+                    
+                    });
                 }}
               />
-              <span className="px-2 border-l border-gray-300 text-gray-500">×</span>
+              <span className="px-2 border-l border-gray-300 text-gray-500">
+                ×
+              </span>
               <input
                 type="number"
                 placeholder="H"
@@ -79,7 +103,9 @@ export default function SizeSelector({
                     height: e.target.value,
                   });
                   if (inCart)
-                    updateCart({ size: `${customSize.width}x${e.target.value} in` });
+                    updateCart({
+                      size: `${customSize.width}x${e.target.value} in`,
+                    });
                 }}
               />
             </div>

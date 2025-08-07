@@ -1,0 +1,18 @@
+npm verbose cli /Users/admin/.nvm/versions/node/v20.18.2/bin/node /Users/admin/.nvm/versions/node/v20.18.2/bin/npm
+npm info using npm@11.1.0
+npm info using node@v20.18.2
+npm warn config optional Use `--omit=optional` to exclude optional dependencies, or
+npm warn config `--include=optional` to include them.
+npm warn config
+npm warn config       Default value does install optional deps unless otherwise omitted.
+npm verbose title npm rebuild lightningcss
+npm verbose argv "rebuild" "lightningcss" "--loglevel" "verbose"
+npm verbose logfile logs-max:10 dir:/Users/admin/.npm/_logs/2025-07-31T20_55_09_772Z-
+npm verbose logfile /Users/admin/.npm/_logs/2025-07-31T20_55_09_772Z-debug-0.log
+rebuilt dependencies successfully
+npm verbose cwd /Users/admin/Documents/NextJSProject/haitian-art-store
+npm verbose os Darwin 23.1.0
+npm verbose node v20.18.2
+npm verbose npm  v11.1.0
+npm verbose exit 0
+npm info ok

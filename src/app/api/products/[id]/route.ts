@@ -63,6 +63,7 @@ export async function GET(req: NextRequest) {
     imageUrl: product.thumbnails[0] ?? "/placeholder.png",
     thumbnails: product.thumbnails,
     formats: product.formats,
+    svgPreview: product.svgPreview,
     variants: product.variants.map((v) => ({
       ...v,
       inUserCart: cartVariantIds.includes(v.id),

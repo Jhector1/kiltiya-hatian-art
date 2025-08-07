@@ -17,9 +17,15 @@ model Product {
   title       String
   description String
   price       Float
+
   publicId    String
+  sizes String[]
+
   thumbnails  String[]
   formats     String[]
+  svgFormat  String?
+  svgPreview  String?
+
   createdAt   DateTime @default(now())
 
   // Relations
@@ -66,6 +72,7 @@ model ProductVariant {
   productId           String
   type                VariantType
   format              String
+   license              String?
   size                String?
   material            String?
   frame               String?
