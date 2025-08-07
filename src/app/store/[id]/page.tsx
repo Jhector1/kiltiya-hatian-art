@@ -72,6 +72,8 @@ import ProductDetail from "./ProductClient";
 // ✅ MAIN PAGE
 
 // Server-rendered shell that loads your client component
+export { generateMetadata } from './metadata';
+
 export default function Page() {
   return (
     <ScreenshotGuard blurAmount="10px" blurDurationMs={1500}>
