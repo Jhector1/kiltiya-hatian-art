@@ -1,6 +1,7 @@
 // import { Metadata } from "next";
 // import { notFound } from "next/navigation";
 // import { prisma } from "@/lib/prisma";
+import ScreenshotGuard from "@/components/ScreenshotGuard";
 import ProductDetail from "./ProductClient";
 
 // // ✅ SEO METADATA
@@ -68,10 +69,13 @@ import ProductDetail from "./ProductClient";
 //   };
 // }
 
-
 // ✅ MAIN PAGE
 
 // Server-rendered shell that loads your client component
 export default function Page() {
-  return <ProductDetail />;
+  return (
+    <ScreenshotGuard blurAmount="10px" blurDurationMs={1500}>
+      <ProductDetail />{" "}
+    </ScreenshotGuard>
+  );
 }

@@ -23,6 +23,7 @@ import type {
 } from "@/types";
 import { usePriceCalculator } from "@/hooks/usePriceCalculator";
 import { handleCheckout } from "@/utils/handleCheckout";
+import ReviewsSection from "@/components/product/review/ReviewSection";
 // import EditableCanvas, { SvgUrlEditor } from "@/components/SvgEditor";
 
 export default function ProductDetail() {
@@ -363,8 +364,8 @@ const licenses = [
         </div>
       </div>
 
-      {/* <ReviewsSection productId={product.id} />
-      <EditableCanvas productId={product.id}/> */}
+      <ReviewsSection productId={product.id} />
+      {/* <EditableCanvas productId={product.id}/> */}
             {/* <SvgUrlEditor svgUrl={previewSvg}/> */}
       <script
         type="application/ld+json"
