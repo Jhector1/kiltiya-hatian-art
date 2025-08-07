@@ -60,7 +60,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     // if (!isLoggedIn) {
     //   setCart([]);
     //   setLoadingCart(false);
-    //   return;
+    //   retburn;
     // }
     try {
       const res = await fetch("/api/cart", {
