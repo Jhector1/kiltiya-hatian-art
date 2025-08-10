@@ -3,6 +3,46 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import categories from "@/data/categories";
+// Accepts: 10x12, 10 x 12, 10" x 12", 10 in x 12 in, 10.5×12.25
+const SIZE_PATTERN = String.raw`^\s*\d+(\.\d+)?\s*(?:"|in(?:ches)?)?\s*[x×]\s*\d+(\.\d+)?\s*(?:"|in(?:ches)?)?\s*$`;
+const SIZE_RE = new RegExp(SIZE_PATTERN, "i");
+
+function formatSizeLive(input: string): string {
+  // "credit-card style" gentle formatting while typing (1 'x' max, allow ×)
+  let v = input.replace(/[×]/g, "x");
+  // Keep only digits, dot, x, quotes, letters of "in"/"inches", and spaces
+  v = v.replace(/[^0-9.x"inches\s]/gi, "");
+
+  // Enforce a single 'x'
+  const firstX = v.indexOf("x");
+  if (firstX !== -1) {
+    const before = v.slice(0, firstX).replace(/x/gi, "");
+    const after = v.slice(firstX + 1).replace(/x/gi, "");
+    v = `${before}x${after}`;
+  }
+
+  // Collapse spaces
+  v = v.replace(/\s+/g, " ");
+
+  // If user typed two numbers separated by any space, gently insert ` x `
+  // e.g., "10 12" -> "10 x 12" while typing
+  if (!/x/i.test(v)) {
+    const m = v.match(/^\s*(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/);
+    if (m) v = `${m[1]} x ${m[2]}`;
+  }
+
+  return v;
+}
+
+function normalizeSizeOnBlur(input: string): string {
+  const raw = input.replace(/[×]/g, "x").replace(/\s+/g, " ").trim();
+  const m = raw.match(/^\s*(\d+(?:\.\d+)?)(?:\s*(?:"|in(?:ches)?))?\s*[x]\s*(\d+(?:\.\d+)?)(?:\s*(?:"|in(?:ches)?))?\s*$/i);
+  if (!m) return raw; // don't force if not valid; the border/message will show why
+  const w = parseFloat(m[1]);
+  const h = parseFloat(m[2]);
+  // Canonical output: 10" x 12"
+  return `${w}" x ${h}"`;
+}
 
 
 export default function ProductForm() {
@@ -62,7 +102,13 @@ const removeSizeField = (idx: number) => {
 async function submit(e: React.FormEvent) {
   e.preventDefault();
   if (!main) return alert("Please select a main image");
-
+  // Hard validate sizes before uploading
+  const firstBad = sizes.findIndex((s) => s.trim() !== "" && !SIZE_RE.test(s.trim()));
+  if (firstBad !== -1) {
+    const badVal = sizes[firstBad];
+    alert(`Invalid size at row ${firstBad + 1}: "${badVal}".\nUse a format like 10" x 12".`);
+    return;
+  }
   setUploading(true);
 
   const data = new FormData();
@@ -181,33 +227,61 @@ async function submit(e: React.FormEvent) {
         </div>
       </div>
 
-      {/* Available Sizes */}
+{/* Available Sizes */}
 <div className="flex flex-col space-y-2">
   <label className="font-medium text-gray-700">Available Sizes</label>
-  {sizes.map((size, idx) => (
-    <div key={idx} className="flex items-center space-x-2">
-      <input
-        type="text"
-        value={size}
-        onChange={e => updateSize(idx, e.target.value)}
-        placeholder="e.g. S, M, L"
-        className="flex-1 px-4 py-2 border rounded-xl"
-        disabled={uploading}
-      />
-      <button
-        type="button"
-        onClick={() => removeSizeField(idx)}
-        className="px-3 py-1 bg-red-200 rounded-xl"
-        disabled={uploading}
-      >
-        Remove
-      </button>
-    </div>
-  ))}
+
+  {sizes.map((size, idx) => {
+    const valid = size.trim() === "" ? true : SIZE_RE.test(size.trim());
+    return (
+      <div key={idx} className="flex items-start gap-2">
+        <div className="flex-1">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={size}
+            onChange={(e) => updateSize(idx, formatSizeLive(e.target.value))}
+            onBlur={(e) => updateSize(idx, normalizeSizeOnBlur(e.target.value))}
+            placeholder={`e.g. 10" x 12"`}
+            pattern={SIZE_PATTERN}
+            title={`Enter size like 10" x 12", 10x12, 10 in x 12 in, 10.5×12.25`}
+            className={[
+              "w-full px-4 py-2 border rounded-xl transition",
+              valid
+                ? "border-gray-200 focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                : "border-red-400 focus:ring-2 focus:ring-red-400",
+            ].join(" ")}
+            disabled={uploading}
+          />
+          <div className="mt-1 text-xs">
+            {valid ? (
+              <span className="text-gray-500">
+                Formats accepted: <code>10&quot; x 12&quot;</code>, <code>10x12</code>, <code>10 in x 12 in</code>, <code>10.5×12.25</code>
+              </span>
+            ) : (
+              <span className="text-red-600">
+                Invalid format. Try <code>10&quot; x 12&quot;</code>
+              </span>
+            )}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => removeSizeField(idx)}
+          className="h-10 px-3 py-1 bg-red-100 text-red-700 rounded-xl hover:bg-red-200"
+          disabled={uploading}
+        >
+          Remove
+        </button>
+      </div>
+    );
+  })}
+
   <button
     type="button"
     onClick={addSizeField}
-    className="self-start px-4 py-2 bg-purple-500 text-white rounded-xl"
+    className="self-start px-4 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600"
     disabled={uploading}
   >
     + Add Size

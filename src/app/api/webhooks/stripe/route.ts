@@ -1,3 +1,4 @@
+// File: src/app/api/stripe/webhook/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { PrismaClient, VariantType } from "@prisma/client";
@@ -5,6 +6,12 @@ import Stripe from "stripe";
 
 export const runtime = "nodejs";
 const prisma = new PrismaClient();
+
+// TODO: replace with your real signer (S3/Cloudinary/R2, etc.)
+async function signAssetUrl(asset: { url: string }) {
+  // Return short-lived signed URL here. For now, just return the canonical URL.
+  return asset.url;
+}
 
 export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature");
@@ -28,84 +35,203 @@ export async function POST(req: NextRequest) {
   }
 
   const session = event.data.object as Stripe.Checkout.Session;
-const userId = session.metadata?.userId ?? null;
-const guestId = session.metadata?.guestId ?? null;
-const customerId = userId ?? guestId;
 
-if (!customerId) {
-  console.error("🚨 Missing both userId and guestId in session.metadata");
-  return new NextResponse("Missing customer identity", { status: 400 });
-}
+  // Identity you stashed in session.metadata at checkout
+  const userId  = session.metadata?.userId ?? null;
+  const guestId = session.metadata?.guestId ?? null;
+  if (!userId && !guestId) {
+    console.error("🚨 Missing both userId and guestId in session.metadata");
+    return new NextResponse("Missing customer identity", { status: 400 });
+  }
 
   try {
-    // 1️⃣ Try to find a user by customerId
-    const user = await prisma.user.findUnique({ where: { id: customerId } });
-
-    // 2️⃣ Try to find a guest cart if no user found
-    let cart = null;
-    if (user) {
-      cart = await prisma.cart.findUnique({
-        where: { userId: user.id },
-        include: {
-          items: {
-            include: {
-              digitalVariant: true,
-              printVariant: true,
-            },
-          },
-        },
-      });
-    } else {
-      cart = await prisma.cart.findUnique({
-        where: { guestId: customerId },
-        include: {
-          items: {
-            include: {
-              digitalVariant: true,
-              printVariant: true,
-            },
-          },
-        },
-      });
+    // Idempotency: bail if we've already created this order
+    const already = await prisma.order.findFirst({
+      where: { stripeSessionId: session.id },
+      select: { id: true },
+    });
+    if (already) {
+      return NextResponse.json({ received: true }, { status: 200 });
     }
 
-    if (!cart) throw new Error(`Cart not found for ID: ${customerId}`);
-
-    // 3️⃣ Create the order with either userId or guestId
-    const order = await prisma.order.create({
-      data: {
-        userId: user?.id ?? undefined,
-        guestId: user ? undefined : customerId,
-        total: (session.amount_total ?? 0) / 100,
-        status: "COMPLETED",
-        stripeSessionId: session.id,
-      },
+    // Pull line items (with product expansion for metadata)
+    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
+      expand: ["data.price.product"],
+      limit: 100,
     });
 
-    // 4️⃣ Move cart items to order items
-    for (const item of cart.items) {
-      await prisma.orderItem.create({
-        data: {
-          orderId: order.id,
-          productId: item.productId,
-          type: item.digitalVariant ? VariantType.DIGITAL : VariantType.PRINT,
-          price: item.price,
-          quantity: item.quantity,
-          digitalVariantId: item.digitalVariantId,
-          printVariantId: item.printVariantId,
-        },
+    // Collect cartItemIds we put into price/product metadata
+    const fromLineItems = lineItems.data
+      .map((li) => {
+        const price = li.price as Stripe.Price | null;
+        const priceMeta = price?.metadata ?? {};
+        const product = price?.product as Stripe.Product | string | undefined;
+        const productMeta =
+          product && typeof product !== "string" ? product.metadata ?? {} : {};
+        return (priceMeta.cartItemId as string) || (productMeta.cartItemId as string) || null;
+      })
+      .filter(Boolean) as string[];
+
+    const fromSessionCsv =
+      session.metadata?.cartItemIds
+        ?.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean) ?? [];
+
+    const purchasedCartItemIds = Array.from(new Set([...fromLineItems, ...fromSessionCsv]));
+
+    // Load purchased cart items for this customer
+    const purchasedCartItems = purchasedCartItemIds.length
+      ? await prisma.cartItem.findMany({
+          where: {
+            id: { in: purchasedCartItemIds },
+            cart: userId ? { userId } : { guestId },
+          },
+          include: {
+            digitalVariant: true,
+            printVariant: true,
+          },
+        })
+      : [];
+
+    // Build "Buy Now" items (those without cartItemId metadata)
+    type BuiltOrderItem = {
+      productId: string;
+      type: VariantType;
+      price: number;
+      quantity: number;
+      digitalVariantId?: string | null;
+      printVariantId?: string | null;
+    };
+
+    const purchasedSet = new Set(purchasedCartItemIds);
+    const buyNowOrderItems: BuiltOrderItem[] = [];
+
+    for (const li of lineItems.data) {
+      const qty = li.quantity ?? 1;
+      const amountSubtotal = li.amount_subtotal ?? li.amount_total ?? 0; // cents
+      const unitAmount = qty > 0 ? amountSubtotal / qty : amountSubtotal;
+      const price = li.price as Stripe.Price | null;
+
+      const pMeta = price?.metadata ?? {};
+      const prod = price?.product as Stripe.Product | string | undefined;
+      const prodMeta =
+        prod && typeof prod !== "string" ? (prod.metadata ?? {}) : {};
+      const meta = { ...prodMeta, ...pMeta } as Record<string, string>;
+
+      if (meta.cartItemId && purchasedSet.has(meta.cartItemId)) continue;
+
+      const productId   = meta.productId;
+      const variantType = (meta.variantType as "DIGITAL" | "PRINT") ??
+        (meta.digitalVariantId ? "DIGITAL" : meta.printVariantId ? "PRINT" : undefined);
+
+      if (!productId || !variantType) {
+        console.warn("⚠️ Missing productId/variantType for Buy Now line item; skipping.");
+        continue;
+      }
+
+      buyNowOrderItems.push({
+        productId,
+        type: variantType === "DIGITAL" ? VariantType.DIGITAL : VariantType.PRINT,
+        price: Math.round(unitAmount) / 100,
+        quantity: qty,
+        digitalVariantId: meta.digitalVariantId ?? null,
+        printVariantId: meta.printVariantId ?? null,
       });
     }
 
-    // 5️⃣ Clear the cart
-    await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+    // Create the order, items, and tokens
+    await prisma.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          userId: userId ?? undefined,
+          guestId: userId ? undefined : guestId!,
+          total: (session.amount_total ?? 0) / 100,
+          status: "COMPLETED",
+          stripeSessionId: session.id,
+        },
+      });
 
+      // Persist order items (cart-based)
+      for (const ci of purchasedCartItems) {
+        await tx.orderItem.create({
+          data: {
+            orderId: order.id,
+            productId: ci.productId,
+            type: ci.digitalVariant ? VariantType.DIGITAL : VariantType.PRINT,
+            price: ci.price,
+            quantity: ci.quantity,
+            digitalVariantId: ci.digitalVariantId,
+            printVariantId: ci.printVariantId,
+          },
+        });
+      }
+
+      // Persist order items (buy-now)
+      for (const bi of buyNowOrderItems) {
+        await tx.orderItem.create({
+          data: {
+            orderId: order.id,
+            productId: bi.productId,
+            type: bi.type,
+            price: bi.price,
+            quantity: bi.quantity,
+            digitalVariantId: bi.digitalVariantId ?? undefined,
+            printVariantId: bi.printVariantId ?? undefined,
+          },
+        });
+      }
+
+      // Clear purchased cart items
+      if (purchasedCartItems.length) {
+        await tx.cartItem.deleteMany({
+          where: { id: { in: purchasedCartItems.map((x) => x.id) } },
+        });
+      }
+
+      // ---- Create DownloadTokens for DIGITAL order items ----
+      // Reload DIGITAL items with product.assets + license
+      const digitalItems = await tx.orderItem.findMany({
+        where: { orderId: order.id, type: VariantType.DIGITAL },
+        include: {
+          product: { include: { assets: true } },
+          digitalVariant: { select: { license: true } },
+        },
+      });
+
+      // Expiry policy (tweak as you like)
+      const now = Date.now();
+      const guestExpiryMs = 7 * 24 * 60 * 60 * 1000;   // 7d
+      const userExpiryMs  = 365 * 24 * 60 * 60 * 1000; // 365d
+      const expiresAt = new Date(now + (userId ? userExpiryMs : guestExpiryMs));
+
+      for (const item of digitalItems) {
+        const assets = item.product?.assets ?? [];
+        const license = item.digitalVariant?.license ?? "Personal";
+        for (const asset of assets) {
+          const signedUrl = await signAssetUrl(asset);
+          await tx.downloadToken.create({
+            data: {
+              orderId: order.id,
+              orderItemId: item.id,
+              assetId: asset.id,
+              userId: userId ?? undefined,
+              guestId: userId ? undefined : guestId ?? undefined,
+              signedUrl,
+              expiresAt,
+              remainingUses: null,
+              licenseSnapshot: license,
+            },
+          });
+        }
+      }
+    });
+
+    return NextResponse.json({ received: true }, { status: 200 });
   } catch (err) {
     console.error("❌ Webhook processing error:", (err as Error).message);
     return NextResponse.json({ error: "Order processing failed" }, { status: 500 });
   } finally {
     await prisma.$disconnect();
   }
-
-  return NextResponse.json({ received: true }, { status: 200 });
 }

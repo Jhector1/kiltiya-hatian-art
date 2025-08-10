@@ -358,6 +358,12 @@ const licenses = [
                 license,
                 setModalOpen,
                 id: productId?.toString() || "",
+                finalPrice:  String(
+                          Number(
+                            calculatePrice("Print")
+                              .printPrice
+                          ) + Number(calculatePrice("Digital").digitalPrice)
+                        ) ?? 0,
               })
             }
           />

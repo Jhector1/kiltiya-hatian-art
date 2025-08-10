@@ -60,6 +60,7 @@ export default function CartPage() {
                   }
                 : undefined,
             },
+            cartItemId: data.cartItemId,
           })),
         }),
       });

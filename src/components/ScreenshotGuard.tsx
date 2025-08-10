@@ -60,6 +60,7 @@ const ScreenshotGuard: React.FC<ScreenshotGuardProps> = ({
         transition: 'filter 150ms ease-out',
       }}
     >
+      {/* <h1>Please refresh</h1> */}
       {children}
     </div>
   );

@@ -5,6 +5,7 @@ import {
   LicenseOption,
   FrameOption,
   MaterialOption,
+  CartSelectedItem,
 } from "@/types";
 
 interface SizeOption {
@@ -15,7 +16,7 @@ interface SizeOption {
 interface CheckoutProps {
   user: { id: string } | null;
   guestId: string | null;
-  inCart: any;
+  inCart: CartSelectedItem |undefined;
   addToCart: (
  productId: string,
     digitalType: string | null,
@@ -28,6 +29,7 @@ interface CheckoutProps {
     license: string,
     quantity?: number
   ) => Promise<any>;
+  finalPrice: string;
   product: ProductDetailResult;
   options: AddOptions;
   format: string;
@@ -53,6 +55,7 @@ export async function handleCheckout({
   license,
   setModalOpen,
   id,
+  finalPrice
 }: CheckoutProps): Promise<void> {
   if (!user && !guestId) {
     setModalOpen(true);
@@ -66,7 +69,7 @@ export async function handleCheckout({
       id,
       options.digital ? "Digital" : null,
       options.print ? "Print" : null,
-      product.price + license.price,
+      Number(finalPrice),
       format,
       size.label,
       material?.label || "",
@@ -74,13 +77,14 @@ export async function handleCheckout({
       '1'
     );
   }
+  // alert(JSON.stringify(data.result.cartItemId))
 
   const productItem = {
     quantity: 1,
     myProduct: {
       id: product.id,
       title: product.title,
-      price: product.price + license.price,
+      price: finalPrice,
       imageUrl: product.imageUrl,
       digital: options.digital
         ? { id: options.digitalVariantId || data?.result?.digitalVariantId, format }
@@ -95,6 +99,7 @@ export async function handleCheckout({
           }
         : undefined,
     },
+    cartItemId: inCart?.cartItemId??data?.result?.cartItemId
   };
 
   // ✅ No need to send userId or guestId — server will handle that

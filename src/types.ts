@@ -125,6 +125,7 @@ export interface OrderProductItem {
       frame?: string;
     };
   };
+  cartItemId: string;
 }
 
 // File: src/lib/types.ts
@@ -215,6 +216,7 @@ export type ProductListAndOrderCount = ProductListItem & {
 };
 export type AddToCartResponse = {
   result?: {
+    cartItemId?: string;
     digitalVariantId?: string;
     printVariantId?: string;
   };

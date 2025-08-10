@@ -1,102 +1,86 @@
-// src/app/api/downloads/zip/route.ts
-
+// File: src/app/api/downloads/zip/route.ts
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
-import { v2 as cloudinary } from "cloudinary";
+import archiver from "archiver";
+import { Readable, PassThrough } from "stream";
 
-const prisma = new PrismaClient();
 export const runtime = "nodejs";
-
-cloudinary.config({
-  cloud_name:  process.env.CLOUDINARY_CLOUD_NAME!,
-  api_key:     process.env.CLOUDINARY_API_KEY!,
-  api_secret:  process.env.CLOUDINARY_API_SECRET!,
-});
+const prisma = new PrismaClient();
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+  const orderId   = searchParams.get("order");
   const sessionId = searchParams.get("session_id");
-  if (!sessionId) {
-    return NextResponse.json({ error: "Missing session_id" }, { status: 400 });
+
+  if (!orderId && !sessionId) {
+    return NextResponse.json({ error: "Provide order or session_id" }, { status: 400 });
   }
 
-  // ————————————————
-  // 1️⃣  Fetch the one Order by its stripeSessionId
-  // ————————————————
-  const order = await prisma.order.findUnique({
-    where: { stripeSessionId: sessionId },
+  // We include items->product so we can derive friendly filenames (title + ext)
+  const order = await prisma.order.findFirst({
+    where: orderId ? { id: orderId } : { stripeSessionId: sessionId! },
     include: {
       items: {
-        where: { type: "DIGITAL" },
-        include: { product: true },
+        include: { product: true }, // to get product title
+      },
+      downloadTokens: {
+        include: { asset: true },
       },
     },
   });
 
-  if (!order) {
-    return NextResponse.json(
-      { error: "No order found for that session." },
-      { status: 404 }
-    );
+  if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+  // Build filename helpers
+  const titleByProductId = new Map<string, string>();
+  for (const it of order.items) {
+    if (it.product?.id && it.product.title) {
+      titleByProductId.set(it.product.id, it.product.title);
+    }
+  }
+  const safe = (s: string) => s.replace(/[^\w.-]+/g, "_").slice(0, 80);
+
+  // Node stream via PassThrough + archiver
+  const pass = new PassThrough();
+  const archive = archiver("zip", { zlib: { level: 9 } });
+  archive.on("warning", (err) => console.warn("zip warn:", err));
+  archive.on("error", (err) => {
+    console.error("zip error:", err);
+    pass.destroy(err as any);
+  });
+  archive.pipe(pass);
+
+  // Append each tokenized asset to the archive
+  let idx = 1;
+  for (const t of order.downloadTokens) {
+    const a = t.asset;
+    if (!a) continue;
+
+    const url = t.signedUrl || a.url;
+    if (!url) continue;
+
+    // Choose a friendly filename; ensure uniqueness with an index
+    const baseTitle = titleByProductId.get(a.productId) || "Artwork";
+    const ext = a.ext || "bin";
+    const filename = `${safe(baseTitle)}-${String(idx).padStart(2, "0")}.${safe(ext)}`;
+    idx += 1;
+
+    // Fetch and append streaming
+    const res = await fetch(url);
+    if (!res.ok || !res.body) continue;
+
+    const nodeStream = Readable.fromWeb(res.body as any);
+    archive.append(nodeStream, { name: filename });
   }
 
-  // ————————————————
-  // 2️⃣  Build a list of { url, name } from that single order
-  // ————————————————
-  const files = order.items.flatMap((item) => {
-    const safeTitle = item.product?.title.replace(/\W+/g, "_");
-    return item.product?.formats.map((fmt) => {
-      const ext = fmt.split(".").pop()!;
-      return { url: fmt, name: `${safeTitle}.${ext}` };
-    });
+  // Finalize archive
+  archive.finalize();
+
+  const headers = new Headers({
+    "Content-Type": "application/zip",
+    "Content-Disposition": `attachment; filename="order-${order.id}.zip"`,
+    "Cache-Control": "no-store",
   });
 
-  if (files.length === 0) {
-    return NextResponse.json(
-      { error: "No digital items in this order." },
-      { status: 404 }
-    );
-  }
-
-  // ————————————————
-  // 3️⃣  Extract, decode, and dedupe the Cloudinary public IDs
-  // ————————————————
-  const publicIds = Array.from(
-    new Set(
-      files
-        .map((f) => {
-          const m = f?.url.match(/\/upload\/(?:v\d+\/)?(.+)\.[^/]+$/i);
-          return m ? decodeURIComponent(m[1]) : null;
-        })
-        .filter((id): id is string => Boolean(id))
-    )
-  );
-
-  if (publicIds.length === 0) {
-    return NextResponse.json(
-      { error: "Could not determine Cloudinary public IDs." },
-      { status: 500 }
-    );
-  }
-
-  // ————————————————
-  // 4️⃣  Generate the signed ZIP URL & redirect (307)
-  // ————————————————
-  try {
-    const zipUrl = cloudinary.utils.download_zip_url({
-      public_ids:            publicIds,
-      resource_type:         "image",
-      use_original_filename: true,
-    });
-    return NextResponse.redirect(zipUrl);
-  } catch (err) {
-    console.error("Cloudinary ZIP error:", err);
-    return NextResponse.json(
-      { error: "Failed to generate download URL." },
-      { status: 500 }
-    );
-  }
+  return new NextResponse(pass as any, { headers });
 }
-
-
-

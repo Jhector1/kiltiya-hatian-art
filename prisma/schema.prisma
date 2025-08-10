@@ -18,15 +18,15 @@ model Product {
   description String
   price       Float
 
-  publicId    String
-  sizes String[]
+  publicId String
+  sizes    String[]
 
-  thumbnails  String[]
-  formats     String[]
+  thumbnails String[]
+  formats    String[]
   svgFormat  String?
-  svgPreview  String?
+  svgPreview String?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   // Relations
   favorites  Favorite[]
@@ -34,6 +34,7 @@ model Product {
   orderItems OrderItem[]
   cartItems  CartItem[] // default one‐to‐many relation
   variants   ProductVariant[]
+  assets     ProductAsset[] // <— new
 }
 
 /// User & Authentication
@@ -46,16 +47,18 @@ model User {
   updatedAt DateTime @updatedAt
 
   // E-commerce relations
-  cart      Cart?
-  favorites Favorite[]
-  orders    Order[]
-  addresses Address[]
-  reviews   Review[]
-/// Optional URL (or storage key) for the user’s avatar image
-avatarUrl    String?   @db.VarChar(255)
+  cart           Cart?
+  favorites      Favorite[]
+  orders         Order[]
+  addresses      Address[]
+  downloadTokens DownloadToken[] // <— new (optional convenience)
 
- /// Running total of how many times this user has downloaded a purchased image
- downloadCount Int      @default(0)
+  reviews   Review[]
+  /// Optional URL (or storage key) for the user’s avatar image
+  avatarUrl String?  @db.VarChar(255)
+
+  /// Running total of how many times this user has downloaded a purchased image
+  downloadCount Int @default(0)
 }
 
 /// Categorization
@@ -72,7 +75,7 @@ model ProductVariant {
   productId           String
   type                VariantType
   format              String
-   license              String?
+  license             String?
   size                String?
   material            String?
   frame               String?
@@ -86,17 +89,16 @@ model ProductVariant {
 
 /// Shopping Cart
 model Cart {
-  id        String     @id @default(cuid())
-  user      User?      @relation(fields: [userId], references: [id])
-  userId    String?    @unique
-  guestId   String?    @unique // ✅ ADD THIS LINE
+  id      String  @id @default(cuid())
+  user    User?   @relation(fields: [userId], references: [id])
+  userId  String? @unique
+  guestId String? @unique // ✅ ADD THIS LINE
 
   items     CartItem[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-    @@index([guestId]) // ✅ optional but helpful
-
+  @@index([guestId]) // ✅ optional but helpful
 }
 
 /// Items in Cart, optionally pointing at one of the two variant types
@@ -131,55 +133,57 @@ enum VariantType {
 
 /// Favorites / Wishlist
 model Favorite {
-  id        String   @id @default(cuid())
- user   User?    @relation(fields: [userId], references: [id])
-userId String? // ✅ make nullable for guests
-    guestId String? // ✅ track anonymous customer session
+  id      String  @id @default(cuid())
+  user    User?   @relation(fields: [userId], references: [id])
+  userId  String? // ✅ make nullable for guests
+  guestId String? // ✅ track anonymous customer session
 
   product   Product  @relation(fields: [productId], references: [id])
   productId String
   createdAt DateTime @default(now())
-@@unique([userId, productId])
-@@unique([guestId, productId])
+
+  @@unique([userId, productId])
+  @@unique([guestId, productId])
 }
 
 /// Product Reviews
 model Review {
   id        String   @id @default(cuid())
- user   User?  @relation(fields: [userId], references: [id])
-userId String?
-guestId String?
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+  guestId   String?
   product   Product  @relation(fields: [productId], references: [id])
   productId String
   rating    Int      @default(5)
   comment   String?
   createdAt DateTime @default(now())
 
-@@index([productId])
-@@index([userId])
-@@index([guestId])
-
+  @@index([productId])
+  @@index([userId])
+  @@index([guestId])
 }
 
 /// Orders & Payments
 model Order {
-  id              String      @id @default(cuid())
-user   User?    @relation(fields: [userId], references: [id])
-userId String? // ✅ make nullable for guests
-    guestId String? // ✅ track anonymous customer session
+  id      String  @id @default(cuid())
+  user    User?   @relation(fields: [userId], references: [id])
+  userId  String? // ✅ make nullable for guests
+  guestId String? // ✅ track anonymous customer session
 
-  items           OrderItem[]
+  items          OrderItem[]
+  downloadTokens DownloadToken[] // <— new
+
   total           Float
-  status          String      @default("PENDING")
-  placedAt        DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  status          String   @default("PENDING")
+  placedAt        DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   payment         Payment?
-  shipping        Address?    @relation("Order_shipping", fields: [shippingId], references: [id])
+  shipping        Address? @relation("Order_shipping", fields: [shippingId], references: [id])
   shippingId      String?
   // store the Stripe Checkout Session ID so we can look up this order by session
-  stripeSessionId String?     @unique
-    @@index([guestId]) // ✅ optional but helpful
+  stripeSessionId String?  @unique
 
+  @@index([guestId]) // ✅ optional but helpful
 }
 
 model OrderItem {
@@ -187,7 +191,7 @@ model OrderItem {
   order   Order  @relation(fields: [orderId], references: [id])
   orderId String
 
-  product   Product? @relation(fields: [productId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
   productId String
 
   // now point at the chosen variant(s):
@@ -198,7 +202,8 @@ model OrderItem {
   printVariant   ProductVariant? @relation("OrderItemPrint", fields: [printVariantId], references: [id])
 
   // use the VariantType enum instead of raw string:
-  type VariantType
+  type           VariantType
+  downloadTokens DownloadToken[] // <— new (optional convenience)
 
   price    Float
   quantity Int   @default(1)
@@ -208,10 +213,10 @@ model OrderItem {
 
 /// Addresses (User & Shipping)
 model Address {
-  id         String   @id @default(cuid())
-user   User?    @relation(fields: [userId], references: [id])
-userId String? // ✅ make nullable for guests
-    guestId String? // ✅ track anonymous customer session
+  id      String  @id @default(cuid())
+  user    User?   @relation(fields: [userId], references: [id])
+  userId  String? // ✅ make nullable for guests
+  guestId String? // ✅ track anonymous customer session
 
   label      String?
   street     String
@@ -222,8 +227,8 @@ userId String? // ✅ make nullable for guests
   createdAt  DateTime @default(now())
 
   orders Order[] @relation("Order_shipping")
-  @@index([guestId]) // ✅ optional but helpful
 
+  @@index([guestId]) // ✅ optional but helpful
 }
 
 /// Payment Records
@@ -237,4 +242,94 @@ model Payment {
   status        String   @default("PENDING")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+enum CldResourceType {
+  image
+  raw
+  video
+}
+
+enum CldDeliveryType {
+  upload
+  authenticated
+  private
+}
+
+model ProductAsset {
+  id        String  @id @default(cuid())
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  storageKey String? @unique
+  url        String
+  previewUrl String?
+
+  mimeType String
+  ext      String
+  isVector Boolean @default(false)
+
+  width        Int?
+  height       Int?
+  dpi          Int?
+  colorProfile String?
+  sizeBytes    Int?
+  checksum     String?
+
+  pdfPageCount Int?
+  pdfPageWIn   Float?
+  pdfPageHIn   Float?
+  svgViewBox   String?
+  hasAlpha     Boolean?
+  isAnimated   Boolean?
+
+  // NEW — make nullable so deploy is zero-downtime, then backfill:
+  resourceType CldResourceType?
+  deliveryType CldDeliveryType?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  downloadTokens DownloadToken[]
+
+  @@unique([productId, url], name: "productId_url")
+  @@index([productId])
+  @@index([url])
+}
+
+model DownloadToken {
+  id String @id @default(cuid())
+
+  // who & what
+  order   Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId String
+  asset   ProductAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId String
+
+  // optional: link which line item produced it (audit)
+  orderItem   OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  orderItemId String?
+
+  // buyer identity
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId  String?
+  guestId String?
+
+  // delivery controls
+  signedUrl        String
+  expiresAt        DateTime
+  remainingUses    Int?
+  downloadCount    Int       @default(0)
+  lastDownloadedAt DateTime?
+
+  // snapshot terms
+  licenseSnapshot String?
+
+  createdAt DateTime @default(now())
+
+  // ✅ model-level indexes
+  @@index([orderId])
+  @@index([assetId])
+  @@index([guestId])
+  @@index([orderId, assetId]) // composite (keep if you use it)
 }

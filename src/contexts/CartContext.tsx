@@ -120,8 +120,10 @@ const addToCart = async (
 
     return {
       result: {
+        cartItemId: data?.result?.cartItemId,
         digitalVariantId: data?.result?.digitalVariantId,
         printVariantId: data?.result?.printVariantId,
+       
       },
     };
   } catch (err) {

@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
       })
     : null;
 
-  await prisma.cartItem.create({
+  const r = await prisma.cartItem.create({
     data: {
       cartId,
       productId,
@@ -136,6 +136,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     message: "Item added with new variant.",
     result: {
+      cartItemId: r.id,
       cartId,
       productId,
       digitalVariantId: digitalVariant?.id || null,
@@ -215,7 +216,6 @@ export async function PATCH(req: NextRequest) {
       { status: 400 }
     );
   }
-console.log('nuuuuooip ',updates)
   const fullPrice = parseFloat(updates.price);
   if (!Number.isFinite(fullPrice)) {
     return NextResponse.json(
