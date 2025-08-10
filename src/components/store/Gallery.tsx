@@ -59,15 +59,15 @@ export default function Gallery({
         {/* // closeModalAction={() => setModalOpen(false)} /> */}
       </UniversalModal>
 
-      <motion.div
-        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-4 mt-10"
-        initial="hidden"
-        animate="visible"
-        variants={{
-          hidden: { opacity: 0 },
-          visible: { opacity: 1, transition: { staggerChildren: 0.05 } },
-        }}
-      >
+ <motion.div
+  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 mt-10"
+  initial="hidden"
+  animate="visible"
+  variants={{
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.05 } },
+  }}
+>
         {products.map((p, i) => {
           const liked = isFavorite(p.id);
           return (
