@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion, Transition } from "framer-motion";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 
 type Item = { label: string; href: string };
@@ -55,9 +55,9 @@ export default function MobileDrawer({
 
   if (!mounted) return null;
 
-  const spring = prefersReduced
-    ? { type: "tween", duration: 0.2 }
-    : { type: "spring", stiffness: 480, damping: 42, mass: 0.8 };
+const drawerTransition: Transition = prefersReduced
+  ? { type: "tween", duration: 0.25 }
+  : { type: "spring", stiffness: 260, damping: 24, mass: 1 };
 
   return createPortal(
     <AnimatePresence initial={false}>
@@ -83,7 +83,7 @@ export default function MobileDrawer({
             initial={{ x: "-100%" }}
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
-            transition={spring}
+            transition={drawerTransition}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drawer header */}

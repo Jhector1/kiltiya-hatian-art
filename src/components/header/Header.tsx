@@ -165,7 +165,7 @@ const handleSignInFromDrawer = () => {
           </div>
 
           {/* Center: Desktop nav */}
-          <DesktopNav pathname={pathname} />
+          <DesktopNav pathname={pathname!} />
 
           {/* Right: Actions */}
           <div className="flex items-center gap-3">
