@@ -1,7 +1,8 @@
 'use client';
 
-import { ReactNode, Fragment } from 'react';
+import { ReactNode, Fragment, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
 
 interface UniversalModalProps {
   isOpen: boolean;
@@ -10,6 +11,17 @@ interface UniversalModalProps {
 }
 
 export default function UniversalModal({ isOpen, onClose, children }: UniversalModalProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  // lock body scroll when open
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [isOpen]);
+
   const backdropVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { duration: 0.2 } },
@@ -18,16 +30,20 @@ export default function UniversalModal({ isOpen, onClose, children }: UniversalM
   const modalVariants = {
     hidden: { y: -50, opacity: 0 },
     visible: { y: 0, opacity: 1, transition: { duration: 0.3 } },
-    exit: { y: 50, opacity: 0, transition: { duration: 0.2 } },
+    exit:   { y: 50, opacity: 0, transition: { duration: 0.2 } },
   };
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <Fragment>
           {/* Backdrop */}
-          <motion.div
-            className="fixed inset-0  bg-opacity-50 backdrop-blur-md z-40"
+          <motion.button
+            type="button"
+            aria-label="Close modal"
+            className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm"
             variants={backdropVariants}
             initial="hidden"
             animate="visible"
@@ -37,7 +53,7 @@ export default function UniversalModal({ isOpen, onClose, children }: UniversalM
 
           {/* Modal Container */}
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-[101] flex items-center justify-center p-4"
             initial="hidden"
             animate="visible"
             exit="hidden"
@@ -48,8 +64,9 @@ export default function UniversalModal({ isOpen, onClose, children }: UniversalM
               initial="hidden"
               animate="visible"
               exit="exit"
+              role="dialog"
+              aria-modal="true"
             >
-              {/* Close Button */}
               <button
                 onClick={onClose}
                 className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 focus:outline-none"
@@ -58,14 +75,12 @@ export default function UniversalModal({ isOpen, onClose, children }: UniversalM
                 ✕
               </button>
 
-              {/* Render any content */}
-              <div>
-                {children}
-              </div>
+              <div>{children}</div>
             </motion.div>
           </motion.div>
         </Fragment>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

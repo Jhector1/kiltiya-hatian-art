@@ -10,8 +10,7 @@
     "test": "jest --verbose",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-     "migrate:deploy": "prisma migrate deploy",
-
+    "migrate:deploy": "prisma migrate deploy",
     "backfill:assets": "tsx src/scripts/backfill-product-assets.ts"
   },
   "dependencies": {
@@ -45,7 +44,8 @@
     "stripe": "^18.3.0",
     "swr": "^2.3.4",
     "use-image": "^1.1.4",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "zod": "^4.0.17"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

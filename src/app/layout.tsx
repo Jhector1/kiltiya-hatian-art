@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { UserContextInner, UserProvider } from "@/contexts/UserContext";
 import { CartProvider } from "@/contexts/CartContext";
-import Header from "@/components/Header";
+import Header from "@/components/header/Header";
 import { FavoriteProvider } from "@/contexts/FavoriteContext";
 import Head from "next/head";
 // import GuestInit from "@/components/GuessInit";
