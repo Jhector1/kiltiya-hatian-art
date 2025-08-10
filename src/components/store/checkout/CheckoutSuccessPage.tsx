@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { AnimatePresence,motion } from "framer-motion";
+import SaveOrderCta from "@/components/orders/SaveOrderCta";
 
 /* ------------ Types from /api/checkout/success ------------- */
 interface PurchasedArtwork {
@@ -217,6 +218,8 @@ export default function CheckoutSuccessPage() {
           <span className="font-medium">Kreyòl:</span> Lyen yo ekspire pou
           envite. Kreye yon kont pou w kenbe yo pou tout tan.
         </p>
+              {sessionId && <SaveOrderCta sessionId={sessionId} />}
+
       </header>
 
       {/* Summary card */}

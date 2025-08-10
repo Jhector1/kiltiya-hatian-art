@@ -3,57 +3,36 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  GlobeAltIcon,
-  DevicePhoneMobileIcon,
-  CubeIcon,
-} from "@heroicons/react/24/outline";
+import { GlobeAltIcon, DevicePhoneMobileIcon, CubeIcon } from "@heroicons/react/24/outline";
 import { signIn } from "next-auth/react";
-// import { getOrCreateGuestId } from "@/utils/client-only/getOrCreateGuestId";
-// import { useUser } from "@/contexts/UserContext";
-// import { useCart } from "@/contexts/CartContext";
-// import { useFavorites } from "@/contexts/FavoriteContext";
 
 interface AuthenticationFormProps {
-  handlerAction?: () => void;
+  onSuccess?: () => Promise<void> | void; // ⬅️ ADD THIS
+  handlerAction?: () => void;              // keep for backwards-compat if you need it
   isGuest?: boolean;
 }
 
 export default function AuthenticationForm({
+  onSuccess,               // ⬅️ ADD THIS
   handlerAction = () => {},
   isGuest = false,
 }: AuthenticationFormProps) {
-  //   {
-  //   // closeModalAction,
-  // }: AuthenticationFormProps
-  // const { setUser } = useUser();
-  // const { refreshCart } = useCart();
-  // const { refreshFavorites } = useFavorites();
-
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
   const handleGuestLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const match = document.cookie.match(/guest_id=([^;]+)/);
-    if (match) {
-      // already has guest_id, so just trigger
-      handlerAction?.();
-      return;
+    if (!match) {
+      const guestId = crypto.randomUUID();
+      document.cookie = `guest_id=${guestId}; max-age=${60 * 60 * 24 * 30}; path=/; SameSite=Lax`;
     }
-
-    const guestId = crypto.randomUUID();
-    document.cookie = `guest_id=${guestId}; max-age=${
-      60 * 60 * 24 * 30
-    }; path=/; SameSite=Lax`;
-
-    // Save a flag to sessionStorage so we know this reload was triggered by guest login
-    sessionStorage.setItem("guest_logged_in", "true");
-
-    window.location.reload();
+    handlerAction?.(); // still supported
+    // DO NOT reload here, we want the parent to finish the claim if needed
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,23 +41,18 @@ export default function AuthenticationForm({
     setLoading(true);
 
     try {
-      // NextAuth’s credentials provider only supports “login” flow;
-      // for signup you’ll still post to your /api/auth/signup endpoint,
-      // but it can set the same cookie and then call signIn() to finish.
       if (mode === "signup") {
-        // 1) call your signup endpoint to create the user & set cookie
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: fullName, email, password }),
         });
         if (!res.ok) {
-          const { error: msg } = await res.json();
+          const { error: msg } = await res.json().catch(() => ({ error: "" }));
           throw new Error(msg || "Signup failed");
         }
       }
 
-      // 2) Now sign in via NextAuth credentials provider:
       const result = await signIn("credentials", {
         redirect: false,
         email,
@@ -89,10 +63,13 @@ export default function AuthenticationForm({
         throw new Error(result?.error || "Login failed");
       }
 
-      // 3) Session is now active; pull session.user
-      //    (you could also call `/api/auth/me`, but useSession will update)
-      //    For simplicity, we’ll reload the page so that useSession context populates:
-      window.location.reload();
+      // ✅ Finish the claim (parent will POST /api/orders/claim with the token)
+      await onSuccess?.();
+
+      // Optional: refresh UI AFTER claim is done
+      // window.location.reload();
+
+      setLoading(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);

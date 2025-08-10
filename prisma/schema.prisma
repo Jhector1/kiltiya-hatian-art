@@ -182,8 +182,13 @@ model Order {
   shippingId      String?
   // store the Stripe Checkout Session ID so we can look up this order by session
   stripeSessionId String?  @unique
+    // ⬇️ new
+  claimTokenHash      String?  @unique
+  claimTokenExpiresAt DateTime?
 
   @@index([guestId]) // ✅ optional but helpful
+  @@index([claimTokenExpiresAt])
+
 }
 
 model OrderItem {
