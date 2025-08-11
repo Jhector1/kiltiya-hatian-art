@@ -24,6 +24,7 @@ import type {
 import { usePriceCalculator } from "@/hooks/usePriceCalculator";
 import { handleCheckout } from "@/utils/handleCheckout";
 import ReviewsSection from "@/components/product/review/ReviewSection";
+import EditableCanvas from "@/components/EditableCanvas";
 // import EditableCanvas, { SvgUrlEditor } from "@/components/SvgEditor";
 
 export default function ProductDetail({productId}: {productId: string}) {

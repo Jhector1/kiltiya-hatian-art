@@ -1,7 +1,7 @@
-export { generateMetadata } from "./metadata";
 
-// import ScreenshotGuard from "@/components/ScreenshotGuard";
-import ProductDetail from "./ProductClient";
+
+
+import EditableCanvas from "@/components/EditableCanvas";
 
 // option A: async / await
 export default async function Page({
@@ -12,7 +12,7 @@ export default async function Page({
   const { id } = await params;
   return (
     // <ScreenshotGuard blurAmount="10px" blurDurationMs={1500}>
-      <ProductDetail productId={id} />
+      <EditableCanvas productId={id} />
     // </ScreenshotGuard>
   );
 }

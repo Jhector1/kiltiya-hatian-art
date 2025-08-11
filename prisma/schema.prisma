@@ -35,6 +35,9 @@ model Product {
   cartItems  CartItem[] // default one‐to‐many relation
   variants   ProductVariant[]
   assets     ProductAsset[] // <— new
+
+  // 🔽 add this back-relation
+  designs UserDesign[]
 }
 
 /// User & Authentication
@@ -59,6 +62,9 @@ model User {
 
   /// Running total of how many times this user has downloaded a purchased image
   downloadCount Int @default(0)
+
+  // 🔽 add this back-relation
+  designs UserDesign[]
 }
 
 /// Categorization
@@ -173,22 +179,21 @@ model Order {
   items          OrderItem[]
   downloadTokens DownloadToken[] // <— new
 
-  total           Float
-  status          String   @default("PENDING")
-  placedAt        DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  payment         Payment?
-  shipping        Address? @relation("Order_shipping", fields: [shippingId], references: [id])
-  shippingId      String?
+  total               Float
+  status              String    @default("PENDING")
+  placedAt            DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  payment             Payment?
+  shipping            Address?  @relation("Order_shipping", fields: [shippingId], references: [id])
+  shippingId          String?
   // store the Stripe Checkout Session ID so we can look up this order by session
-  stripeSessionId String?  @unique
-    // ⬇️ new
-  claimTokenHash      String?  @unique
+  stripeSessionId     String?   @unique
+  // ⬇️ new
+  claimTokenHash      String?   @unique
   claimTokenExpiresAt DateTime?
 
   @@index([guestId]) // ✅ optional but helpful
   @@index([claimTokenExpiresAt])
-
 }
 
 model OrderItem {
@@ -337,4 +342,41 @@ model DownloadToken {
   @@index([assetId])
   @@index([guestId])
   @@index([orderId, assetId]) // composite (keep if you use it)
+}
+
+/// Per-user, per-product editable design + quotas
+model UserDesign {
+  id String @id @default(cuid())
+
+  // who
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId  String?
+  guestId String? // for anonymous sessions (matches how you handle Cart/Favorite/Review)
+
+  // what product
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  // saved state
+  style Json // your StyleState object (fill/stroke/background/opacity, etc.)
+  defs  String? // serialized <defs> you merged client-side
+
+  // commerce gates
+  purchased   Boolean @default(false)
+  exportQuota Int     @default(0) // set to 5 on purchase
+  exportsUsed Int     @default(0)
+
+  // OPTIONAL: if you ever want to limit edits too
+  editQuota Int @default(0)
+  editsUsed Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // You support both signed-in and guest flows elsewhere; mirror that here:
+  @@unique([userId, productId])
+  @@unique([guestId, productId])
+  @@index([userId])
+  @@index([guestId])
+  @@index([productId])
 }
