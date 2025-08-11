@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useUser } from "@/contexts/UserContext";
 
-
 import { DesignProvider, useDesignContext } from "./contexts/DesignContext";
 import { useLivePreview } from "./hooks/useLivePreview";
 import { useCanvasRender } from "./hooks/useCanvasRender";
@@ -23,15 +22,11 @@ import PurchaseExportsModal from "./ui/PurchaseExportsModal";
 import { usePurchaseArt } from "./hooks/usePurchaseArt";
 import PurchaseArtModal from "./ui/PurchaseArtModal";
 
-
 // Lightweight skeleton brick
 function Skeleton({ className = "" }: { className?: string }) {
   return (
     <div
-      className={[
-        "animate-pulse rounded-md bg-zinc-100",
-        className,
-      ].join(" ")}
+      className={["animate-pulse rounded-md bg-zinc-100", className].join(" ")}
     />
   );
 }
@@ -90,7 +85,10 @@ function BootLayoutSkeleton() {
               <Skeleton className="h-3 w-16 mb-2" />
               <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
                 {Array.from({ length: 12 }).map((_, i) => (
-                  <Skeleton key={i} className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg" />
+                  <Skeleton
+                    key={i}
+                    className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg"
+                  />
                 ))}
               </div>
             </div>
@@ -154,7 +152,6 @@ function BootLayoutSkeleton() {
   );
 }
 
-
 function EditableCanvasInner({ productId }: { productId: string }) {
   const { isLoggedIn } = useUser();
   const { style, setStyle, defsMap, setDefsMap } = useDesignContext();
@@ -184,11 +181,11 @@ function EditableCanvasInner({ productId }: { productId: string }) {
   const [printW, setPrintW] = useState(8);
   const [printH, setPrintH] = useState(10);
   const [booting, setBooting] = useState(true);
-const [showPurchase, setShowPurchase] = useState(false);
-const { startCheckout, busy: purchasing } = usePurchaseExports(productId);
+  const [showPurchase, setShowPurchase] = useState(false);
+  const { startCheckout, busy: purchasing } = usePurchaseExports(productId);
 
-const [showBuyArt, setShowBuyArt] = useState(false);
-const { startArtCheckout, busy: purchasingArt } = usePurchaseArt(productId);
+  const [showBuyArt, setShowBuyArt] = useState(false);
+  const { startArtCheckout, busy: purchasingArt } = usePurchaseArt(productId);
 
   // Build a stable defs string to watch in effects
   const defsString = useMemo(
@@ -197,51 +194,66 @@ const { startArtCheckout, busy: purchasingArt } = usePurchaseArt(productId);
   );
 
   // Initial load: fetch status, try saved design, else draw fallback preview
- // initial load
-useEffect(() => {
-  let cancelled = false;
-  (async () => {
-    await fetchInitialExportStatus();
+  // initial load
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await fetchInitialExportStatus();
 
-    try {
-      const s = await fetch(`/api/products/${productId}/saveUserDesign`, { cache: "no-store" });
-      if (s.ok) {
-        const j = await s.json();
-        if (!cancelled && j?.found) {
-          const savedStyle = { ...DEFAULT_STYLE, ...(j.style || {}) };
-          const savedDefs: string = j.defs || "";
-          setStyle(savedStyle);
-          setDefsMap(savedDefs ? { __persisted: savedDefs } : {});
-          // render correct preview before showing UI
-          await updatePreview(savedStyle, savedDefs);
-          setBooting(false);
-          return;
+      try {
+        const s = await fetch(`/api/products/${productId}/saveUserDesign`, {
+          cache: "no-store",
+        });
+        if (s.ok) {
+          const j = await s.json();
+          if (!cancelled && j?.found) {
+            const savedStyle = { ...DEFAULT_STYLE, ...(j.style || {}) };
+            const savedDefs: string = j.defs || "";
+            setStyle(savedStyle);
+            setDefsMap(savedDefs ? { __persisted: savedDefs } : {});
+            // render correct preview before showing UI
+            await updatePreview(savedStyle, savedDefs);
+            setBooting(false);
+            return;
+          }
         }
+      } catch {}
+
+      // no saved design: draw fallback once
+      try {
+        const res = await fetch(`/api/products/${productId}/live-preview`, {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error("Failed to load preview");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        await drawUrl(url);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setBooting(false);
       }
-    } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    productId,
+    setStyle,
+    setDefsMap,
+    fetchInitialExportStatus,
+    drawUrl,
+    updatePreview,
+  ]);
 
-    // no saved design: draw fallback once
-    try {
-      const res = await fetch(`/api/products/${productId}/live-preview`, { cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to load preview");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      await drawUrl(url);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setBooting(false);
-    }
-  })();
-  return () => { cancelled = true; };
-}, [productId, setStyle, setDefsMap, fetchInitialExportStatus, drawUrl, updatePreview]);
-
-// debounced preview — skip while booting
-useEffect(() => {
-  if (booting) return;
-  const id = window.setTimeout(() => { void updatePreview(style, defsString); }, 250);
-  return () => window.clearTimeout(id);
-}, [booting, style, defsString, updatePreview]);
+  // debounced preview — skip while booting
+  useEffect(() => {
+    if (booting) return;
+    const id = window.setTimeout(() => {
+      void updatePreview(style, defsString);
+    }, 250);
+    return () => window.clearTimeout(id);
+  }, [booting, style, defsString, updatePreview]);
 
   // Draw when previewUrl or zoom changes
   useEffect(() => {
@@ -288,15 +300,14 @@ useEffect(() => {
     });
   };
   // early return UI while booting
-if (booting) {
-  return <BootLayoutSkeleton />;
-}
-
+  if (booting) {
+    return <BootLayoutSkeleton />;
+  }
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
       <EditorHeaderBar
-      purchased={purchased}
+        purchased={purchased}
         loading={loading}
         saving={saving}
         canExport={canExport}
@@ -307,35 +318,34 @@ if (booting) {
         onExport={onExport}
         showControls={showControls}
         setShowControls={setShowControls}
-          onPurchaseClick={() => setShowPurchase(true)}
-          onPurchaseArtClick={() => setShowBuyArt(true)}
-
+        onPurchaseClick={() => setShowPurchase(true)}
+        onPurchaseArtClick={() => setShowBuyArt(true)}
       />
       <PurchaseExportsModal
-  open={showPurchase}
-  onClose={() => setShowPurchase(false)}
-  busy={purchasing}
-  onPick={async (qty) => {
-    await startCheckout(qty);
-    // After redirect returns, your server should refresh status;
-    // You can also poll refresh here if you handle webhooks and return.
-  }}
-/>
-<PurchaseArtModal
-  open={showBuyArt}
-  onClose={() => setShowBuyArt(false)}
-  busy={purchasingArt}
-  onCheckout={async ({ variant, quantity }) => {
-    await startArtCheckout({
-      style,
-      defs: defsString,
-      variant,
-      quantity,
-    });
-    // on success we redirect; if your API returns ok without redirect,
-    // you can close here: setShowBuyArt(false)
-  }}
-/>
+        open={showPurchase}
+        onClose={() => setShowPurchase(false)}
+        busy={purchasing}
+        onPick={async (qty) => {
+          await startCheckout(qty);
+          // After redirect returns, your server should refresh status;
+          // You can also poll refresh here if you handle webhooks and return.
+        }}
+      />
+      <PurchaseArtModal
+        open={showBuyArt}
+        onClose={() => setShowBuyArt(false)}
+        busy={purchasingArt}
+        onCheckout={async ({ variant, quantity }) => {
+          await startArtCheckout({
+            style,
+            defs: defsString,
+            variant,
+            quantity,
+          });
+          // on success we redirect; if your API returns ok without redirect,
+          // you can close here: setShowBuyArt(false)
+        }}
+      />
       <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px] gap-4">
         <CanvasStage
           zoom={zoom}
