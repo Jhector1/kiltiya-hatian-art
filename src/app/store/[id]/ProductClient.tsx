@@ -149,7 +149,7 @@ export default function ProductDetail({ productId , showFormat=true, showReviews
           <div className="flex flex-col gap-6 w-full">
             <ProductDescriptionBlock product={product} />
 
-{product.category.toLowerCase()+product.svgPreview+'9900'}
+{/* {product.category.toLowerCase()+product.svgPreview+'9900'} */}
             {product.category.toLowerCase() ==='spiritual & vodou imagery'&& product.svgPreview &&<div className="rounded-2xl ring-1 ring-black/5 bg-white p-3">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                 <p className="text-sm text-black/70 text-center sm:text-left">Want different colors or gradients?</p>
