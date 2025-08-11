@@ -1,8 +1,7 @@
-/* File: components/SizeSelector.tsx */
-"use client";
-import { PriceOptionsProps } from "@/hooks/usePriceCalculator";
-import { CartSelectedItem, CartUpdates } from "@/types";
-import React from "react";
+'use client';
+import { PriceOptionsProps } from '@/hooks/usePriceCalculator';
+import { CartSelectedItem, CartUpdates } from '@/types';
+import React from 'react';
 
 type Option = { label: string; multiplier: number };
 
@@ -14,30 +13,26 @@ export default function SizeSelector({
   onSizeChange,
   updateCart,
   inCart,
-  calculatePrice
-
+  calculatePrice,
 }: {
   options: Option[];
   selected: Option;
   isCustom: boolean;
   customSize: { width: string; height: string };
-  onSizeChange: (
-    sel: Option,
-    custom?: { width: string; height: string }
-  ) => void;
+  onSizeChange: (sel: Option, custom?: { width: string; height: string }) => void;
   updateCart: (updates: CartUpdates) => void;
   inCart: CartSelectedItem;
-  calculatePrice: (   type: "Digital" | "Print",
-    eraser?: "material" | "frame" | "size" | "license" | "" ,
-    newMultiplier?: number) => PriceOptionsProps;
-
+  calculatePrice: (
+    type: 'Digital' | 'Print',
+    eraser?: 'material' | 'frame' | 'size' | 'license' | '',
+    newMultiplier?: number
+  ) => PriceOptionsProps;
 }) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        Print Size
-      </label>
-      <div className="flex gap-4 flex-wrap fle space-x-2">
+    <fieldset className="w-full">
+      <legend className="block text-sm font-medium text-gray-700 mb-2">Print Size</legend>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
         {options.map((opt) => (
           <label key={opt.label} className="cursor-pointer">
             <input
@@ -48,70 +43,58 @@ export default function SizeSelector({
               checked={selected.label === opt.label}
               onChange={() => {
                 onSizeChange(opt);
-                if (inCart) updateCart({ size: opt.label ,   price:
-                        String(
-                          Number(
-                            calculatePrice("Print", "size", opt.multiplier)
-                              .printPrice
-                          ) + Number(calculatePrice("Digital").digitalPrice)
-                        ) ?? 0,});
+                if (inCart)
+                  updateCart({
+                    size: opt.label,
+                    price: String(
+                      Number(calculatePrice('Print', 'size', opt.multiplier).printPrice) +
+                        Number(calculatePrice('Digital').digitalPrice)
+                    ),
+                  });
               }}
             />
-            <span className="px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-purple-600 peer-checked:text-white transition">
+            <span className="block text-center px-4 py-2 border rounded-lg transition border-gray-300 peer-checked:bg-purple-600 peer-checked:text-white">
               {opt.label}
             </span>
           </label>
         ))}
-
-        {isCustom && (
-          <div className="flex items-center space-x-2 ml-4">
-            <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
-              <input
-                type="number"
-                placeholder="W"
-                className="w-20 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={customSize.width}
-                onChange={(e) => {
-                  onSizeChange(selected, {
-                    width: e.target.value,
-                    height: customSize.height,
-                  });
-                  if (inCart)
-                    updateCart({
-                      size: `${e.target.value}x${customSize.height} in`, price:
-                        String(
-                          Number(
-                            calculatePrice("Print", "size")
-                              .printPrice
-                          ) + Number(calculatePrice("Digital").digitalPrice)
-                        ) ?? 0
-                    
-                    });
-                }}
-              />
-              <span className="px-2 border-l border-gray-300 text-gray-500">
-                ×
-              </span>
-              <input
-                type="number"
-                placeholder="H"
-                className="w-20 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={customSize.height}
-                onChange={(e) => {
-                  onSizeChange(selected, {
-                    width: customSize.width,
-                    height: e.target.value,
-                  });
-                  if (inCart)
-                    updateCart({
-                      size: `${customSize.width}x${e.target.value} in`,
-                    });
-                }}
-              />
-            </div>
-          </div>
-        )}
       </div>
-    </div>
+
+      {isCustom && (
+        <div className="mt-3 flex flex-wrap gap-2 items-center">
+          <label className="text-sm text-gray-600">Custom:</label>
+          <div className="flex items-stretch overflow-hidden rounded-lg border border-gray-300">
+            <input
+              type="number"
+              placeholder="W"
+              className="w-20 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              value={customSize.width}
+              onChange={(e) => {
+                onSizeChange(selected, { width: e.target.value, height: customSize.height });
+                if (inCart)
+                  updateCart({
+                    size: `${e.target.value}x${customSize.height} in`,
+                    price: String(
+                      Number(calculatePrice('Print', 'size').printPrice) +
+                        Number(calculatePrice('Digital').digitalPrice)
+                    ),
+                  });
+              }}
+            />
+            <span className="px-2 border-l border-gray-300 text-gray-500">×</span>
+            <input
+              type="number"
+              placeholder="H"
+              className="w-20 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              value={customSize.height}
+              onChange={(e) => {
+                onSizeChange(selected, { width: customSize.width, height: e.target.value });
+                if (inCart) updateCart({ size: `${customSize.width}x${e.target.value} in` });
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </fieldset>
   );
 }

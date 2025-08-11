@@ -1,7 +1,7 @@
 "use client";
 
 import AboutComponent from "@/components/AboutComponent";
-import EditableCanvas from "@/components/EditableCanvas";
+import EditableCanvas from "@/components/studio/EditableCanvas";
 // import PngEditor from "@/components/PNGEditor";
 import SEO from "@/components/SEO";
 import VeveDrawFromSvg from "@/components/animation/VeveDrawFromSvg";

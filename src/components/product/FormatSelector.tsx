@@ -1,7 +1,6 @@
-// File: components/FormatSelector.tsx
-"use client";
-import { CartSelectedItem, CartUpdates, Format } from "@/types";
-import React from "react";
+'use client';
+import { CartSelectedItem, CartUpdates, Format } from '@/types';
+import React from 'react';
 
 export default function FormatSelector({
   formats,
@@ -17,31 +16,41 @@ export default function FormatSelector({
   onChangeAction: (f: string) => void;
 }) {
   return (
-    <div>
-      <label className="block font-semibold mb-2">Format:</label>
-      <div className="flex flex-wrap gap-4">
-        {formats.map((f) => (
-          <label
-            key={f.type + f.resolution}
-            className="flex  items-center gap-2 cursor-pointer"
-          >
-            <input
-              type="radio"
-              name="format"
-              value={f.type}
-              checked={selected === f.type}
-              onChange={() => {
-                onChangeAction(f.type);
-                if (inCart) updateCart({'format': f.type});
-
-              }}
-            />
-            <span className="text-sm">
-              {f.type} <span className="text-gray-500">({f.resolution})</span>
-            </span>
-          </label>
-        ))}
+    <fieldset className="w-full">
+      <legend className="block font-semibold mb-2">Format</legend>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
+        {formats.map((f) => {
+          const id = `format-${f.type}`;
+          return (
+            <label
+              key={f.type + f.resolution}
+              htmlFor={id}
+              className={[
+                'flex items-center gap-2 cursor-pointer rounded-lg border px-3 py-2',
+                selected === f.type
+                  ? 'border-purple-600 ring-2 ring-purple-200 bg-purple-50'
+                  : 'border-gray-300 hover:border-gray-400',
+              ].join(' ')}
+            >
+              <input
+                id={id}
+                type="radio"
+                name="format"
+                value={f.type}
+                className="sr-only"
+                checked={selected === f.type}
+                onChange={() => {
+                  onChangeAction(f.type);
+                  if (inCart) updateCart({ format: f.type });
+                }}
+              />
+              <span className="text-sm">
+                {f.type.toUpperCase()} <span className="text-gray-500">({f.resolution})</span>
+              </span>
+            </label>
+          );
+        })}
       </div>
-    </div>
+    </fieldset>
   );
 }

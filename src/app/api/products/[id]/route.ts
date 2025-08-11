@@ -1,49 +1,35 @@
-// File: src/app/api/products/[id]/route.ts
+// src/app/api/products/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
-import {  getCustomerIdFromRequest } from "@/utils/guest";
-
+import { getCustomerIdFromRequest } from "@/utils/guest";
 
 export const runtime = "nodejs";
 const db = new PrismaClient();
 
 export async function GET(req: NextRequest) {
-  // 1️⃣ Extract product ID from the URL
   const url = new URL(req.url);
-  const segments = url.pathname.split("/");
-  const productId = segments[segments.length - 1];
+  const productId = url.pathname.split("/").pop()!;
 
-  // 2️⃣ Fetch the product
   const product = await db.product.findUnique({
     where: { id: productId },
     include: {
+      category: { select: { name: true } },  // 👈 join category
       reviews: true,
       variants: true,
     },
   });
+
   if (!product) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // 3️⃣ Check if the variant is in the user's or guest's cart
+  // cart lookup unchanged...
   let cartVariantIds: string[] = [];
   const { userId, guestId } = await getCustomerIdFromRequest(req);
-
   const cart = await db.cart.findFirst({
-    where: {
-      OR: [
-        { userId: userId ?? undefined },
-        { guestId: guestId ?? undefined },
-      ],
-    },
-    include: {
-      items: {
-        where: { productId },
-        include: { digitalVariant: true, printVariant: true },
-      },
-    },
+    where: { OR: [{ userId: userId ?? undefined }, { guestId: guestId ?? undefined }] },
+    include: { items: { where: { productId }, include: { digitalVariant: true, printVariant: true } } },
   });
-
   if (cart) {
     cartVariantIds = cart.items.flatMap((item) => {
       const ids: string[] = [];
@@ -53,10 +39,10 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // 4️⃣ Build and return the result
   const result = {
     id: product.id,
-    category: product.categoryId,
+    category: product.category?.name ?? null, // 👈 name instead of id
+    // If you want to keep the old field temporarily: categoryId: product.categoryId,
     title: product.title,
     description: product.description,
     price: product.price,
@@ -64,10 +50,7 @@ export async function GET(req: NextRequest) {
     thumbnails: product.thumbnails,
     formats: product.formats,
     svgPreview: product.svgPreview,
-    variants: product.variants.map((v) => ({
-      ...v,
-      inUserCart: cartVariantIds.includes(v.id),
-    })),
+    variants: product.variants.map((v) => ({ ...v, inUserCart: cartVariantIds.includes(v.id) })),
     reviews: product.reviews,
   };
 

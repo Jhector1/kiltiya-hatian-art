@@ -1,8 +1,6 @@
-/* File: components/PurchaseOptions.tsx */
-"use client";
-import { AddOptions, CartSelectedItem, CartUpdates } from "@/types";
-// import { format } from "path";
-import React from "react";
+'use client';
+import { AddOptions, CartSelectedItem, CartUpdates } from '@/types';
+import React from 'react';
 
 export default function PurchaseOptions({
   digitalPrice,
@@ -18,7 +16,7 @@ export default function PurchaseOptions({
   digitalPrice: string;
   printPrice: string;
   options: AddOptions;
-  onToggle: (key: "digital" | "print") => void;
+  onToggle: (key: 'digital' | 'print') => void;
   updateCart: (updates: CartUpdates) => void;
   updateCart2: (updates: CartUpdates) => void;
   removeFromCart: (updates: CartUpdates) => void;
@@ -26,60 +24,57 @@ export default function PurchaseOptions({
   inCart: CartSelectedItem | null;
 }) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        Purchase Options
-      </label>
-      <div className="flex justify-between space-x-4">
-        {/* Digital Option */}
+    <fieldset className="w-full">
+      <legend className="block text-sm font-medium text-gray-700 mb-2">Purchase Options</legend>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Digital */}
         <label className="cursor-pointer">
           <input
             type="checkbox"
             className="sr-only peer"
             checked={options.digital}
             onChange={() => {
-              onToggle("digital");
+              onToggle('digital');
               if (inCart) {
-                // alert(digitalPrice)
-                // alert(printPrice)
-                if (options.digital) removeFromCart2({ price: printPrice});
-                else updateCart2({ format: "jpg", price: Number(digitalPrice) + Number(printPrice)});
+                if (options.digital) removeFromCart2({ price: printPrice });
+                else updateCart2({ format: 'jpg', price: Number(digitalPrice) + Number(printPrice) });
               }
             }}
           />
-          <div className="flex items-center px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-purple-600 peer-checked:text-white transition">
-            Digital – <span className="font-medium ml-1">${digitalPrice}</span>
+          <div className="flex items-center justify-between px-4 py-3 border rounded-xl transition peer-checked:bg-purple-600 peer-checked:text-white border-gray-300">
+            <span>Digital</span>
+            <span className="font-medium">${digitalPrice}</span>
           </div>
         </label>
 
-        {/* Print Option */}
+        {/* Print */}
         <label className="cursor-pointer">
           <input
-          // disabled={true}
             type="checkbox"
             className="sr-only peer"
             checked={options.print}
             onChange={() => {
-              onToggle("print");
+              onToggle('print');
               if (inCart) {
-                if (options.print) removeFromCart({ price: digitalPrice});
+                if (options.print) removeFromCart({ price: digitalPrice });
                 else
                   updateCart({
-                    format: "jpg",
-                    size: "11x14 in",
-                    material: "Matte Paper",
+                    format: 'jpg',
+                    size: '11x14 in',
+                    material: 'Matte Paper',
                     frame: null,
                     quantity: 1,
-                    price:  Number(digitalPrice) + Number(printPrice)
+                    price: Number(digitalPrice) + Number(printPrice),
                   });
               }
             }}
           />
-          <div className="flex items-center px-4 py-2 border border-gray-300 rounded-lg peer-checked:bg-purple-600 peer-checked:text-white transition">
-            Print – <span className="font-medium ml-1">${printPrice}</span>
+          <div className="flex items-center justify-between px-4 py-3 border rounded-xl transition peer-checked:bg-purple-600 peer-checked:text-white border-gray-300">
+            <span>Print</span>
+            <span className="font-medium">${printPrice}</span>
           </div>
         </label>
       </div>
-    </div>
+    </fieldset>
   );
 }

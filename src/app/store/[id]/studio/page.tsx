@@ -1,7 +1,7 @@
 
 
 
-import EditableCanvas from "@/components/EditableCanvas";
+import EditableCanvas from "@/components/studio/EditableCanvas";
 
 // option A: async / await
 export default async function Page({
