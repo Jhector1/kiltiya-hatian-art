@@ -2,7 +2,9 @@
 
 import { useUser } from "@/contexts/UserContext";
 import React, { useEffect, useRef, useState } from "react";
+import ExportFormatBar from "./ExportFormatBar";
 
+/* ---------- Types ---------- */
 export type StyleState = {
   fillColor: string;
   fillOpacity?: number; // 0..1
@@ -18,8 +20,9 @@ type LinearStop = { offset: number; color: string; opacity?: number };
 
 type GradientDef =
   | { id: string; from: string; to: string; angle?: number }
-  | { id: string; angle?: number; stops: LinearStop[] }; // ← multi-stop
+  | { id: string; angle?: number; stops: LinearStop[] };
 
+/* ---------- Utils ---------- */
 // turn any angle into x1,y1,x2,y2 in %
 const angleToVec = (angle = 0) => {
   const a = ((((angle % 360) + 360) % 360) * Math.PI) / 180;
@@ -58,7 +61,6 @@ const SOLIDS = [
 ];
 
 // Gradients
-// type GradientDef = { id: string; from: string; to: string; angle?: number };
 const GRADIENTS: GradientDef[] = [
   { id: "grad-sunrise", from: "#ff9a9e", to: "#fad0c4", angle: 45 },
   { id: "grad-lagon", from: "#00c6ff", to: "#0072ff", angle: 30 },
@@ -68,18 +70,17 @@ const GRADIENTS: GradientDef[] = [
     id: "grad-rainbow",
     angle: 0,
     stops: [
-      { offset: 0.0, color: "#ef1f7e" }, // pink/red
-      { offset: 0.08, color: "#f1425f" }, // red→orange
-      { offset: 0.2, color: "#f57037" }, // orange
+      { offset: 0.0, color: "#ef1f7e" },
+      { offset: 0.08, color: "#f1425f" },
+      { offset: 0.2, color: "#f57037" },
       { offset: 0.22, color: "#f67f32" },
-      { offset: 0.32, color: "#f9b225" }, // yellow
+      { offset: 0.32, color: "#f9b225" },
       { offset: 0.37, color: "#fbc620" },
-      { offset: 0.55, color: "#8cc63e" }, // green
-      { offset: 0.75, color: "#00c6ff" }, // blue/cyan
-      { offset: 1.0, color: "#5856D6" }, // indigo/violet
+      { offset: 0.55, color: "#8cc63e" },
+      { offset: 0.75, color: "#00c6ff" },
+      { offset: 1.0, color: "#5856D6" },
     ],
   },
-  // --- Trans (light blue, pink, white, pink, light blue) ---
   {
     id: "grad-trans",
     angle: 90,
@@ -96,8 +97,6 @@ const GRADIENTS: GradientDef[] = [
       { offset: 1.0, color: "#5BCEFA" },
     ],
   },
-
-  // --- Non-binary (yellow, white, purple, black) ---
   {
     id: "grad-nonbinary",
     angle: 90,
@@ -112,8 +111,6 @@ const GRADIENTS: GradientDef[] = [
       { offset: 1.0, color: "#000000" },
     ],
   },
-
-  // --- Bisexual (magenta 40%, purple 20%, blue 40%) ---
   {
     id: "grad-bi",
     angle: 90,
@@ -126,8 +123,6 @@ const GRADIENTS: GradientDef[] = [
       { offset: 1.0, color: "#0038A8" },
     ],
   },
-
-  // --- Pansexual (magenta, yellow, cyan) ---
   {
     id: "grad-pan",
     angle: 90,
@@ -140,8 +135,6 @@ const GRADIENTS: GradientDef[] = [
       { offset: 1.0, color: "#1BB3FF" },
     ],
   },
-
-  // --- Lesbian (7-stripe, common 2018 palette) ---
   {
     id: "grad-lesbian7",
     angle: 90,
@@ -162,8 +155,6 @@ const GRADIENTS: GradientDef[] = [
       { offset: 1.0, color: "#A30262" },
     ],
   },
-
-  // --- Asexual (black, grey, white, purple) ---
   {
     id: "grad-ace",
     angle: 90,
@@ -178,8 +169,6 @@ const GRADIENTS: GradientDef[] = [
       { offset: 1.0, color: "#800080" },
     ],
   },
-
-  // --- Genderfluid (pink, white, purple, black, blue) ---
   {
     id: "grad-genderfluid",
     angle: 90,
@@ -196,8 +185,6 @@ const GRADIENTS: GradientDef[] = [
       { offset: 1.0, color: "#333EBD" },
     ],
   },
-
-  // --- Agender (black, grey, white, green, white, grey, black) ---
   {
     id: "grad-agender",
     angle: 90,
@@ -218,8 +205,6 @@ const GRADIENTS: GradientDef[] = [
       { offset: 1.0, color: "#000000" },
     ],
   },
-
-  // --- Aromantic (green, light green, white, grey, black) ---
   {
     id: "grad-aromantic",
     angle: 90,
@@ -281,25 +266,20 @@ const PATTERNS: PatternDef[] = [
       ),
   },
 ];
-// returns a CSS-ready background-image value
+
+// returns a CSS-ready background-image value (for preview chips)
 const gradientPreview = (g: GradientDef) => {
   if ("stops" in g) {
-    // tiny inline SVG preview so multi-stops display correctly
     const def = buildLinearGradientDef(g);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="32">
-      <defs>${def}</defs>
-      <rect width="48" height="32" fill="url(#${g.id})"/>
-    </svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="32"><defs>${def}</defs><rect width="48" height="32" fill="url(#${g.id})"/></svg>`;
     return `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
   }
   return `linear-gradient(${g.angle ?? 0}deg, ${g.from}, ${g.to})`;
 };
 
 // Build <linearGradient> defs from a gradient item
-// / REPLACE your buildLinearGradientDef with this:
 function buildLinearGradientDef(g: GradientDef) {
   const { x1, y1, x2, y2 } = angleToVec(g.angle ?? 0);
-
   if ("stops" in g) {
     const stopsMarkup = g.stops
       .map(
@@ -309,27 +289,25 @@ function buildLinearGradientDef(g: GradientDef) {
           }"${s.opacity != null ? ` stop-opacity="${s.opacity}"` : ""}/>`
       )
       .join("\n");
-    return `
-<linearGradient id="${g.id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">
-${stopsMarkup}
-</linearGradient>`.trim();
+    return `<linearGradient id="${g.id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">${stopsMarkup}</linearGradient>`.trim();
   }
-
-  // two-stop fallback
-  return `
-<linearGradient id="${g.id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">
-  <stop offset="0%"   stop-color="${g.from}"/>
-  <stop offset="100%" stop-color="${g.to}"/>
-</linearGradient>`.trim();
+  return `<linearGradient id="${g.id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><stop offset="0%" stop-color="${g.from}"/><stop offset="100%" stop-color="${g.to}"/></linearGradient>`.trim();
 }
 
-// Helper: color input can't show url(#...)
 const safeColorValue = (v: string) => (v.startsWith("url(") ? "#000000" : v);
 
 const EXPORT_FORMATS = ["png", "jpg", "webp", "tiff", "svg"] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
-type SaveResp = { ok: boolean; canExport: boolean; exportsLeft: number; purchased: boolean };
+type SaveResp = {
+  ok: boolean;
+  canExport: boolean;
+  exportsLeft: number;
+  purchased: boolean;
+};
 
+/* =================================================================== */
+/*                           COMPONENT                                  */
+/* =================================================================== */
 export default function EditableCanvas({ productId }: { productId: string }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
@@ -338,13 +316,14 @@ export default function EditableCanvas({ productId }: { productId: string }) {
   const [exporting, setExporting] = useState<boolean>(false);
   const [saveToLibrary, setSaveToLibrary] = useState<boolean>(false);
   const [zoom, setZoom] = useState<number>(1);
+  const [showControls, setShowControls] = useState<boolean>(false); // RESPONSIVE: mobile toggle
 
   const [exportMode, setExportMode] = useState<"scale" | "px" | "print">(
     "scale"
   );
   const [scale, setScale] = useState<number>(1);
-  const [outW, setOutW] = useState<string>(""); // pixels (text input)
-  const [outH, setOutH] = useState<string>(""); // pixels (text input)
+  const [outW, setOutW] = useState<string>("");
+  const [outH, setOutH] = useState<string>("");
   const [dpi, setDpi] = useState<number>(300);
   const [unit, setUnit] = useState<"in" | "mm">("in");
   const [printW, setPrintW] = useState<number>(8);
@@ -356,17 +335,22 @@ export default function EditableCanvas({ productId }: { productId: string }) {
   const [target, setTarget] = useState<"background" | "fill" | "stroke">(
     "fill"
   );
-  const{isLoggedIn} =useUser();
+  const { isLoggedIn } = useUser();
   const [defsMap, setDefsMap] = useState<Record<string, string>>({});
   const [canExport, setCanExport] = useState<boolean>(false);
   const [exportsLeft, setExportsLeft] = useState<number>(0);
   const [saving, setSaving] = useState<boolean>(false);
 
-// on mount: fetch status
+  // on mount: fetch status
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`/api/products/${productId}/saveUserDesign/status`, { cache: "no-store" });
+        const res = await fetch(
+          `/api/products/${productId}/saveUserDesign/status`,
+          {
+            cache: "no-store",
+          }
+        );
         if (!res.ok) return;
         const j = await res.json();
         setCanExport(!!j.canExport);
@@ -375,50 +359,45 @@ export default function EditableCanvas({ productId }: { productId: string }) {
     })();
   }, [productId]);
 
-  // Initial preview
-// inside EditableCanvas
-useEffect(() => {
-  let cancelled = false;
-  const load = async () => {
-    setLoading(true);
-    try {
-      // try to pull last saved design for this user/guest
-      const s = await fetch(`/api/products/${productId}/saveUserDesign`, { cache: "no-store" });
-      if (s.ok) {
-        const j = await s.json();
-        if (!cancelled && j?.found) {
-          const savedStyle = { ...DEFAULT_STYLE, ...(j.style || {}) };
-          const savedDefs: string = j.defs || "";
-
-          // seed local state
-          setStyle(savedStyle);
-          setDefsMap(savedDefs ? { __persisted: savedDefs } : {});
-
-          // ask the preview API to render with the saved defs + style
-          requestPreview(savedStyle, savedDefs);
-          return; // done
+  // Initial preview (with last saved if exists)
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const s = await fetch(`/api/products/${productId}/saveUserDesign`, {
+          cache: "no-store",
+        });
+        if (s.ok) {
+          const j = await s.json();
+          if (!cancelled && j?.found) {
+            const savedStyle = { ...DEFAULT_STYLE, ...(j.style || {}) };
+            const savedDefs: string = j.defs || "";
+            setStyle(savedStyle);
+            setDefsMap(savedDefs ? { __persisted: savedDefs } : {});
+            requestPreview(savedStyle, savedDefs);
+            return;
+          }
         }
+        const res = await fetch(`/api/products/${productId}/live-preview`, {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error("Failed to load preview");
+        const blob = await res.blob();
+        if (!cancelled) setPreviewUrl(URL.createObjectURL(blob));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [productId]);
 
-      // fallback: your old initial preview
-      const res = await fetch(`/api/products/${productId}/live-preview`, { cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to load preview");
-      const blob = await res.blob();
-      if (!cancelled) setPreviewUrl(URL.createObjectURL(blob));
-    } catch (err) {
-      console.error(err);
-    } finally {
-      if (!cancelled) setLoading(false);
-    }
-  };
-  load();
-  return () => {
-    cancelled = true;
-  };
-}, [productId]);
-
-
-  // Draw PNG on canvas
+  // Draw PNG on canvas (scaled by zoom)
   useEffect(() => {
     if (!previewUrl) return;
     const img = new Image();
@@ -435,14 +414,15 @@ useEffect(() => {
       canvas.height = Math.max(1, Math.floor(h * zoom));
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high" as any;
+        (ctx as any).imageSmoothingEnabled = true;
+        (ctx as any).imageSmoothingQuality = "high";
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       }
     };
     img.src = previewUrl;
   }, [previewUrl, zoom]);
- const saveDesign = async () => {
+
+  const saveDesign = async () => {
     setSaving(true);
     try {
       const defsNow = Object.values(defsMap).join("\n");
@@ -462,14 +442,13 @@ useEffect(() => {
       const j: SaveResp = await res.json();
       setCanExport(j.canExport);
       setExportsLeft(j.exportsLeft);
-      // optional toast
-      // toast.success("Saved!");
     } catch (e: any) {
       alert(e.message);
     } finally {
       setSaving(false);
     }
   };
+
   // Debounced preview
   const previewTimer = useRef<number | null>(null);
   const requestPreview = (styleToSend: StyleState, defsToSend: string) => {
@@ -528,10 +507,9 @@ useEffect(() => {
     try {
       const defsNow = Object.values(defsMap).join("\n");
 
-      // Build size payload by mode
       const sizePayload: any = {};
       if (exportMode === "scale") {
-        sizePayload.scale = Math.max(0.05, Math.min(10, scale || 1)); // clamp 5%..1000%
+        sizePayload.scale = Math.max(0.05, Math.min(10, scale || 1));
       } else if (exportMode === "px") {
         const w = parseInt(outW || "", 10);
         const h = parseInt(outH || "", 10);
@@ -579,107 +557,107 @@ useEffect(() => {
             alert("Saved to your Library ✨");
           }
         }
-        return;
+      } else {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `art-${productId}.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
       }
 
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `art-${productId}.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
-
-
-   try {
-      // after the export POST returns ok:
-      const st = await fetch(`/api/products/${productId}/status`, { cache: "no-store" });
-      if (st.ok) {
-        const j = await st.json();
-        setCanExport(!!j.canExport);
-        setExportsLeft(j.exportsLeft ?? 0);
-      }
-    } catch {}
-
+      try {
+        const st = await fetch(`/api/products/${productId}/status`, {
+          cache: "no-store",
+        });
+        if (st.ok) {
+          const j = await st.json();
+          setCanExport(!!j.canExport);
+          setExportsLeft(j.exportsLeft ?? 0);
+        }
+      } catch {}
     } catch (err) {
       console.error(err);
       alert((err as Error).message);
     } finally {
       setExporting(false);
     }
-
-
   };
-const handleSaveClick = () => {
-  if (!isLoggedIn) {
-    alert("Please log in first to save your design.");
-    return;
-  }
-  void saveDesign(); // if saveDesign returns a promise
-};
+
+  const handleSaveClick = () => {
+    if (!isLoggedIn) {
+      alert("Please log in first to save your design.");
+      return;
+    }
+    void saveDesign();
+  };
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] p-4 md:p-6">
+    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-amber-50 p-3 md:p-4 ring-1 ring-black/5">
-        <div>
-          <h1 className="text-xl md:text-2xl font-semibold">SVG Playground</h1>
+        <div className="min-w-0">
+          <h1 className="text-[clamp(1.125rem,2.5vw,1.5rem)] font-semibold">
+            SVG Playground
+          </h1>
           <p className="text-sm text-black/60">
             Edit colors & stroke, then export in PNG/JPG/WebP/TIFF/SVG.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-           {/* Save icon button */}
+
+        {/* Actions (RESPONSIVE: wrap, full-width on mobile) */}
+        <div className="w-full sm:w-auto flex flex-wrap items-center gap-2">
           <button
             onClick={handleSaveClick}
             disabled={saving || loading}
-            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium ring-1 ring-black/10 bg-white hover:bg-emerald-50"
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium ring-1 ring-black/10 bg-white hover:bg-emerald-50 disabled:opacity-60"
             title="Save your current edit"
           >
-            {/* <Save className="h-4 w-4" /> */}
             💾 Save
           </button>
+
           <button
             onClick={quickDownloadPng}
-            className="rounded-xl px-3 py-2 text-sm font-medium ring-1 ring-black/10 bg-white hover:bg-amber-50"
+            className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium ring-1 ring-black/10 bg-white hover:bg-amber-50 disabled:opacity-60"
             disabled={loading}
             title="Quick download current view as PNG (client-side)"
           >
             Quick PNG
           </button>
-         {/* Export box */}
-          <div className="flex items-center gap-2 rounded-xl bg-white ring-1 ring-black/10 p-1">
-            <div className="px-2 text-xs">
-              {canExport ? (
-                <span className="text-emerald-700">Exports left: {exportsLeft}</span>
-              ) : (
-                <span className="text-amber-700">Purchase to export</span>
-              )}
-            </div>
-            <div className="h-6 w-px bg-black/10" />
-            <div className="flex items-center gap-1">
-              {EXPORT_FORMATS.map((fmt) => (
-                <button
-                  key={fmt}
-                  onClick={() => exportArtwork(fmt)}
-                  disabled={loading || exporting || !canExport}
-                  className={`rounded-lg px-2 py-1 text-xs font-medium ${
-                    !canExport ? "opacity-50 cursor-not-allowed" : "hover:bg-emerald-50"
-                  }`}
-                  title={canExport ? `Export as ${fmt.toUpperCase()}` : "Export blocked"}
-                >
-                  {fmt.toUpperCase()}
-                </button>
-              ))}
-            </div>
-            </div>
+
+          {/* Export box (RESPONSIVE: scrollable on XS) */}
+          <ExportFormatBar
+            formats={["png", "jpg", "webp", "tiff", "svg"]}
+            canExport={canExport}
+            exporting={exporting}
+            loading={loading}
+            exportsLeft={exportsLeft}
+            onExport={(fmt) => exportArtwork(fmt)}
+          />
+
+          {/* Mobile Controls Toggle */}
+          <button
+            className="sm:hidden inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium ring-1 ring-black/10 bg-white hover:bg-emerald-50"
+            onClick={() => setShowControls((s) => !s)}
+            aria-expanded={showControls}
+            aria-controls="controls-panel"
+          >
+            {showControls ? "Hide Controls" : "Show Controls"}
+          </button>
         </div>
       </div>
 
       {/* Canvas + Controls */}
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_300px] gap-4">
+      <div
+        className="
+          mt-4 grid grid-cols-1
+          md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px] gap-4
+        "
+      >
+        {/* Canvas */}
         <div className="relative rounded-2xl bg-white p-3 ring-1 ring-black/5">
-          <div className="mb-2 flex items-center gap-3">
+          <div className="mb-2 flex flex-col sm:flex-row sm:items-center gap-2">
             <label className="text-sm text-black/70">Zoom</label>
             <input
               type="range"
@@ -690,14 +668,16 @@ const handleSaveClick = () => {
               onChange={(e) => setZoom(parseFloat(e.target.value))}
               className="w-full"
             />
-            <span className="w-14 text-right tabular-nums text-xs text-black/60">
+            <span className="sm:w-14 text-right tabular-nums text-xs text-black/60">
               {Math.round(zoom * 100)}%
             </span>
           </div>
-          <div className="relative grid place-items-center overflow-auto rounded-xl bg-[conic-gradient(at_20%_20%,#fafafa,#f4f4f5)] p-4">
+
+          {/* RESPONSIVE canvas wrapper: keeps canvas visible on tiny screens */}
+          <div className="relative grid place-items-center overflow-auto rounded-xl bg-[conic-gradient(at_20%_20%,#fafafa,#f4f4f5)] p-2 sm:p-4 max-h-[70vh] md:max-h-[72vh] touch-pan-y">
             <canvas
               ref={canvasRef}
-              className="max-w-full shadow-sm ring-1 ring-black/5"
+              className="max-w-full h-auto shadow-sm ring-1 ring-black/5"
             />
             {loading && (
               <div className="absolute inset-0 grid place-items-center rounded-xl bg-white/60 backdrop-blur-sm">
@@ -708,10 +688,17 @@ const handleSaveClick = () => {
         </div>
 
         {/* Controls */}
-        <aside className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
+        <aside
+          id="controls-panel"
+          className={`
+            rounded-2xl bg-white p-4 ring-1 ring-black/5
+            ${showControls ? "block" : "hidden"} sm:block
+            md:sticky md:top-4 md:h-fit
+          `}
+        >
           {/* Swatch Palette */}
           <div className="mb-4 rounded-2xl border border-black/10 p-3">
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-black/70">Palette</h3>
               <div className="flex overflow-hidden rounded-xl ring-1 ring-black/10">
                 {(["fill", "stroke", "background"] as const).map((k) => (
@@ -730,14 +717,14 @@ const handleSaveClick = () => {
               </div>
             </div>
 
-            {/* Solids */}
+            {/* Solids (RESPONSIVE grid) */}
             <div className="mb-3">
               <div className="mb-1 text-xs text-black/50">Solids</div>
-              <div className="grid grid-cols-8 gap-2">
+              <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
                 {SOLIDS.map((c) => (
                   <button
                     key={c}
-                    className="group h-7 w-7 rounded-lg ring-1 ring-black/10 hover:ring-emerald-400 transition"
+                    className="group h-8 w-8 sm:h-7 sm:w-7 rounded-lg ring-1 ring-black/10 hover:ring-emerald-400 transition"
                     style={{ background: c }}
                     title={c}
                     onClick={() => {
@@ -756,52 +743,59 @@ const handleSaveClick = () => {
               </div>
             </div>
 
-            {/* Gradients */}
+            {/* Gradients (RESPONSIVE grid) */}
             <div className="mb-3">
               <div className="mb-1 text-xs text-black/50">Gradients</div>
-              <div className="grid grid-cols-6 gap-2">
-                {GRADIENTS.map((g) => {
-                  // const cssGrad = `linear-gradient(${g.angle ?? 0}deg, ${g.from}, ${g.to})`;
-                  return (
-                    <button
-                      key={g.id}
-                      className="h-8 w-12 rounded-lg ring-1 ring-black/10 hover:ring-emerald-400 transition"
-                      style={{ backgroundImage: gradientPreview(g) }}
-                      title={"stops" in g ? g.id : `${g.from} → ${g.to}`}
-                      onClick={() => {
-                        const newMap = {
-                          ...defsMap,
-                          [g.id]: buildLinearGradientDef(g),
-                        };
-                        setDefsMap(newMap);
-                        const key =
-                          target === "background"
-                            ? "backgroundColor"
-                            : target === "fill"
-                            ? "fillColor"
-                            : "strokeColor";
-                        const newDefsString = Object.values(newMap).join("\n");
-                        handleStyleChange(
-                          key as keyof StyleState,
-                          `url(#${g.id})` as any,
-                          newDefsString
-                        );
-                      }}
-                    />
-                  );
-                })}
+              <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                {GRADIENTS.map((g) => (
+                  <button
+                    key={g.id}
+                    className="h-8 w-12 rounded-lg ring-1 ring-black/10 hover:ring-emerald-400 transition bg-white"
+                    style={{
+                      backgroundImage: gradientPreview(g),
+                      backgroundSize: "cover", // helps on high DPR phones
+                    }}
+                    title={
+                      "stops" in g
+                        ? g.id
+                        : `${(g as any).from} → ${(g as any).to}`
+                    }
+                    onClick={() => {
+                      const newMap = {
+                        ...defsMap,
+                        [g.id]: buildLinearGradientDef(g),
+                      };
+                      setDefsMap(newMap);
+                      const key =
+                        target === "background"
+                          ? "backgroundColor"
+                          : target === "fill"
+                          ? "fillColor"
+                          : "strokeColor";
+                      const newDefsString = Object.values(newMap).join("\n");
+                      handleStyleChange(
+                        key as keyof StyleState,
+                        `url(#${g.id})` as any,
+                        newDefsString
+                      );
+                    }}
+                  />
+                ))}
               </div>
             </div>
 
-            {/* Patterns */}
+            {/* Patterns (RESPONSIVE grid) */}
             <div>
               <div className="mb-1 text-xs text-black/50">Patterns</div>
-              <div className="grid grid-cols-6 gap-2">
+              <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2">
                 {PATTERNS.map((p) => (
                   <button
                     key={p.id}
                     className="h-8 w-12 rounded-lg ring-1 ring-black/10 hover:ring-emerald-400 transition bg-white"
-                    style={{ backgroundImage: `url("${p.preview}")` }}
+                    style={{
+                      backgroundImage: `url("${p.preview}")`,
+                      backgroundSize: "cover",
+                    }}
                     title={p.id.replace("pat-", "")}
                     onClick={() => {
                       const newMap = { ...defsMap, [p.id]: p.svg };
@@ -837,7 +831,7 @@ const handleSaveClick = () => {
                 type="color"
                 value={safeColorValue(style.fillColor)}
                 onChange={(e) => handleStyleChange("fillColor", e.target.value)}
-                className="h-9 w-full rounded-md border border-black/10"
+                className="h-10 w-full rounded-md border border-black/10"
               />
             </label>
             <label className="flex flex-col gap-1 text-xs">
@@ -848,7 +842,7 @@ const handleSaveClick = () => {
                 onChange={(e) =>
                   handleStyleChange("strokeColor", e.target.value)
                 }
-                className="h-9 w-full rounded-md border border-black/10"
+                className="h-10 w-full rounded-md border border-black/10"
               />
             </label>
             <label className="col-span-2 flex flex-col gap-1 text-xs">
@@ -859,11 +853,13 @@ const handleSaveClick = () => {
                 onChange={(e) =>
                   handleStyleChange("backgroundColor", e.target.value)
                 }
-                className="h-9 w-full rounded-md border border-black/10"
+                className="h-10 w-full rounded-md border border-black/10"
               />
             </label>
+
+            {/* Sliders */}
             <label className="col-span-2 flex items-center gap-3 text-xs">
-              <span className="text-black/60">Stroke Width</span>
+              <span className="w-24 text-black/60">Stroke Width</span>
               <input
                 type="range"
                 min={0}
@@ -875,12 +871,13 @@ const handleSaveClick = () => {
                 }
                 className="w-full"
               />
-              <span className="w-10 text-right tabular-nums">
+              <span className="w-12 text-right tabular-nums">
                 {style.strokeWidth}
               </span>
             </label>
+
             <label className="flex items-center gap-3 text-xs">
-              <span className="text-black/60">Fill Opacity</span>
+              <span className="w-24 text-black/60">Fill Opacity</span>
               <input
                 type="range"
                 min={0}
@@ -892,13 +889,13 @@ const handleSaveClick = () => {
                 }
                 className="w-full"
               />
-              <span className="w-10 text-right tabular-nums">
+              <span className="w-12 text-right tabular-nums">
                 {(style.fillOpacity ?? 1).toFixed(2)}
               </span>
             </label>
 
             <label className="flex items-center gap-3 text-xs">
-              <span className="text-black/60">Stroke Opacity</span>
+              <span className="w-24 text-black/60">Stroke Opacity</span>
               <input
                 type="range"
                 min={0}
@@ -910,13 +907,13 @@ const handleSaveClick = () => {
                 }
                 className="w-full"
               />
-              <span className="w-10 text-right tabular-nums">
+              <span className="w-12 text-right tabular-nums">
                 {(style.strokeOpacity ?? 1).toFixed(2)}
               </span>
             </label>
 
             <label className="flex items-center gap-3 text-xs">
-              <span className="text-black/60">Background Opacity</span>
+              <span className="w-24 text-black/60">Background Opacity</span>
               <input
                 type="range"
                 min={0}
@@ -931,22 +928,25 @@ const handleSaveClick = () => {
                 }
                 className="w-full"
               />
-              <span className="w-0 text-right tabular-nums">
+              <span className="w-12 text-right tabular-nums">
                 {(style.backgroundOpacity ?? 1).toFixed(2)}
               </span>
             </label>
           </div>
 
+          {/* Export size */}
           <div className="mt-4">
             <h2 className="mb-3 text-sm font-semibold text-black/70">
               Export size
             </h2>
-            <div className="mb-2 flex gap-1 rounded-xl bg-white ring-1 ring-black/10 p-1">
+
+            {/* Segmented control (scrolls on XS) */}
+            <div className="mb-2 flex gap-1 rounded-xl bg-white ring-1 ring-black/10 p-1 overflow-x-auto">
               {(["scale", "px", "print"] as const).map((m) => (
                 <button
                   key={m}
                   onClick={() => setExportMode(m)}
-                  className={`px-3 py-1 text-xs rounded-lg ${
+                  className={`px-3 py-1 text-xs rounded-lg whitespace-nowrap ${
                     exportMode === m
                       ? "bg-emerald-100 text-emerald-900"
                       : "hover:bg-emerald-50"
@@ -960,7 +960,7 @@ const handleSaveClick = () => {
             {exportMode === "scale" && (
               <div className="space-y-2 text-xs">
                 <div className="flex items-center gap-3">
-                  <span className="text-black/60">Scale</span>
+                  <span className="w-16 text-black/60">Scale</span>
                   <input
                     type="range"
                     min={0.25}
@@ -986,7 +986,7 @@ const handleSaveClick = () => {
                 <label className="flex flex-col gap-1">
                   <span className="text-black/60">Width (px)</span>
                   <input
-                    className="h-8 rounded-md border border-black/10 px-2"
+                    className="h-9 rounded-md border border-black/10 px-2"
                     value={outW}
                     onChange={(e) =>
                       setOutW(e.target.value.replace(/[^\d]/g, ""))
@@ -997,7 +997,7 @@ const handleSaveClick = () => {
                 <label className="flex flex-col gap-1">
                   <span className="text-black/60">Height (px)</span>
                   <input
-                    className="h-8 rounded-md border border-black/10 px-2"
+                    className="h-9 rounded-md border border-black/10 px-2"
                     value={outH}
                     onChange={(e) =>
                       setOutH(e.target.value.replace(/[^\d]/g, ""))
@@ -1017,7 +1017,7 @@ const handleSaveClick = () => {
                 <label className="flex flex-col gap-1 col-span-1">
                   <span className="text-black/60">Unit</span>
                   <select
-                    className="h-8 rounded-md border border-black/10 px-2"
+                    className="h-9 rounded-md border border-black/10 px-2"
                     value={unit}
                     onChange={(e) => setUnit(e.target.value as any)}
                   >
@@ -1028,7 +1028,7 @@ const handleSaveClick = () => {
                 <label className="flex flex-col gap-1">
                   <span className="text-black/60">Width</span>
                   <input
-                    className="h-8 rounded-md border border-black/10 px-2"
+                    className="h-9 rounded-md border border-black/10 px-2"
                     type="number"
                     step="0.1"
                     value={printW}
@@ -1038,7 +1038,7 @@ const handleSaveClick = () => {
                 <label className="flex flex-col gap-1">
                   <span className="text-black/60">Height</span>
                   <input
-                    className="h-8 rounded-md border border-black/10 px-2"
+                    className="h-9 rounded-md border border-black/10 px-2"
                     type="number"
                     step="0.1"
                     value={printH}
@@ -1048,7 +1048,7 @@ const handleSaveClick = () => {
                 <label className="flex flex-col gap-1 col-span-3">
                   <span className="text-black/60">DPI</span>
                   <input
-                    className="h-8 rounded-md border border-black/10 px-2"
+                    className="h-9 rounded-md border border-black/10 px-2"
                     type="number"
                     step="1"
                     value={dpi}
@@ -1068,6 +1068,18 @@ const handleSaveClick = () => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Save to Library toggle (kept simple, but visible on small) */}
+          <div className="mt-4 flex items-center justify-between gap-3 text-xs">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={saveToLibrary}
+                onChange={(e) => setSaveToLibrary(e.target.checked)}
+              />
+              Save exports to my Library
+            </label>
           </div>
         </aside>
       </div>
