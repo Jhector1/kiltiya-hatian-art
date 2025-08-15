@@ -7,6 +7,8 @@ import Header from "@/components/header/Header";
 import { FavoriteProvider } from "@/contexts/FavoriteContext";
 import Head from "next/head";
 // import GuestInit from "@/components/GuessInit";
+import { Toaster } from "react-hot-toast";
+import CheckoutHost from "@/components/orders/CheckoutHost";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +34,7 @@ export const metadata: Metadata = {
     "art marketplace",
     "buy digital downloads",
     "custom art prints",
-    "ZileDigital"
+    "ZileDigital",
   ],
   authors: [{ name: "ZileDigital" }],
   openGraph: {
@@ -60,9 +62,8 @@ export const metadata: Metadata = {
     images: [`${process.env.NEXTAUTH_URL}/images/why-haitian-art.png`], // Replace with actual image
     creator: "@ziledigital", // Replace with your Twitter handle if you have one
   },
-  metadataBase: new URL(process.env.NEXTAUTH_URL||''), // replace with actual domain
+  metadataBase: new URL(process.env.NEXTAUTH_URL || ""), // replace with actual domain
 };
-
 
 export default function RootLayout({
   children,
@@ -86,9 +87,13 @@ export default function RootLayout({
               <FavoriteProvider>
                 <div className="bg-[#0f0f1a] bg-dot-grid bg-[length:var(--tw-background-size-dot-grid)] min-h-screen bg-gradient-to-r from-amber-100 via-white to-slate-100 text-gray-900">
                   <Header />
-                      {/* <GuestInit/> */}
+                  <Toaster position="top-right" />
+
+                  {/* <GuestInit/> */}
 
                   <main className="px-4 md:px-10 lg:px-20">{children}</main>
+                  <CheckoutHost />
+
                   <footer className="text-center text-sm py-6">
                     &copy; 2024 ZileDigital Market
                   </footer>

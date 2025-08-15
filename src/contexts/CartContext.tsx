@@ -1,7 +1,8 @@
 'use client'
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useUser } from "@/contexts/UserContext";
-import { AddToCartResponse, CartSelectedItem, CartUpdates } from "@/types";
+import { AddToCartResponse, CartSelectedItem, CartUpdates, DesignPayload } from "@/types";
+import { usePathname } from "next/navigation";
 
 export type CartContextType = {
   cart: CartSelectedItem[];
@@ -21,6 +22,22 @@ export type CartContextType = {
     license: string,
     quantity?: number
   ) => Promise<AddToCartResponse>;
+
+  addToCartWithDesign: (args: {
+  productId: string;
+  digitalType: string | null;
+  printType: string | null;
+  price: number;
+  format: string;
+  size: string | null;
+  material: string | null;
+  frame: string | null;
+  license: string;
+  quantity?: number;
+  design?: DesignPayload;  // NEW
+  snapshot?: boolean;          // default true (freeze the cart line)
+}) => Promise<AddToCartResponse>;
+
   removeFromCart: (
     productId: string,
     digitalVariantId: string,
@@ -43,6 +60,8 @@ const defaultContext = {
 addToCart: async () => ({ result: undefined }),
   removeFromCart: async () => {},
   updateCart: async () => {},
+  addToCartWithDesign: async () => ({ result: undefined }),
+
 };
 
 const CartContext = createContext<CartContextType>(defaultContext as CartContextType);
@@ -55,19 +74,17 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [loadingCart, setLoadingCart] = useState(true);
   const [loadingAdd, setLoadingAdd] = useState(false);
 
+  const pathname = usePathname();
+
   const fetchCart = async () => {
     setLoadingCart(true);
-    // if (!isLoggedIn) {
-    //   setCart([]);
-    //   setLoadingCart(false);
-    //   retburn;
-    // }
     try {
-      const res = await fetch("/api/cart", {
+      const res = await fetch("/api/cart?liveDesignPreview=1", {
         method: "GET",
+        cache: "no-store",
         credentials: "include",
+        headers: { "Cache-Control": "no-store" },
       });
-      if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
       setCart(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -77,6 +94,28 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
       setLoadingCart(false);
     }
   };
+
+  // existing: on auth change
+  useEffect(() => { void fetchCart(); }, [isLoggedIn]);
+
+  // NEW: when you navigate to /cart (SPA), fetch again
+  useEffect(() => {
+    if (pathname?.startsWith("/cart")) {
+      void fetchCart();
+    }
+  }, [pathname]);
+
+  // NEW: when window regains focus / tab becomes visible, fetch again
+  useEffect(() => {
+    const onFocus = () => { void fetchCart(); };
+    const onVis = () => { if (document.visibilityState === "visible") onFocus(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
 
 // const { isLoggedIn, guestId } = useUser();
 
@@ -135,6 +174,79 @@ const addToCart = async (
 };
 
 
+const addToCartWithDesign = async ({
+  productId,
+  digitalType,
+  printType,
+  price,
+  format,
+  size,
+  material,
+  frame,
+  license,
+  quantity = 1,
+  design,
+  snapshot = true,
+}: {
+  productId: string;
+  digitalType: string | null;
+  printType: string | null;
+  price: number;
+  format: string;
+  size: string | null;
+  material: string | null;
+  frame: string | null;
+  license: string;
+  quantity?: number;
+  design?: DesignPayload;
+  snapshot?: boolean;
+}): Promise<AddToCartResponse> => {
+  if (!isLoggedIn && !guestId) return { result: undefined };
+
+  setLoadingAdd(true);
+  try {
+    const res = await fetch("/api/cart", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        productId,
+        digitalType,
+        printType,
+        price,
+        quantity,
+        format,
+        size,
+        material,
+        license,
+        frame,
+        // NOTE: you don't need to send guestId if your server derives it from cookies
+        design,            // ← NEW: server will upsert and overwrite preview
+        snapshot,          // ← NEW: freeze cart line image/style
+      }),
+    });
+
+    const data = await res.json();
+    await fetchCart();
+
+    return {
+      result: data?.result
+        ? {
+            cartItemId: data.result.cartItemId,
+            digitalVariantId: data.result.digitalVariantId ?? null,
+            printVariantId: data.result.printVariantId ?? null,
+            designId: data.result.designId ?? null,
+            previewUrl: data.result.previewUrl ?? null,
+          }
+        : undefined,
+    };
+  } catch (err) {
+    console.error("Failed to add to cart (with design):", err);
+    return { result: undefined };
+  } finally {
+    setLoadingAdd(false);
+  }
+};
 
 
   const removeFromCart = async (
@@ -208,6 +320,8 @@ if (!isLoggedIn && !guestId) return;
         addToCart,
         removeFromCart,
         updateCart,
+            addToCartWithDesign,    // NEW
+
       }}
     >
       {children}

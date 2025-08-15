@@ -14,7 +14,7 @@ export function useExportArtwork(productId: string) {
 
   const refreshExportStatus = useCallback(async () => {
     try {
-      const st = await fetch(`/api/products/${productId}/status`, { cache: "no-store" });
+      const st = await fetch(`/api/products/${productId}/saveUserDesign/status`, { cache: "no-store" });
       if (st.ok) {
         const j = await st.json();
         setCanExport(!!j.canExport);

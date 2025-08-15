@@ -100,29 +100,21 @@ export default function ProfilePageClient({ initialTab }: { initialTab: Tab }) {
           <ProfileTabs activeTab={activeTab} setActiveTab={onTabChange} />
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard
-            icon={<HeartIcon className="h-6 w-6" />}
-            value={favorites.size}
-            label="Favorites"
-          />
-          <StatCard
-            icon={<ArrowDownTrayIcon className="h-6 w-6" />}
-            value={dashboard?.downloadCount ?? "0"}
-            label="Downloads"
-          />
-          <StatCard
-            icon={<StarIcon className="h-6 w-6" />}
-            value={purchasedArtworks}
-            label="Purchased Artworks"
-          />
-          <StatCard
-            icon={<ShoppingBagIcon className="h-6 w-6" />}
-            value={ordersPlaced}
-            label="Orders Placed"
-          />
-        </div>
+{/* Stats */}
+<div
+  className="
+    flex gap-3 overflow-x-auto snap-x
+    md:overflow-visible md:grid md:grid-cols-4 md:gap-4
+    -mx-2 px-2 md:mx-0 md:px-0
+    [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
+  "
+>
+  <StatCard icon={<HeartIcon className="h-6 w-6" />} value={favorites.size} label="Favorites" />
+  <StatCard icon={<ArrowDownTrayIcon className="h-6 w-6" />} value={dashboard?.downloadCount ?? '0'} label="Downloads" />
+  <StatCard icon={<StarIcon className="h-6 w-6" />} value={purchasedArtworks} label="Purchased Artworks" />
+  <StatCard icon={<ShoppingBagIcon className="h-6 w-6" />} value={ordersPlaced} label="Orders Placed" />
+</div>
+
 
         {/* Tab Content */}
         <div className="space-y-6">

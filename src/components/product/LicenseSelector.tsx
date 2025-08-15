@@ -11,7 +11,7 @@ export default function LicenseSelector({
   inCart,
   calculatePrice,
 }: {
-  onSelect: (licence: LicenseOption) => void;
+  onSelect:React.Dispatch<React.SetStateAction<LicenseOption>>;
   selected: LicenseOption;
   licenses: LicenseOption[];
   updateCart: (updates: CartUpdates) => void;

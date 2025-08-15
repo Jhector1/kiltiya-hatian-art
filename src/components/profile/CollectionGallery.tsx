@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { CollectionItem, VariantType } from '@/types';
 import { useRouter } from 'next/navigation';
+// import PurchasedDesignLibrary from '../studio/ui/PurchasedDesignLibrary';
 
 interface CollectionGalleryProps {
   items: CollectionItem[];
@@ -26,7 +27,7 @@ export default function CollectionGallery({ items, filter, setFilter }: Collecti
   }, {});
 
   const entries = Object.entries(grouped);
-  const tabs: VariantType[] = ['ALL', 'DIGITAL', 'PRINT'];
+  const tabs: VariantType[] = ['ALL', 'DIGITAL', 'PRINT'] ;
 
   return (
     <div className="p-4">
@@ -34,6 +35,8 @@ export default function CollectionGallery({ items, filter, setFilter }: Collecti
         <h3 className="text-2xl font-bold text-gray-800 mb-4 md:mb-0">
           Your Purchased Art
         </h3>
+        {/* <PurchasedDesignLibrary />; */}
+
         <div className="flex space-x-3">
           {tabs.map(tab => (
             <button
@@ -49,6 +52,18 @@ export default function CollectionGallery({ items, filter, setFilter }: Collecti
               {tab.charAt(0) + tab.slice(1).toLowerCase()}
             </button>
           ))}
+                 {/* <button
+          
+              onClick={() => setFilter("NONE")}
+              className={
+                `px-5 py-2 rounded-full font-medium transition ` +
+                (filter === 'NONE'
+                  ? 'bg-indigo-600 text-white shadow-lg'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
+              }
+            >
+              My Custom
+            </button> */}
         </div>
       </div>
 
@@ -93,6 +108,7 @@ export default function CollectionGallery({ items, filter, setFilter }: Collecti
                   </div>
                 );
               })}
+              {/* {filter === 'NONE' && <PurchasedDesignLibrary/>} */}
             </div>
           </section>
         ))

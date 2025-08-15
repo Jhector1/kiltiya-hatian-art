@@ -1,3 +1,4 @@
+// src/components/editor/EditableCanvas.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -19,10 +20,12 @@ import type { ExportMode, ExportUnit } from "./types";
 import { DEFAULT_STYLE } from "./utils/constants";
 import { usePurchaseExports } from "./hooks/usePurchaseExports";
 import PurchaseExportsModal from "./ui/PurchaseExportsModal";
-import { usePurchaseArt } from "./hooks/usePurchaseArt";
 import PurchaseArtModal from "./ui/PurchaseArtModal";
+import { useLeaveConfirm } from "./hooks/useLeaveConfirm";
 
-// Lightweight skeleton brick
+// ————————————————————————————————————————————————————————————————
+// Skeletons (unchanged)
+// ————————————————————————————————————————————————————————————————
 function Skeleton({ className = "" }: { className?: string }) {
   return (
     <div
@@ -31,11 +34,9 @@ function Skeleton({ className = "" }: { className?: string }) {
   );
 }
 
-// Full-page layout skeleton that mirrors the editor UI
 function BootLayoutSkeleton() {
   return (
     <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
-      {/* Header skeleton */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-amber-50 p-3 md:p-4 ring-1 ring-black/5">
         <div className="min-w-0">
           <Skeleton className="h-5 w-48 mb-2 rounded-lg" />
@@ -49,18 +50,13 @@ function BootLayoutSkeleton() {
         </div>
       </div>
 
-      {/* Grid skeleton (canvas + sidebar) */}
       <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px] gap-4">
-        {/* Canvas side */}
         <div className="relative rounded-2xl bg-white p-3 ring-1 ring-black/5">
-          {/* Zoom row */}
           <div className="mb-2 flex flex-col sm:flex-row sm:items-center gap-2">
             <Skeleton className="h-4 w-16 rounded" />
             <Skeleton className="h-3 w-full rounded" />
             <Skeleton className="h-4 w-12 rounded" />
           </div>
-
-          {/* Canvas placeholder */}
           <div className="relative grid place-items-center overflow-auto rounded-xl bg-[conic-gradient(at_20%_20%,#fafafa,#f4f4f5)] p-2 sm:p-4 max-h-[70vh] md:max-h-[72vh]">
             <div className="w-full h-[48vh] sm:h-[60vh] rounded-xl ring-1 ring-black/5 bg-white grid place-items-center">
               <Skeleton className="h-[90%] w-[90%] rounded-xl" />
@@ -68,9 +64,7 @@ function BootLayoutSkeleton() {
           </div>
         </div>
 
-        {/* Controls side */}
         <aside className="rounded-2xl bg-white p-4 ring-1 ring-black/5 md:sticky md:top-4 md:h-fit">
-          {/* Palette header + target tabs */}
           <div className="mb-4 rounded-2xl border border-black/10 p-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <Skeleton className="h-4 w-24" />
@@ -80,7 +74,6 @@ function BootLayoutSkeleton() {
                 <Skeleton className="h-7 w-20 rounded-none" />
               </div>
             </div>
-            {/* Solids grid */}
             <div className="mb-3">
               <Skeleton className="h-3 w-16 mb-2" />
               <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
@@ -92,7 +85,6 @@ function BootLayoutSkeleton() {
                 ))}
               </div>
             </div>
-            {/* Gradients grid */}
             <div className="mb-3">
               <Skeleton className="h-3 w-20 mb-2" />
               <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2">
@@ -101,7 +93,6 @@ function BootLayoutSkeleton() {
                 ))}
               </div>
             </div>
-            {/* Patterns grid */}
             <div>
               <Skeleton className="h-3 w-20 mb-2" />
               <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2">
@@ -112,7 +103,6 @@ function BootLayoutSkeleton() {
             </div>
           </div>
 
-          {/* Appearance */}
           <Skeleton className="h-4 w-28 mb-3" />
           <div className="grid grid-cols-2 gap-3 mb-3">
             <Skeleton className="h-10 w-full rounded-md" />
@@ -127,7 +117,6 @@ function BootLayoutSkeleton() {
             ))}
           </div>
 
-          {/* Export size */}
           <Skeleton className="h-4 w-24 mb-3" />
           <div className="mb-2 flex gap-1 rounded-xl bg-white ring-1 ring-black/10 p-1 overflow-x-auto">
             <Skeleton className="h-7 w-16 rounded-lg" />
@@ -152,6 +141,9 @@ function BootLayoutSkeleton() {
   );
 }
 
+// ————————————————————————————————————————————————————————————————
+// Main editor
+// ————————————————————————————————————————————————————————————————
 function EditableCanvasInner({ productId }: { productId: string }) {
   const { isLoggedIn } = useUser();
   const { style, setStyle, defsMap, setDefsMap } = useDesignContext();
@@ -181,20 +173,89 @@ function EditableCanvasInner({ productId }: { productId: string }) {
   const [printW, setPrintW] = useState(8);
   const [printH, setPrintH] = useState(10);
   const [booting, setBooting] = useState(true);
+
+  // Exports (credits) modal
   const [showPurchase, setShowPurchase] = useState(false);
-  const { startCheckout, busy: purchasing } = usePurchaseExports(productId);
+  const {  busy: purchasing } = usePurchaseExports(productId);
 
+  // Art purchase modal
   const [showBuyArt, setShowBuyArt] = useState(false);
-  const { startArtCheckout, busy: purchasingArt } = usePurchaseArt(productId);
+  // const [creatingCheckout, setCreatingCheckout] = useState(false);
 
-  // Build a stable defs string to watch in effects
+  // simple selector state for digital purchase
+  // const selectedFormat = "png";
+  const selectedLicense = "personal";
+
+  // defs as a single stable string
   const defsString = useMemo(
     () => Object.values(defsMap).join("\n"),
     [defsMap]
   );
+  // ——— unsaved-changes tracking
+  const [isDirty, setIsDirty] = useState(false);
+  const lastSavedRef = React.useRef<string>(""); // snapshot of last saved state
+  const dirtyRef = React.useRef(false); // ref for event listener closure
 
-  // Initial load: fetch status, try saved design, else draw fallback preview
-  // initial load
+  // Serialize current editor state
+  const currentHash = useMemo(
+    () => JSON.stringify({ style, defs: defsString }),
+    [style, defsString]
+  );
+
+  // Keep state + ref in sync
+  useEffect(() => {
+    setIsDirty(currentHash !== lastSavedRef.current);
+  }, [currentHash]);
+  useEffect(() => {
+    dirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  // Warn on refresh/close if dirty
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = ""; // required for Chrome
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+  // ——— helper: quote price from your server (fallback to 0 if not available)
+  // const quotePrice = async (variant: "digital" | "print", quantity: number) => {
+  //   try {
+  //     const res = await fetch("/api/pricing/quote", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({
+  //         productId,
+  //         variant,
+  //         quantity,
+  //         digital:
+  //           variant === "digital"
+  //             ? { format: selectedFormat, license: selectedLicense }
+  //             : null,
+  //         print:
+  //           variant === "print"
+  //             ? {
+  //                 format: "jpg",
+  //                 size: `${printW}x${printH}`,
+  //                 material: null,
+  //                 frame: null,
+  //               }
+  //             : null,
+  //         // If your price depends on style/defs, include them:
+  //         // style, defs: defsString,
+  //       }),
+  //     });
+  //     if (!res.ok) throw new Error("no quote");
+  //     const j = await res.json();
+  //     return Number(j?.price) || 0;
+  //   } catch {
+  //     return 0;
+  //   }
+  // };
+
+  // ——— initial boot: export status, load saved design, render fallback
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -211,15 +272,18 @@ function EditableCanvasInner({ productId }: { productId: string }) {
             const savedDefs: string = j.defs || "";
             setStyle(savedStyle);
             setDefsMap(savedDefs ? { __persisted: savedDefs } : {});
-            // render correct preview before showing UI
             await updatePreview(savedStyle, savedDefs);
+            // mark current state as "saved" baseline
+            lastSavedRef.current = JSON.stringify({
+              style: { ...style },
+              defs: defsString,
+            });
+            setIsDirty(false);
             setBooting(false);
             return;
           }
         }
       } catch {}
-
-      // no saved design: draw fallback once
       try {
         const res = await fetch(`/api/products/${productId}/live-preview`, {
           cache: "no-store",
@@ -228,6 +292,11 @@ function EditableCanvasInner({ productId }: { productId: string }) {
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         await drawUrl(url);
+        lastSavedRef.current = JSON.stringify({
+          style: { ...style },
+          defs: defsString,
+        });
+        setIsDirty(false);
       } catch (err) {
         console.error(err);
       } finally {
@@ -243,10 +312,11 @@ function EditableCanvasInner({ productId }: { productId: string }) {
     setDefsMap,
     fetchInitialExportStatus,
     drawUrl,
+    // defsString, style
     updatePreview,
   ]);
 
-  // debounced preview — skip while booting
+  // debounced live preview
   useEffect(() => {
     if (booting) return;
     const id = window.setTimeout(() => {
@@ -255,12 +325,12 @@ function EditableCanvasInner({ productId }: { productId: string }) {
     return () => window.clearTimeout(id);
   }, [booting, style, defsString, updatePreview]);
 
-  // Draw when previewUrl or zoom changes
+  // draw on preview/zoom changes
   useEffect(() => {
     if (previewUrl) void drawUrl(previewUrl);
   }, [previewUrl, drawUrl, zoom]);
 
-  // Capture intrinsic size
+  // capture intrinsic size
   useEffect(() => {
     if (!previewUrl) return;
     const img = new Image();
@@ -268,13 +338,40 @@ function EditableCanvasInner({ productId }: { productId: string }) {
     img.src = previewUrl;
   }, [previewUrl, onImageLoad]);
 
+  // wherever you already call onSaveClick
   const onSaveClick = async () => {
     if (!isLoggedIn) {
       alert("Please log in first to save your design.");
       return;
     }
+
     try {
-      await saveDesign(style, defsMap);
+      // setSaving(true);
+
+      // 1) capture a snapshot to persist as Cloudinary preview
+      const previewDataUrl =
+        canvasRef.current?.toDataURL("image/webp", 0.85) ?? undefined;
+
+      // 2) save (server should upsert + optionally upload preview & return previewUrl)
+      const resp = await saveDesign(style, defsMap, {
+        previewDataUrl,
+        width: 800,
+        quality: 70,
+        endpoint: "saveUserDesign", // keep if your API path is /saveUserDesign
+      });
+
+      // 3) immediately show the saved Cloudinary preview in the canvas
+      if ((resp as any)?.previewUrl) {
+        const freshUrl = `${(resp as any).previewUrl}?v=${Date.now()}`; // cache-bust
+        await drawUrl(freshUrl);
+      } else {
+        // Fallback: re-render the local preview
+        await updatePreview(style, defsString);
+      }
+      // ✅ mark as saved baseline and clear dirty
+      lastSavedRef.current = JSON.stringify({ style, defs: defsString });
+      setIsDirty(false);
+      // toast.success("Saved!");
     } catch (e: any) {
       alert(e.message || String(e));
     }
@@ -299,10 +396,10 @@ function EditableCanvasInner({ productId }: { productId: string }) {
       saveToLibrary: false,
     });
   };
-  // early return UI while booting
-  if (booting) {
-    return <BootLayoutSkeleton />;
-  }
+  useLeaveConfirm(isDirty, "You have unsaved edits. Leave without saving?");
+
+  // ——— early skeleton
+  if (booting) return <BootLayoutSkeleton />;
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
@@ -321,31 +418,74 @@ function EditableCanvasInner({ productId }: { productId: string }) {
         onPurchaseClick={() => setShowPurchase(true)}
         onPurchaseArtClick={() => setShowBuyArt(true)}
       />
+
+      {/* Credits / exports pack */}
       <PurchaseExportsModal
         open={showPurchase}
         onClose={() => setShowPurchase(false)}
         busy={purchasing}
-        onPick={async (qty) => {
-          await startCheckout(qty);
-          // After redirect returns, your server should refresh status;
-          // You can also poll refresh here if you handle webhooks and return.
-        }}
+        productId={productId}
+        // onApplied={(added) => {
+        //  set(prev => prev + added)
+        // // }}
+        //       onPick={async (qty) => {
+        //         await startCheckout(qty);
+        //       }}
       />
+
+      {/* Art purchase (Add to cart + Buy now) */}
+
       <PurchaseArtModal
         open={showBuyArt}
         onClose={() => setShowBuyArt(false)}
-        busy={purchasingArt}
-        onCheckout={async ({ variant, quantity }) => {
-          await startArtCheckout({
-            style,
-            defs: defsString,
-            variant,
-            quantity,
+        productId={productId}
+        imageSrc={previewUrl || ""} // ✅ no 'product' here; use preview
+        // baseDigitalPrice={20}                       // ✅ or fetch/compute; just avoid 'product.*'
+        // basePrintPrice={30}
+
+        // Optional catalogs — can omit, modal has defaults
+        // licenses={...}
+        // optionSizes={...}
+        // materials={...}
+        // frames={...}
+
+        digital={{ format: "png", license: selectedLicense }}
+        print={{ format: "jpg" }}
+        // ✅ valid design payload; use your live editor state
+        design={{ style, defs: defsString }}
+        getPreviewDataUrl={async () =>
+          canvasRef.current?.toDataURL("image/webp", 0.85) ?? null
+        }
+        onCheckout={async ({
+          variant,
+          quantity,
+          productId,
+          price,
+          digital,
+          print,
+          design,
+        }) => {
+          const res = await fetch("/api/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              mode: "payment",
+              productId,
+              variant,
+              quantity,
+              price,
+              digital,
+              print,
+              metadata: { designId: design?.id ?? null },
+              successUrl: `${location.origin}/cart/checkout/success`,
+              cancelUrl: location.href,
+            }),
           });
-          // on success we redirect; if your API returns ok without redirect,
-          // you can close here: setShowBuyArt(false)
+          const { url } = await res.json();
+          location.href = url;
         }}
       />
+
       <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px] gap-4">
         <CanvasStage
           zoom={zoom}
@@ -382,7 +522,6 @@ function EditableCanvasInner({ productId }: { productId: string }) {
             printH={printH}
             setPrintH={setPrintH}
           />
-
           <div className="mt-4 flex items-center justify-between gap-3 text-xs">
             <label className="flex items-center gap-2">
               <input

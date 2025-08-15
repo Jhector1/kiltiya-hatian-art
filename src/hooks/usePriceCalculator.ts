@@ -13,7 +13,7 @@ export function usePriceCalculator(
   size:       { label: string; multiplier: number },
   material:   { multiplier: number },
   frame:      { multiplier: number } | null,
-  options:    { digital: boolean },
+  options:    { digital: boolean , print: boolean },
   customSize: { width: string; height: string },
   isCustom:   boolean,
   license:    { price: number }

@@ -1,12 +1,14 @@
-// Code omitted above for brevity...
+"use client";
 
-// File: src/components/product/detail/ProductConfigurator.tsx
-import React, { useState } from "react";
-import LicenseSelector from "../LicenseSelector";
-import FormatSelector from "../FormatSelector";
-import SizeSelector from "../SizeSelector";
-import PrintCustomizer from "../PrintCustomizer";
+import React from "react";
 import { AnimatePresence, motion } from "framer-motion";
+
+import PurchaseOptionsCore from "@/components/shared/core/PurchaseOptionsCore";
+import LicenseSelectorCore from "@/components/shared/core/LicenseSelectorCore";
+import SizeSelectorCore from "@/components/shared/core/SizeSelectorCore";
+import PrintCustomizerCore from "@/components/shared/core/PrintCustomizerCore";
+import FormatSelector from "../FormatSelector";
+
 import type {
   ProductDetailResult,
   FrameOption,
@@ -16,17 +18,30 @@ import type {
   CartUpdates,
   CartSelectedItem,
 } from "@/types";
-import PurchaseOptions from "../PurchaseOptions";
+import type { SizeOption } from "@/components/shared/core/SizeSelectorCore";
+import type { PriceOptionsProps } from "@/hooks/usePriceCalculator";
 import { useCart } from "@/contexts/CartContext";
-import { PriceOptionsProps } from "@/hooks/usePriceCalculator";
+import { usePurchaseConfigurator } from "@/hooks/usePurchaseConfigurator";
+
+interface SelectionModel {
+  wantDigital: boolean;
+  setWantDigital: (v: boolean) => void;
+  wantPrint: boolean;
+  setWantPrint: (v: boolean) => void;
+}
 
 interface ProductConfiguratorProps {
+    previewImageSrc?: string; // ✅ NEW
+
+  showFormat?: boolean;
   product: ProductDetailResult;
-  inCart: CartSelectedItem;
+  inCart: CartSelectedItem | null;
+
   materials: MaterialOption[];
   licenses: LicenseOption[];
   frames: FrameOption[];
-  optionSizes: { label: string; multiplier: number }[];
+  optionSizes: SizeOption[];
+
   formatData: {
     options: AddOptions;
     setOptions: React.Dispatch<React.SetStateAction<AddOptions>>;
@@ -36,8 +51,8 @@ interface ProductConfiguratorProps {
     setLicense: React.Dispatch<React.SetStateAction<LicenseOption>>;
   };
   sizeData: {
-    size: { label: string; multiplier: number };
-    setSize: (val: { label: string; multiplier: number }) => void;
+    size: SizeOption;
+    setSize: (val: SizeOption) => void;
     customSize: { width: string; height: string };
     setCustomSize: (val: { width: string; height: string }) => void;
     isCustom: boolean;
@@ -51,183 +66,142 @@ interface ProductConfiguratorProps {
     frame: FrameOption | null;
     setFrame: (val: FrameOption | null) => void;
   };
-  updateCart: (updates: CartUpdates) => void;
+
+  selection: SelectionModel;
+
   calculatePrice: (
-      type: "Digital" | "Print",
-    eraser?: "material" | "frame" | "size" | "license" | "" ,
+    type: "Digital" | "Print",
+    eraser?: "material" | "frame" | "size" | "license" | "",
     newMultiplier?: number
   ) => PriceOptionsProps;
+
   finalPrice: number;
 }
 
-export default function ProductConfigurator({
-  product,
-  inCart,
-  materials,
-  frames,
-  optionSizes,
-  formatData,
-  licenseData,
-  sizeData,
-  materialData,
-  frameData,
-  licenses,
-  //   updateCart,
-  calculatePrice,
-  finalPrice,
-}: ProductConfiguratorProps) {
-  const { options, setOptions } = formatData;
-  const { license, setLicense } = licenseData;
-  const { size, setSize, customSize, setCustomSize, isCustom, setIsCustom } =
-    sizeData;
-  const { material, setMaterial } = materialData;
-  const { frame, setFrame } = frameData;
-  const [format, setFormat] = useState<string>("");
-
-  const formats = product.formats.map((url) => {
-    const parts = url.split(".");
-    return { type: parts.pop() || "", resolution: "n/a", multiplier: 1 };
-  });
-
-  const seen = new Set<string>();
-  const uniqueFormats = formats.filter(
-    (f) => !seen.has(f.type) && seen.add(f.type)
-  );
+export default function ProductConfigurator({ showFormat = true, ...props }: ProductConfiguratorProps) {
   const { updateCart } = useCart();
+
+  const {
+    product,
+    inCart,
+    materials, licenses, frames, optionSizes,
+    formatData, licenseData, sizeData, materialData, frameData,
+    selection, calculatePrice, finalPrice,
+  } = props;
+
+  const ctrl = usePurchaseConfigurator({
+    product,
+    wantDigital: selection.wantDigital,
+    setWantDigital: selection.setWantDigital,
+    wantPrint: selection.wantPrint,
+    setWantPrint: selection.setWantPrint,
+
+    license: licenseData.license,
+    setLicense: licenseData.setLicense,
+
+    size: sizeData.size,
+    setSize: sizeData.setSize,
+    customSize: sizeData.customSize,
+    setCustomSize: sizeData.setCustomSize,
+    isCustom: sizeData.isCustom,
+    setIsCustom: sizeData.setIsCustom,
+
+    material: materialData.material,
+    setMaterial: materialData.setMaterial,
+
+    frame: frameData.frame,
+    setFrame: frameData.setFrame,
+
+    calculatePrice,
+    inCart,
+    updateCart: (input) =>
+      updateCart({
+        productId: input.productId,
+        digitalVariantId: input.digitalVariantId,
+        printVariantId: input.printVariantId,
+        updates: input.updates,
+      }),
+    options: formatData?.options,
+    setOptions: formatData.setOptions,
+  });
 
   return (
     <>
-      <PurchaseOptions
-        digitalPrice={calculatePrice("Digital").digitalPrice}
-        printPrice={calculatePrice("Print").printPrice}
-        options={options}
-        onToggle={(t) => setOptions((o) => ({ ...o, [t]: !o[t] }))}
-        inCart={inCart || null}
-        updateCart={(updates) =>
-          updateCart({
-            productId: product.id,
-            printVariantId: "ADD",
-            updates,
-          })
-        }
-        removeFromCart={(updates) =>
-          updateCart({
-            // userId: user?.id || "",
-            productId: product.id,
-            printVariantId: "REMOVE",
-            updates,
-          })
-        }
-        removeFromCart2={(updates) =>
-          updateCart({
-            // userId: user?.id || "",
-            productId: product.id,
-            digitalVariantId: "REMOVE",
-            updates,
-          })
-        }
-        updateCart2={(updates) => {
-          // alert(options.digitalVariantId)
-          updateCart({
-            // userId: user?.id || "",
-            productId: product.id,
-            digitalVariantId: "ADD",
-            updates,
-          });
-        }}
+      <PurchaseOptionsCore
+        digitalChecked={selection.wantDigital}
+        printChecked={selection.wantPrint}
+        digitalPrice={ctrl.digitalPriceStr}
+        printPrice={ctrl.printPriceStr}
+        onToggleDigital={ctrl.handleToggleDigital}
+        onTogglePrint={ctrl.handleTogglePrint}
       />
+
       <AnimatePresence initial={false}>
-        {options.digital && (
+        {selection.wantDigital && (
           <motion.div
-            key="print-settings"
+            key="digital-license"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 1.0, ease: "easeInOut" }}
+            transition={{ duration: 0.6, ease: "easeInOut" }}
             style={{ overflow: "hidden" }}
           >
-            {" "}
-            <LicenseSelector
-              calculatePrice={calculatePrice}
-              updateCart={(updates: CartUpdates) =>
-                updateCart({
-                  productId: product.id,
-                  digitalVariantId: options.digitalVariantId,
-                  updates,
-                })
-              }
-              inCart={inCart || null}
+            <LicenseSelectorCore
+              selected={licenseData.license}
               licenses={licenses}
-              onSelect={setLicense}
-              selected={license}
-            />{" "}
+              onSelect={ctrl.handleLicenseSelect}
+            />
           </motion.div>
         )}
       </AnimatePresence>
 
-      <FormatSelector
-        formats={uniqueFormats}
-        selected={format}
-        onChangeAction={setFormat}
-        inCart={inCart || null}
-        updateCart={(updates: CartUpdates) =>
-          updateCart({
-            productId: product.id,
-            printVariantId: options.printVariantId,
-            updates,
-          })
-        }
-      />
+      {showFormat && (
+        <FormatSelector
+          formats={ctrl.formats}
+          selected={ctrl.format}
+          onChangeAction={ctrl.handleFormatChange}
+          inCart={inCart || null}
+          updateCart={(updates: CartUpdates) =>
+            updateCart({
+              productId: product.id,
+              printVariantId: formatData.options.printVariantId,
+              updates,
+            })
+          }
+        />
+      )}
 
       <AnimatePresence initial={false}>
-        {options.print && (
+        {selection.wantPrint && (
           <motion.div
             key="print-settings"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 1.0, ease: "easeInOut" }}
+            transition={{ duration: 0.6, ease: "easeInOut" }}
             style={{ overflow: "hidden" }}
           >
-            <SizeSelector
+            <SizeSelectorCore
               options={optionSizes}
-              selected={size}
-              isCustom={isCustom}
-              customSize={customSize}
-              onSizeChange={(s, custom) => {
-                setSize(s);
-                setIsCustom(s.label === "Custom");
-                if (custom) setCustomSize(custom);
-              }}
-              calculatePrice={calculatePrice}
-              inCart={inCart!}
-              updateCart={(updates) =>
-                updateCart({
-                  productId: product.id,
-                  printVariantId: options.printVariantId,
-                  updates,
-                })
-              }
+              selected={sizeData.size}
+              isCustom={sizeData.isCustom}
+              customSize={sizeData.customSize}
+              onSelect={ctrl.handleSizeSelect}
+              onCustomChange={ctrl.handleCustomSizeChange}
             />
-            <br />
-            <PrintCustomizer
-              total={finalPrice}
-              calculatePrice={calculatePrice}
-              imageSrc={product.imageUrl}
-              setFrameAction={setFrame}
-              frame={frame || null}
-              setMaterialAction={setMaterial}
-              material={material}
+
+            <div className="mt-4" />
+
+            <PrintCustomizerCore
+              imageSrc={props.previewImageSrc ?? product.imageUrl} 
+              // {/* ✅ use override if provided */}
               materials={materials}
               frames={frames}
-              inCart={inCart || null}
-              updateCart={(updates) =>
-                updateCart({
-                  productId: product.id,
-                  printVariantId: options.printVariantId,
-                  updates,
-                })
-              }
+              material={materialData.material}
+              frame={frameData.frame}
+              onMaterial={ctrl.handleMaterial}
+              onFrame={ctrl.handleFrame}
+              total={finalPrice}
             />
           </motion.div>
         )}

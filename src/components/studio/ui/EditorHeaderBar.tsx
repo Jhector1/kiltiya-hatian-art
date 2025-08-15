@@ -51,14 +51,39 @@ export default function EditorHeaderBar({
       </div>
 
       <div className="w-full sm:w-auto flex flex-wrap items-center gap-2">
-        <button
-          onClick={onSave}
-          disabled={saving || loading}
-          className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium ring-1 ring-black/10 bg-white hover:bg-emerald-50 disabled:opacity-60"
-          title="Save your current edit"
-        >
-          💾 Save
-        </button>
+       <button
+  onClick={onSave}
+  disabled={saving || loading}
+  aria-busy={saving}
+  title={saving ? "Saving…" : "Save your current edit"}
+  className={[
+    "flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium",
+    "ring-1 ring-black/10 bg-white hover:bg-emerald-50",
+    "disabled:opacity-60 disabled:cursor-not-allowed"
+  ].join(" ")}
+>
+  {saving ? (
+    <>
+      {/* tiny spinner */}
+      <svg
+        className="h-4 w-4 animate-spin"
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+      >
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4A4 4 0 008 12H4z"/>
+      </svg>
+      <span>Saving…</span>
+    </>
+  ) : (
+    <>
+      <span role="img" aria-label="save">💾</span>
+      <span>Save</span>
+    </>
+  )}
+</button>
+
 
         <button
           onClick={onQuickPng}

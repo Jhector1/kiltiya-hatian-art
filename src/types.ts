@@ -154,6 +154,10 @@ export type CartSelectedItem = ProductListItem & {
   cartQuantity: number;
   digital: ProductVariant | null;
   print: ProductVariant | null;
+   designId?: string | null;    // NEW
+  previewUrl?: string | null;  // NE
+    isUserDesign?: boolean;
+
 };
 // exactly the return type of
 //   prisma.review.findMany({ include: { user: true } })
@@ -163,6 +167,7 @@ export type ProductReview = Prisma.ReviewGetPayload<{
 
 // src/types/product.ts
 import type { Review } from "@prisma/client";
+import { StyleState } from "./components/studio/types";
 
 export type VariantWithInCart = ProductVariant & {
   /** true if this variant’s id was found in the user’s cart */
@@ -219,6 +224,8 @@ export type AddToCartResponse = {
     cartItemId?: string;
     digitalVariantId?: string;
     printVariantId?: string;
+      designId?: string | null;    // NEW
+  previewUrl?: string | null;  // NEW (snapshot URL)
   };
 };
 
@@ -233,3 +240,26 @@ export type LicenseOption = {
 
 
 
+//USer design
+export type DesignPayload = {
+  id?: string;                 // existing design id (if any)
+  style?: StyleState;                 // your StyleState
+  defs?: string | null;        // serialized <defs> (or JSON of defsMap)
+  previewDataUrl?: string;     // data:image/webp;base64,...
+};
+
+export type AddToCartBody = {
+  productId: string;
+  digitalType?: "DIGITAL" | null;
+  printType?: "PRINT" | null;
+  price: number;
+  quantity?: number;
+  format?: string;
+  size?: string | null;
+  material?: string | null;
+  frame?: string | null;
+  license?: string;
+
+  design?: DesignPayload;      // 👈 new
+  snapshot?: boolean;          // default true (store styleSnapshot)
+};
