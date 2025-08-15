@@ -73,7 +73,7 @@ export async function POST(req: NextRequest,   {params,
       .webp({ quality: q })
       .toBuffer();
 
-    const publicId = `products/designs/previews/design_${design.id}`;
+    const publicId = `products-customize-${process.env.NEXT_ENV}/designs/previews/design_${design.id}`;
     const uploaded = await new Promise<any>((resolve, reject) => {
       cloudinary.uploader
         .upload_stream(

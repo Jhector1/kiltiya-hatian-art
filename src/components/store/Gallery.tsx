@@ -253,11 +253,13 @@ function getPrimaryImage(
 ): string {
   const anyP = p as any;
   return (
-    anyP.previewUrl ||
-    anyP.imageUrl ||
-    anyP.svgPreview ||
     (Array.isArray(anyP.thumbnails) && anyP.thumbnails[0]) ||
-    "/placeholder.png"
+    anyP.previewUrl ||
+    
+    "/placeholder.png"||
+
+    anyP.imageUrl ||
+    anyP.svgPreview 
   );
 }
 
