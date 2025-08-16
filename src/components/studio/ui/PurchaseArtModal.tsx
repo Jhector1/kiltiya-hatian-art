@@ -13,6 +13,7 @@ import type { LicenseOption, MaterialOption, FrameOption } from "@/types";
 import type { SizeOption } from "@/components/shared/core/SizeSelectorCore";
 
 import { useProductData } from "@/components/studio/hooks/useProductData";
+// import { useExportArtwork } from "../hooks/useExportArtwork";
 
 type RequiredDesignPayload = {
   id?: string;
@@ -66,6 +67,7 @@ type Props = {
 
   snapshotCartItem?: boolean;
   showFormat?: boolean; // if you don't want to change format in modal, pass false
+  setHeaderBooting: (booting: boolean) => void;
 };
 
 export default function PurchaseArtModal({
@@ -73,6 +75,7 @@ export default function PurchaseArtModal({
   onClose,
   busy = false,
   onCheckout,
+  setHeaderBooting,
 
   productId,
   imageSrc,
@@ -97,7 +100,7 @@ export default function PurchaseArtModal({
   const [err, setErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [previewSrc, setPreviewSrc] = useState<string>(imageSrc || "");
-
+  // const { refreshExportStatus } = useExportArtwork(productId);
   // Use the same data/state/pricing as the Product page
   const {
     product,
@@ -145,6 +148,16 @@ export default function PurchaseArtModal({
       cancelled = true;
     };
   }, [open, getPreviewDataUrl]);
+
+  // inside PurchaseArtModal
+  const buyStartedRef = useRef(false);
+
+  const handleClose = () => {
+    // Only clear booting if user closes the modal BEFORE starting checkout
+    if (!buyStartedRef.current) setHeaderBooting(false);
+    onClose();
+  };
+
   // Portals & a11y
   useEffect(() => {
     portalEl.current = document.body;
@@ -447,35 +460,60 @@ export default function PurchaseArtModal({
                   </button>
 
                   <button
-                    onClick={async ()=>{    const result = await handleCheckoutAction({ openUI: false, exportHref: "/account/orders" });
+                    onClick={async () => {
+                      buyStartedRef.current = true; // 🚩 from now on, modal closes shouldn't clear header
 
-    if (result.status === "error") {
-      setErr(result.message || "Checkout failed. Please try again.");
-      return;
-    }
-    if (result.status === "auth_required") {
-      // show login if you want
-      return;
-    }
-    // Close THIS modal so the overlay never sits above Stripe
-    onClose();
-    await new Promise((r) => requestAnimationFrame(r));
+                      setHeaderBooting(true);
+                      const result = await handleCheckoutAction({
+                        openUI: false,
+                        exportHref: "/account/orders",
+                      });
 
-    if (result.flow === "embedded") {
-      window.dispatchEvent(
-        new CustomEvent("open-checkout", {
-          detail: { clientSecret: result.clientSecret, exportHref: "/account/orders" },
-        })
-      );
-    } else if (result.flow === "redirect") {
-      window.location.href = result.url;
-    } else if (result.flow === "sessionId") {
-      const stripe = await import("@stripe/stripe-js").then((m) =>
-        m.loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
-      );
-      await stripe?.redirectToCheckout({ sessionId: result.sessionId });
-    }
+                      if (result.status === "error") {
+                        buyStartedRef.current = false; // reset since checkout didn’t start
+                        setHeaderBooting(false);
+                        setErr(
+                          result.message || "Checkout failed. Please try again."
+                        );
+                        return;
+                      }
+                      if (result.status === "auth_required") {
+                        // show login if you want
+                        buyStartedRef.current = false; // reset since checkout didn’t start
+                        setHeaderBooting(false);
+                        return;
+                      }
+                      // Close THIS modal so the overlay never sits above Stripe
+                      onClose();
+                      await new Promise((r) => requestAnimationFrame(r));
 
+                      if (result.flow === "embedded") {
+                        window.dispatchEvent(
+                          new CustomEvent("open-checkout", {
+                            detail: {
+                              clientSecret: result.clientSecret,
+                              exportHref: "/account/orders",
+                              // onPurchaseComplete: async () => {
+                              //   await refreshExportStatus();
+                              // },
+                            },
+                          })
+                        );
+                      } else if (result.flow === "redirect") {
+                        window.location.href = result.url;
+                      } else if (result.flow === "sessionId") {
+                        // buyStartedRef.current = false;  // reset since checkout didn’t start
+                        setHeaderBooting(false);
+                        const stripe = await import("@stripe/stripe-js").then(
+                          (m) =>
+                            m.loadStripe(
+                              process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
+                            )
+                        );
+                        await stripe?.redirectToCheckout({
+                          sessionId: result.sessionId,
+                        });
+                      }
                     }}
                     disabled={isBusy || (!wantDigital && !wantPrint)}
                     className={[

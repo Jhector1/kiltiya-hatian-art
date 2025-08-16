@@ -24,24 +24,13 @@ export default function PurchaseExportsModal({
   const [picked, setPicked] = useState<Pack | null>(null);
 
   useEffect(() => {
-    if (!open) {
-      setStep("pick");
-      setPicked(null);
-    }
+    if (!open) { setStep("pick"); setPicked(null); }
   }, [open]);
 
   const portalEl = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    portalEl.current = document.body;
-  }, []);
+  useEffect(() => { portalEl.current = document.body; }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
+  // lock body while modal open
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -54,34 +43,50 @@ export default function PurchaseExportsModal({
   return createPortal(
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-50 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.button
-            aria-hidden="true"
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={onClose}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          />
-
+        // ⬇️ overlay is now scrollable + safe-area padding
+        <motion.div
+          className="
+            fixed inset-0 z-50
+            bg-black/40 backdrop-blur-sm
+            overflow-y-auto [webkit-overflow-scrolling:touch]
+            px-3
+            pt-[max(16px,env(safe-area-inset-top))] pb-[max(16px,env(safe-area-inset-bottom))]
+          "
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          onClick={onClose}
+        >
+          {/* ⬇️ dialog has max-height tied to viewport and can scroll */}
           <motion.div
             role="dialog" aria-modal="true" aria-labelledby="purchase-title"
-            className="relative mx-auto w-full max-w-md rounded-2xl bg-white p-4 shadow-xl ring-1 ring-black/10"
+            className="
+              relative mx-auto w-full max-w-md rounded-2xl bg-white p-4
+              shadow-xl ring-1 ring-black/10
+            "
+            style={{ maxHeight: "calc(100dvh - 48px)", overflowY: "auto" }}
             initial={{ y: 20, opacity: 0, scale: 0.98 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 12, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.8 }}
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
               <h3 id="purchase-title" className="text-base font-semibold">
                 {step === "pick" ? "Buy more export quota" : "Complete your purchase"}
               </h3>
-              <button onClick={onClose} className="rounded-md p-1 text-black/60 hover:bg-zinc-100 hover:text-black/80" aria-label="Close">
+              <button
+                onClick={onClose}
+                className="rounded-md p-1 text-black/60 hover:bg-zinc-100 hover:text-black/80"
+                aria-label="Close"
+              >
                 ✕
               </button>
             </div>
 
             {step === "pick" ? (
               <>
-                <p className="mb-4 text-sm text-black/60">Choose a pack. Usable on any format (PNG/JPG/WebP/TIFF/SVG).</p>
+                <p className="mb-4 text-sm text-black/60">
+                  Choose a pack. Usable on any format (PNG/JPG/WebP/TIFF/SVG).
+                </p>
                 <div className="grid gap-2">
                   {[
                     { key: "10" as Pack, label: "10 exports", price: "$3.99" },
@@ -104,16 +109,21 @@ export default function PurchaseExportsModal({
                     </button>
                   ))}
                 </div>
-                <p className="mt-3 text-xs text-black/50">Purchases apply instantly. Unused exports don’t expire.</p>
+                <p className="mt-3 text-xs text-black/50">
+                  Purchases apply instantly. Unused exports don’t expire.
+                </p>
               </>
             ) : (
-              <EmbeddedQuotaCheckout
-                quota="export"
-                productId={productId}
-                packKey={picked ?? undefined}
-                open={open && step === "pay"}
-                onApplied={(n) => onApplied?.(n)}
-              />
+              // ⬇️ wrapper gives the iframe a responsive min-height
+              <div className="min-h-[clamp(480px,80dvh,720px)]">
+                <EmbeddedQuotaCheckout
+                  quota="export"
+                  productId={productId}
+                  packKey={picked ?? undefined}
+                  open={open && step === "pay"}
+                  onApplied={(n) => onApplied?.(n)}
+                />
+              </div>
             )}
           </motion.div>
         </motion.div>

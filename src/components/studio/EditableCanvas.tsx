@@ -33,22 +33,27 @@ function Skeleton({ className = "" }: { className?: string }) {
     />
   );
 }
+function HeaderSkeleton() {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-amber-50 p-3 md:p-4 ring-1 ring-black/5">
+      <div className="min-w-0">
+        <Skeleton className="h-5 w-48 mb-2 rounded-lg" />
+        <Skeleton className="h-4 w-64 rounded-lg" />
+      </div>
+      <div className="w-full sm:w-auto flex flex-wrap items-center gap-2">
+        <Skeleton className="h-9 w-20 rounded-xl" />
+        <Skeleton className="h-9 w-24 rounded-xl" />
+        <Skeleton className="h-9 w-44 rounded-xl" />
+        <Skeleton className="h-9 w-28 rounded-xl sm:hidden" />
+      </div>
+    </div>
+  );
+}
 
 function BootLayoutSkeleton() {
   return (
     <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-amber-50 p-3 md:p-4 ring-1 ring-black/5">
-        <div className="min-w-0">
-          <Skeleton className="h-5 w-48 mb-2 rounded-lg" />
-          <Skeleton className="h-4 w-64 rounded-lg" />
-        </div>
-        <div className="w-full sm:w-auto flex flex-wrap items-center gap-2">
-          <Skeleton className="h-9 w-20 rounded-xl" />
-          <Skeleton className="h-9 w-24 rounded-xl" />
-          <Skeleton className="h-9 w-44 rounded-xl" />
-          <Skeleton className="h-9 w-28 rounded-xl sm:hidden" />
-        </div>
-      </div>
+      <HeaderSkeleton />
 
       <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px] gap-4">
         <div className="relative rounded-2xl bg-white p-3 ring-1 ring-black/5">
@@ -158,6 +163,7 @@ function EditableCanvasInner({ productId }: { productId: string }) {
     purchased,
     exportsLeft,
     quickDownloadPng,
+    refreshExportStatus,
     exportArtwork,
     fetchInitialExportStatus,
   } = useExportArtwork(productId);
@@ -173,10 +179,11 @@ function EditableCanvasInner({ productId }: { productId: string }) {
   const [printW, setPrintW] = useState(8);
   const [printH, setPrintH] = useState(10);
   const [booting, setBooting] = useState(true);
+  const [headerBooting, setHeaderBooting] = useState<boolean>(false);
 
   // Exports (credits) modal
   const [showPurchase, setShowPurchase] = useState(false);
-  const {  busy: purchasing } = usePurchaseExports(productId);
+  const { busy: purchasing } = usePurchaseExports(productId);
 
   // Art purchase modal
   const [showBuyArt, setShowBuyArt] = useState(false);
@@ -201,6 +208,43 @@ function EditableCanvasInner({ productId }: { productId: string }) {
     () => JSON.stringify({ style, defs: defsString }),
     [style, defsString]
   );
+  // in a component that stays mounted (e.g., editor page)
+  // const { refreshExportStatus } = useExportArtwork(productId);
+
+ useEffect(() => {
+  let dead = false;
+
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+  const refreshWithRetry = async (tries = 8, ms = 600) => {
+    for (let i = 0; i < tries; i++) {
+      const ok = await refreshExportStatus(); // should return boolean; if not, treat truthy
+      if (ok) break;
+      await sleep(ms);
+    }
+  };
+
+  const stop = () => { if (!dead) setHeaderBooting(false); };
+
+  const onComplete = async () => {
+    try { await refreshWithRetry(); }
+    finally { stop(); } // ✅ even if webhook isn’t done after retries, don’t leave header spinning
+  };
+
+  const onAbortOrError = () => stop();
+
+  window.addEventListener("checkout-complete", onComplete);
+  window.addEventListener("checkout-abort", onAbortOrError);
+  window.addEventListener("checkout-error", onAbortOrError);
+
+  return () => {
+    dead = true;
+    window.removeEventListener("checkout-complete", onComplete);
+    window.removeEventListener("checkout-abort", onAbortOrError);
+    window.removeEventListener("checkout-error", onAbortOrError);
+  };
+}, [refreshExportStatus, setHeaderBooting]);
+
 
   // Keep state + ref in sync
   useEffect(() => {
@@ -400,10 +444,16 @@ function EditableCanvasInner({ productId }: { productId: string }) {
 
   // ——— early skeleton
   if (booting) return <BootLayoutSkeleton />;
+  
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
-      <EditorHeaderBar
+      {headerBooting?
+   
+      // <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
+        <HeaderSkeleton />
+      // </div>
+    :<EditorHeaderBar
         purchased={purchased}
         loading={loading}
         saving={saving}
@@ -417,7 +467,7 @@ function EditableCanvasInner({ productId }: { productId: string }) {
         setShowControls={setShowControls}
         onPurchaseClick={() => setShowPurchase(true)}
         onPurchaseArtClick={() => setShowBuyArt(true)}
-      />
+      />}
 
       {/* Credits / exports pack */}
       <PurchaseExportsModal
@@ -425,9 +475,9 @@ function EditableCanvasInner({ productId }: { productId: string }) {
         onClose={() => setShowPurchase(false)}
         busy={purchasing}
         productId={productId}
-        // onApplied={(added) => {
-        //  set(prev => prev + added)
-        // // }}
+        onApplied={async () => {
+          await refreshExportStatus(); // ⬅️ refresh the canonical instance
+        }}
         //       onPick={async (qty) => {
         //         await startCheckout(qty);
         //       }}
@@ -436,6 +486,7 @@ function EditableCanvasInner({ productId }: { productId: string }) {
       {/* Art purchase (Add to cart + Buy now) */}
 
       <PurchaseArtModal
+      setHeaderBooting={setHeaderBooting}
         open={showBuyArt}
         onClose={() => setShowBuyArt(false)}
         productId={productId}

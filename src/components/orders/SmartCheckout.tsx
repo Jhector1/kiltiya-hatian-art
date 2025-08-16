@@ -77,11 +77,20 @@ export default function SmartCheckout({ cartProductList }: { cartProductList: an
     };
   }, [cartProductList]);
 
-  return (
-    <div className="max-w-[560px] w-full">
-      {/* used when flow === 'embedded' */}
-      <div id="embedded-checkout" ref={containerRef} className="min-h-[620px]" />
-      {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+return (
+  <div className="fixed inset-0 z-50 bg-black/40">
+    {/* Scroll container */}
+    <div className="absolute inset-0 overflow-y-auto">
+      <div className="mx-auto max-w-[560px] w-full p-4">
+       
+        <div
+          id="embedded-checkout"
+          ref={containerRef}
+          className="min-h-[720px] bg-white rounded-2xl ring-1 ring-black/10"
+        />
+      </div>
     </div>
-  );
+  </div>
+);
+
 }

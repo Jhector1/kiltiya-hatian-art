@@ -1,21 +1,9 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { startEmbeddedCheckout, destroyEmbeddedCheckout } from "@/lib/embeddedCheckoutManager";
 
-// Local type ONLY for this file (we're not changing the manager)
 type EmbeddedCtrl = { destroy: () => void; mount: (el: HTMLElement | string) => void };
-
 type Quota = "export" | "edit";
-
-type Props = {
-  quota: Quota;
-  productId: string;
-  packKey?: "10" | "50" | "200";
-  quantity?: number;
-  open?: boolean;
-  onApplied?: (amount: number) => void;
-};
 
 export default function EmbeddedQuotaCheckout({
   quota,
@@ -24,25 +12,32 @@ export default function EmbeddedQuotaCheckout({
   quantity = 1,
   open = true,
   onApplied,
-}: Props) {
+}: {
+  quota: Quota; productId: string; packKey?: "10" | "50" | "200"; quantity?: number;
+  open?: boolean; onApplied?: (amount: number) => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [complete, setComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const sessionIdRef = useRef<string | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const ctrlRef = useRef<EmbeddedCtrl | null>(null);
 
+  // ✅ callback ref so effect re-runs when the element is actually in the DOM
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
+
   useEffect(() => {
-    if (!open) return;
+    if (!open || !containerEl) return;
 
     let cancelled = false;
     setBusy(true);
 
     (async () => {
       try {
+        // wait one frame so the container is painted
+        await new Promise((r) => requestAnimationFrame(r));
+
         const ctrl = await startEmbeddedCheckout(
-          // init: get controller from Stripe
           async (stripe) =>
             await stripe.initEmbeddedCheckout({
               async fetchClientSecret() {
@@ -67,9 +62,7 @@ export default function EmbeddedQuotaCheckout({
                     body: JSON.stringify({ sessionId: sessionIdRef.current }),
                   });
                   const data = await r.json().catch(() => ({}));
-                  const amount = Number(
-                    quota === "export" ? data?.exports ?? 0 : data?.edits ?? 0
-                  );
+                  const amount = Number(quota === "export" ? data?.exports ?? 0 : data?.edits ?? 0);
                   onApplied?.(Number.isFinite(amount) ? amount : 0);
                 } catch {}
                 setComplete(true);
@@ -77,19 +70,15 @@ export default function EmbeddedQuotaCheckout({
                 ctrlRef.current = null;
               },
             }),
-          // mount: attach to the element
           async (rawCtrl) => {
             if (cancelled) {
               try { (rawCtrl as any).destroy?.(); } catch {}
               return;
             }
-            const el = containerRef.current;
-            if (!el) throw new Error("Mount container not found");
-
-            // ✅ Cast to local type that includes `mount`
+            // final sanity check
+            if (!containerEl) throw new Error("Mount container not found (after RAF)");
             const ec = rawCtrl as unknown as EmbeddedCtrl;
-            ec.mount(el);
-
+            ec.mount(containerEl);
             ctrlRef.current = ec;
           }
         );
@@ -107,11 +96,14 @@ export default function EmbeddedQuotaCheckout({
       destroyEmbeddedCheckout(ctrlRef.current || undefined);
       ctrlRef.current = null;
     };
-  }, [open, quota, productId, packKey, quantity, onApplied]);
+  }, [open, containerEl, quota, productId, packKey, quantity, onApplied]);
 
   return (
     <div className="max-w-[560px] w-full">
-      {!complete && <div ref={containerRef} className="min-h-[620px]"/>}
+      {!complete && (
+        // ⬇️ use the callback ref, not useRef.current
+        <div ref={setContainerEl} className="min-h-[clamp(480px,80dvh,720px)]" />
+      )}
       {busy && <p className="text-sm text-black/60 mt-2">Loading checkout…</p>}
       {error && <p className="text-sm text-red-600 mt-2">{String(error)}</p>}
       {complete && (

@@ -34,9 +34,10 @@ model Product {
   cartItems        CartItem[]
   variants         ProductVariant[]
   assets           ProductAsset[]
-  designs          UserDesign[] // keep one
+  designs          UserDesign[]                                  // keep one
   purchasedDesigns PurchasedDesign[] @relation("Product_PurchasedDesigns")
 }
+
 
 /// User & Authentication
 model User {
@@ -54,13 +55,14 @@ model User {
   addresses      Address[]
   downloadTokens DownloadToken[]
 
-  reviews       Review[]
-  avatarUrl     String?  @db.VarChar(255)
-  downloadCount Int      @default(0)
+  reviews        Review[]
+  avatarUrl      String?  @db.VarChar(255)
+  downloadCount  Int      @default(0)
 
   designs          UserDesign[]
   purchasedDesigns PurchasedDesign[] @relation("User_PurchasedDesigns")
 }
+
 
 /// Categorization
 model Category {
@@ -174,10 +176,10 @@ model Review {
 
 /// Orders & Payments
 model Order {
-  id      String  @id @default(cuid())
-  user    User?   @relation(fields: [userId], references: [id])
-  userId  String?
-  guestId String?
+  id        String  @id @default(cuid())
+  user      User?   @relation(fields: [userId], references: [id])
+  userId    String?
+  guestId   String?
 
   items          OrderItem[]
   downloadTokens DownloadToken[]
@@ -200,6 +202,7 @@ model Order {
   @@index([claimTokenExpiresAt])
 }
 
+
 model OrderItem {
   id      String @id @default(cuid())
   order   Order  @relation(fields: [orderId], references: [id])
@@ -212,11 +215,11 @@ model OrderItem {
   digitalVariant   ProductVariant? @relation("OrderItemDigital", fields: [digitalVariantId], references: [id])
 
   printVariantId String?
-  printVariant   ProductVariant? @relation("OrderItemPrint", fields: [printVariantId], references: [id])
+  printVariant   ProductVariant?   @relation("OrderItemPrint", fields: [printVariantId], references: [id])
 
   type     VariantType
   price    Float
-  quantity Int         @default(1)
+  quantity Int   @default(1)
 
   // Optional: store the purchase preview URL on the line
   previewUrlSnapshot String?
@@ -228,6 +231,7 @@ model OrderItem {
 
   @@index([orderId])
 }
+
 
 /// Addresses (User & Shipping)
 model Address {
@@ -399,32 +403,34 @@ model WebhookEvent {
   createdAt DateTime @default(now())
 }
 
+
 model PurchasedDesign {
-  id String @id @default(cuid())
+  id          String   @id @default(cuid())
 
   // who / linkage
-  user    User?   @relation("User_PurchasedDesigns", fields: [userId], references: [id], onDelete: SetNull)
-  userId  String?
-  guestId String?
+  user        User?      @relation("User_PurchasedDesigns",  fields: [userId],     references: [id], onDelete: SetNull)
+  userId      String?
+  guestId     String?
 
-  order   Order  @relation("Order_PurchasedDesigns", fields: [orderId], references: [id], onDelete: Cascade)
-  orderId String
+  order       Order      @relation("Order_PurchasedDesigns", fields: [orderId],    references: [id], onDelete: Cascade)
+  orderId     String
 
-  orderItem   OrderItem @relation("OrderItem_PurchasedDesign", fields: [orderItemId], references: [id], onDelete: Cascade)
-  orderItemId String    @unique // 1:1 with an order line
+  orderItem   OrderItem  @relation("OrderItem_PurchasedDesign", fields: [orderItemId], references: [id], onDelete: Cascade)
+  orderItemId String     @unique  // 1:1 with an order line
 
-  product   Product @relation("Product_PurchasedDesigns", fields: [productId], references: [id], onDelete: Cascade)
-  productId String
+  product     Product    @relation("Product_PurchasedDesigns", fields: [productId], references: [id], onDelete: Cascade)
+  productId   String
 
   // snapshots
-  style      Json
-  defs       String?
-  svg        String?
-  previewUrl String?
+  style       Json
+  defs        String?
+  svg         String?
+  previewUrl  String?
 
-  createdAt DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   @@index([userId])
   @@index([productId])
   @@index([orderId])
 }
+
