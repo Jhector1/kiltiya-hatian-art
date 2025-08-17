@@ -1,8 +1,17 @@
-/*
-  Warnings:
+-- 1) Add as NULLABLE first (use NUMERIC/DECIMAL for prices)
+ALTER TABLE "public"."CartItem"
+  ADD COLUMN "originalPrice" NUMERIC(10,2);
 
-  - Added the required column `originalPrice` to the `CartItem` table without a default value. This is not possible if the table is not empty.
+-- 2) Backfill from existing columns
+-- If you have both, prefer compareAt, else fall back to price
+UPDATE "public"."CartItem"
+SET "originalPrice" = COALESCE("compareAt", "price");
 
-*/
--- AlterTable
-ALTER TABLE "public"."CartItem" ADD COLUMN     "originalPrice" DOUBLE PRECISION NOT NULL;
+-- 3) Safety fill (in case either was NULL)
+UPDATE "public"."CartItem"
+SET "originalPrice" = 0
+WHERE "originalPrice" IS NULL;
+
+-- 4) Enforce NOT NULL
+ALTER TABLE "public"."CartItem"
+  ALTER COLUMN "originalPrice" SET NOT NULL;
