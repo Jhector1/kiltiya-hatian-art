@@ -22,6 +22,8 @@ import type { SizeOption } from "@/components/shared/core/SizeSelectorCore";
 import type { PriceOptionsProps } from "@/hooks/usePriceCalculator";
 import { useCart } from "@/contexts/CartContext";
 import { usePurchaseConfigurator } from "@/hooks/usePurchaseConfigurator";
+import { SaleAndCountdown } from "@/components/shared/core/SalePriceAndCountDown";
+import { getEffectiveSale } from "@/lib/pricing";
 
 interface SelectionModel {
   wantDigital: boolean;
@@ -88,6 +90,47 @@ export default function ProductConfigurator({ showFormat = true, ...props }: Pro
     formatData, licenseData, sizeData, materialData, frameData,
     selection, calculatePrice, finalPrice,
   } = props;
+// Robust "WxH" parser: "8x10", "8 × 10", `8" x 10"`, "8in x 10in", etc.
+const parseWh = (s: string): [number, number] | null => {
+  if (!s) return null;
+  const cleaned = s.trim().toLowerCase().replace(/[×✕]/g, "x");
+  const m = cleaned.match(
+    /(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?\s*x\s*(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?/
+  );
+  if (!m) return null;
+  const w = parseFloat(m[1]);
+  const h = parseFloat(m[2]);
+  return Number.isFinite(w) && Number.isFinite(h) ? [w, h] : null;
+};
+
+// Build multipliers: area-based if all sizes parse; otherwise simple stepped.
+const STEP = 0.25;
+const BASE = 1;
+
+const availableSizes = (() => {
+  const parsed = product.sizes.map((s: string) => parseWh(s));
+
+  const allParsed = parsed.every((p) => Array.isArray(p));
+  if (allParsed) {
+    const areas = parsed.map(([w, h]) => w * h) as number[];
+    const minArea = Math.min(...areas);
+    return product.sizes.map((size: string, i: number) => {
+      const [w, h] = parsed[i] as [number, number];
+      return {
+        label: size,
+        multiplier: +((w * h) / minArea).toFixed(2),
+      };
+    });
+  }
+
+  // Fallback: simple step by index so you never crash
+  return product.sizes.map((size: string, i: number) => ({
+    label: size,
+    multiplier: +(BASE + STEP * i).toFixed(2),
+  }));
+})();
+
+  // alert(availableSizes)
 
   const ctrl = usePurchaseConfigurator({
     product,
@@ -125,8 +168,38 @@ export default function ProductConfigurator({ showFormat = true, ...props }: Pro
     setOptions: formatData.setOptions,
   });
 
+ const baseTotal = (() => {
+    const n =
+      typeof finalPrice === "string" ? parseFloat(finalPrice) : finalPrice;
+    return Number.isFinite(n) ? n : 0;
+  })();
+    // normalize date fields if they arrive as strings
+    const saleStartsAt = product?.saleStartsAt
+      ? new Date(product.saleStartsAt as any)
+      : null;
+    const saleEndsAt = product?.saleEndsAt
+      ? new Date(product.saleEndsAt as any)
+      : null;
+    //  alert(JSON.stringify(product))
+    // alert(saleEndsAt)
+    const saleInfo = product
+      ? getEffectiveSale({
+          price: baseTotal,
+          salePrice: (product as any).salePrice ?? null,
+          salePercent: (product as any).salePercent ?? null,
+          saleStartsAt,
+          saleEndsAt,
+       
+        })
+      : {
+          price: baseTotal,
+          compareAt: null,
+          onSale: false,
+          endsAt: null as Date | null,
+        };
   return (
     <>
+      <SaleAndCountdown {...saleInfo}/>
       <PurchaseOptionsCore
         digitalChecked={selection.wantDigital}
         printChecked={selection.wantPrint}
@@ -182,7 +255,7 @@ export default function ProductConfigurator({ showFormat = true, ...props }: Pro
             style={{ overflow: "hidden" }}
           >
             <SizeSelectorCore
-              options={optionSizes}
+              options={availableSizes}
               selected={sizeData.size}
               isCustom={sizeData.isCustom}
               customSize={sizeData.customSize}

@@ -1,21 +1,24 @@
 "use client";
 
 import React, { useState } from "react";
-// import SEO from "@/components/SEO";
 import ProductImageGallery from "@/components/product/detail/ProductImageGallery";
 import ProductConfigurator from "@/components/product/detail/ProductConfigurator";
 import ProductDescriptionBlock from "@/components/product/detail/ProductDescriptionBlock";
 import UniversalModal from "@/components/modal/UniversalModal";
 import AuthenticationForm from "@/components/authenticate/AuthenticationFom";
 import CartActions from "@/components/product/CartActions";
-import ReviewsSection from "@/components/product/review/ReviewSection";
+// import ReviewsSection from "@/components/product/review/ReviewsSection";
 import Link from "next/link";
 
 import type { MaterialOption, FrameOption, LicenseOption } from "@/types";
 import { allFrames, allLicenses, allMaterials, allSizes } from "@/data/helpers";
 import { useUser } from "@/contexts/UserContext";
 import { useProductData } from "@/components/studio/hooks/useProductData";
-// import { handleCheckout } from "@/utils/handleCheckout";
+
+// ⬇️ NEW: sale helper
+import { getEffectiveSale } from "@/lib/pricing";
+import ReviewsSection from "@/components/product/review/ReviewSection";
+// import { SaleAndCountdown, SaleCountdown } from "@/components/shared/core/SalePriceAndCountDown";
 
 interface ProductDetailProps {
   productId: string;
@@ -25,7 +28,6 @@ interface ProductDetailProps {
 
 export default function ProductDetail({
   productId,
-
   showReviews = true,
   showProduct = true,
 }: ProductDetailProps) {
@@ -60,10 +62,53 @@ export default function ProductDetail({
     preview,
     setPreview,
     calculatePrice,
-    finalPrice, // ⬅️ from unified flow
+    finalPrice, // base total (we'll apply sale below)
   } = useProductData({ productId });
 
   const loadingUI = <div className="p-10 text-center">Loading product…</div>;
+
+  // ⬇️ Compute sale-aware price for current selection
+  // finalPrice might be string; coerce to number
+  const baseTotal = (() => {
+    const n =
+      typeof finalPrice === "string" ? parseFloat(finalPrice) : finalPrice;
+    return Number.isFinite(n) ? n : 0;
+  })();
+
+  // normalize date fields if they arrive as strings
+  const saleStartsAt = product?.saleStartsAt
+    ? new Date(product.saleStartsAt as any)
+    : null;
+  const saleEndsAt = product?.saleEndsAt
+    ? new Date(product.saleEndsAt as any)
+    : null;
+  //  alert(JSON.stringify(product))
+  // alert(saleEndsAt)
+  const saleInfo = product
+    ? getEffectiveSale({
+        price: baseTotal,
+        salePrice: (product as any).salePrice ?? null,
+        salePercent: (product as any).salePercent ?? null,
+        saleStartsAt,
+        saleEndsAt,
+     
+      })
+    : {
+        price: baseTotal,
+        compareAt: null,
+        onSale: false,
+        endsAt: null as Date | null,
+      };
+  // alert(JSON.stringify(getEffectiveSale({
+  //         price: baseTotal,
+  //         salePrice: (product as any).salePrice ?? null,
+  //         salePercent: (product as any).salePercent ?? null,
+  //         saleStartsAt,
+  //         saleEndsAt,
+  //       })))
+  // const pctOff = saleInfo.compareAt
+  //   ? Math.max(0, Math.round(100 * (1 - saleInfo.price / saleInfo.compareAt)))
+  //   : 0;
 
   return (
     <>
@@ -78,7 +123,8 @@ export default function ProductDetail({
                 productId,
                 wantDigital ? "Digital" : null,
                 wantPrint ? "Print" : null,
-                finalPrice, // ✅ unified flow total
+                saleInfo.price, // ✅ pass discounted price
+               finalPrice,
                 product.formats[0]?.split(".").pop() || "",
                 size.label,
                 material.label,
@@ -110,8 +156,33 @@ export default function ProductDetail({
               />
             )}
 
-            <div className="flex flex-col gap-6 w-full">
+            <div className="flex relative flex-col gap-6 w-full">
+              {/* <div className="w-full left-0 top-0 h-full absolute bg-black p-5 opacity-50"></div> */}
               <ProductDescriptionBlock product={product} />
+
+              {/* <SaleAndCountdown {...saleInfo}/> */}
+{/* 
+              ⬇️ SALE-AWARE PRICE BLOCK
+              <div className="rounded-2xl ring-1 ring-black/5 bg-white p-4 flex items-center justify-between">
+                <div className="flex items-baseline gap-3">
+                  <span className="text-2xl font-semibold">
+                    ${saleInfo.price.toFixed(2)}
+                  </span>
+                  {saleInfo.onSale && saleInfo.compareAt && (
+                    <span className="text-lg text-gray-400 line-through">
+                      ${saleInfo.compareAt.toFixed(2)}
+                    </span>
+                  )}
+                  {saleInfo.onSale && pctOff > 0 && (
+                    <span className="text-xs font-semibold text-white bg-red-600 rounded-full px-2 py-0.5">
+                      -{pctOff}%
+                    </span>
+                  )}
+                </div>
+                {saleInfo.onSale && saleInfo.endsAt && (
+                  <SaleCountdown endsAt={saleInfo.endsAt} />
+                )}
+              </div> */}
 
               {product.category.toLowerCase() === "spiritual & vodou imagery" &&
                 product.svgPreview && (
@@ -157,7 +228,7 @@ export default function ProductDetail({
                   setWantPrint,
                 }}
                 calculatePrice={calculatePrice}
-                finalPrice={finalPrice}
+                finalPrice={saleInfo.price} // ✅ show discounted price inside configurator
               />
 
               <CartActions
@@ -171,6 +242,7 @@ export default function ProductDetail({
                       productId,
                       wantDigital ? "Digital" : null,
                       wantPrint ? "Print" : null,
+                      saleInfo.price, // ✅ discounted
                       finalPrice,
                       product.formats[0]?.split(".").pop() || "",
                       size.label,
@@ -192,19 +264,9 @@ export default function ProductDetail({
                     openUI: false,
                     exportHref: "/account/orders",
                   });
+                  if (result.status !== "ok") return;
 
-                  if (result.status === "error") {
-                    // setErr(result.message || "Checkout failed. Please try again.");
-                    return;
-                  }
-                  if (result.status === "auth_required") {
-                    // show login if you want
-                    return;
-                  }
-                  // Close THIS modal so the overlay never sits above Stripe
-                  // onClose();
                   await new Promise((r) => requestAnimationFrame(r));
-
                   if (result.flow === "embedded") {
                     window.dispatchEvent(
                       new CustomEvent("open-checkout", {
@@ -237,10 +299,33 @@ export default function ProductDetail({
         </main>
       )}
 
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(product ?? {}) }}
-      />
+      {/* (Optional) enrich JSON-LD with sale-aware offer */}
+      {product && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Product",
+              name: product.title,
+              image: product.thumbnails ?? [],
+              description: product.description,
+              sku: product.id,
+              offers: {
+                "@type": "Offer",
+                priceCurrency: "USD",
+                price: saleInfo.price.toFixed(2),
+                ...(saleInfo.onSale && saleInfo.endsAt
+                  ? { priceValidUntil: saleInfo.endsAt.toISOString() }
+                  : {}),
+                availability: "https://schema.org/InStock",
+                url: `/store/${product.id}`,
+              },
+            }),
+          }}
+        />
+      )}
     </>
   );
 }
+

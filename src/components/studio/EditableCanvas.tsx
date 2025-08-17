@@ -164,6 +164,7 @@ function EditableCanvasInner({ productId }: { productId: string }) {
     exportsLeft,
     quickDownloadPng,
     refreshExportStatus,
+    purchasedDigital,
     exportArtwork,
     fetchInitialExportStatus,
   } = useExportArtwork(productId);
@@ -455,6 +456,7 @@ function EditableCanvasInner({ productId }: { productId: string }) {
       // </div>
     :<EditorHeaderBar
         purchased={purchased}
+        purchasedDigital={purchasedDigital}
         loading={loading}
         saving={saving}
         canExport={canExport}

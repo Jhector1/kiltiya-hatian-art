@@ -1,74 +1,64 @@
-// File: src/app/api/products/[id]/saveUserDesign/status/route.ts
+// src/app/api/products/[id]/saveUserDesign/status/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getCustomerIdFromRequest } from "@/utils/guest";
+import { getEntitlementSummary, getPurchasedFlag, getPurchasedKinds } from "@/helpers/stripe/webhook/entitlements";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: productId } = await params;
 
-  // Try user or guest — do NOT throw if missing
   const { userId, guestId } = await getCustomerIdFromRequest(req);
-  const signedIn = !!userId;
+  const signedIn = !!userId; // ← match OLD behavior
 
-  // Look up design either by user or guest
-  let design = null as
-    | {
-        purchased: boolean;
-        exportQuota: number;
-        exportsUsed: number;
-      }
-    | null;
+  // Build "who" (prefer user; otherwise guest)
+  const who = { userId: userId ?? null, guestId: userId ? null : (guestId ?? null) };
 
-  if (userId) {
-    design = await prisma.userDesign.findUnique({
-      where: { userId_productId: { userId, productId: id } },
-      select: { purchased: true, exportQuota: true, exportsUsed: true },
-    });
-  } else if (guestId) {
-    design = await prisma.userDesign.findUnique({
-      where: { guestId_productId: { guestId, productId: id } },
-      select: { purchased: true, exportQuota: true, exportsUsed: true },
-    });
-  }
-
-  if (!design) {
-    // No saved design yet
+  // If neither user nor guest, behave like old route: sign-in required
+  if (!who.userId && !who.guestId) {
     return NextResponse.json({
       signedIn,
       purchased: false,
       canExport: false,
-      reason: signedIn ? "not_purchased" : "signin_required",
+      reason: "signin_required",
       exportQuota: 0,
       exportsUsed: 0,
       exportsLeft: 0,
+         purchasedKinds: [],
+      purchasedDigital: false,
+      purchasedPrint: false,
     });
   }
 
-  const exportQuota = design.exportQuota ?? 0;
-  const exportsUsed = design.exportsUsed ?? 0;
-  const exportsLeft = Math.max(0, exportQuota - exportsUsed);
-  const canExport = signedIn && !!design.purchased && exportsLeft > 0;
-
+   const [summary, purchased, kinds] = await Promise.all([
+    getEntitlementSummary(who, productId),
+    getPurchasedFlag(who, productId),
+    getPurchasedKinds(who, productId),  // ← new
+  ]);
+  const purchasedDigital = kinds.includes("DIGITAL");
+  const purchasedPrint = kinds.includes("PRINT");
+  const canExport = signedIn && purchased && summary.exportsLeft > 0;
+  const reason = canExport
+    ? null
+    : !signedIn
+    ? "signin_required"
+    : !purchased
+    ? "not_purchased"
+    : summary.exportsLeft <= 0
+    ? "quota_exhausted"
+    : null;
+console.log(purchasedDigital,purchasedPrint, kinds)
   return NextResponse.json({
     signedIn,
-    purchased: !!design.purchased,
+    purchased,
     canExport,
-    reason: canExport
-      ? null
-      : !signedIn
-      ? "signin_required"
-      : !design.purchased
-      ? "not_purchased"
-      : exportsLeft <= 0
-      ? "quota_exhausted"
-      : null,
-    exportQuota,
-    exportsUsed,
-    exportsLeft,
+    reason,
+    exportQuota: summary.exportQuota,
+    exportsUsed: summary.exportsUsed,
+    exportsLeft: summary.exportsLeft,
+      // NEW (non-breaking additions)
+    purchasedKinds: kinds,     // ["DIGITAL"], ["PRINT"], or ["DIGITAL","PRINT"]
+    purchasedDigital,
+    purchasedPrint,
   });
 }

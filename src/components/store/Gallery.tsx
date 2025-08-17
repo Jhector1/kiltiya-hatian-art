@@ -1,4 +1,3 @@
-// File: components/Gallery.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -17,6 +16,9 @@ import type {
   ProductListItem,
 } from "@/types";
 import { useCart } from "@/contexts/CartContext";
+
+// ⬇️ Add this import
+import { getEffectiveSale } from "@/lib/pricing";
 
 interface GalleryProps {
   products:
@@ -51,6 +53,32 @@ export default function Gallery({
     onLikeToggle?.(id, liked);
   };
 
+  // ⬇️ Small helper to compute effective gallery price per product card
+  function derivePricing(
+    p: ProductListItem | ProductListAndOrderCount | CartSelectedItem
+  ) {
+    const anyP = p as any;
+    const base = typeof anyP.price === "number" ? anyP.price : 0;
+
+    // Dates may arrive as strings; normalize to Date | null
+    const starts = anyP.saleStartsAt ? new Date(anyP.saleStartsAt) : null;
+    const ends = anyP.saleEndsAt ? new Date(anyP.saleEndsAt) : null;
+
+    const res = getEffectiveSale({
+      price: base,
+      salePrice: anyP.salePrice ?? null,
+      salePercent: anyP.salePercent ?? null,
+      saleStartsAt: starts,
+      saleEndsAt: ends,
+    });
+
+    const pctOff = res.compareAt
+      ? Math.max(0, Math.round(100 * (1 - res.price / res.compareAt)))
+      : 0;
+
+    return { ...res, pctOff };
+  }
+
   return (
     <>
       <UniversalModal isOpen={modalOpen} onClose={() => setModalOpen(false)}>
@@ -71,9 +99,14 @@ export default function Gallery({
           const imgSrc = getPrimaryImage(p);
           const isCartItem = isCartSelectedItem(p);
 
+          // ⬇️ Compute pricing for this tile
+          const pricing = derivePricing(p);
+
           return (
             <motion.div
-              key={`${p.id}-${isCartItem ? p.previewUrl: ''}`}
+              key={`${p.id}-${
+                isCartItem ? (p as CartSelectedItem).previewUrl : ""
+              }`}
               className="gap-3 items-center flex w-full"
               variants={{
                 hidden: { opacity: 0, y: 20 },
@@ -82,7 +115,7 @@ export default function Gallery({
             >
               <motion.div
                 key={`${p.id}-${i}`}
-                className="w-3/3 relative group bg-gray-100 rounkded-lg shadow-sm hover:shadow-md transition overflow-hidden py-8 px-6"
+                className="w-3/3 relative group bg-gray-100 rounded-lg shadow-sm hover:shadow-md transition overflow-hidden py-8 px-6"
                 variants={{
                   hidden: { opacity: 0, y: 20 },
                   visible: { opacity: 1, y: 0 },
@@ -102,10 +135,17 @@ export default function Gallery({
                   </button>
                 )}
 
-                {/* Customized badge for user designs (optional) */}
+                {/* Customized badge (optional) */}
                 {isCartItem && (p as CartSelectedItem).isUserDesign && (
                   <span className="absolute left-2 top-2 z-10 rounded-md bg-emerald-600/90 px-2 py-0.5 text-[10px] font-medium text-white">
                     Customized
+                  </span>
+                )}
+
+                {/* 🔻 Sale badge */}
+                {pricing.onSale && pricing.pctOff > 0 && (
+                  <span className="absolute left-2 top-2 z-10 rounded-full bg-red-600/90 px-2 py-0.5 text-[10px] font-semibold text-white">
+                    -{pricing.pctOff}%
                   </span>
                 )}
 
@@ -116,9 +156,9 @@ export default function Gallery({
                   onClick={() => router.push(`/store/${p.id}`)}
                 >
                   <Image
-                    key={imgSrc}  
+                    key={imgSrc}
                     src={imgSrc}
-                    alt={p.title}
+                    alt={(p as any).title}
                     fill
                     className="object-contain transition-transform duration-300 group-hover:scale-105"
                     onLoadingComplete={() =>
@@ -126,7 +166,7 @@ export default function Gallery({
                     }
                     style={{ opacity: loaded[p.id] ? 1 : 0 }}
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                  unoptimized
+                    unoptimized
                   />
                   {!loaded[p.id] && (
                     <div className="absolute inset-0 bg-gray-300 animate-pulse" />
@@ -140,30 +180,40 @@ export default function Gallery({
                       onClick={() => router.push(`/store/${p.id}`)}
                       className="text-base font-semibold text-gray-900 hover:underline cursor-pointer"
                     >
-                      {p.title}
+                      {(p as any).title}
                     </h3>
 
                     {"dimensions" in p && (
-                      <p className="text-xs text-gray-500">{p.dimensions}</p>
+                      <p className="text-xs text-gray-500">
+                        {(p as any).dimensions}
+                      </p>
                     )}
 
+                    {/* 💰 Price block (sale-aware) */}
                     <p className="text-sm font-bold text-gray-900">
-                      {"originalPrice" in p && p.originalPrice ? (
+                      {pricing.onSale && pricing.compareAt ? (
                         <>
-                          <span className="line-through text-gray-400">
-                            ${p.originalPrice.toFixed(2)}
-                          </span>{" "}
-                          <span>${p.price.toFixed(2)}</span>
-                          <span className="text-red-600">
-                            -
-                            {Math.round(
-                              (1 - p.price / p.originalPrice) * 100
-                            )}
-                            %
+                          <span>
+                            {" "}
+                            $
+                            {(!isCartItem ? pricing.price : p.price).toFixed(2)}
+                          </span>
+                          <span className="ml-2 line-through text-gray-400">
+                            $
+                            {(!isCartItem
+                              ? p.price
+                              : p.originalPrice
+                            ).toFixed(2)}
                           </span>
                         </>
                       ) : (
-                        <span>${p.price.toFixed(2)}</span>
+                        <span>
+                          $
+                          {(!isCartItem
+                            ? pricing.price
+                            : p.originalPrice
+                          ).toFixed(2)}
+                        </span>
                       )}
                     </p>
 
@@ -180,11 +230,13 @@ export default function Gallery({
                     )}
 
                     {"artistName" in p && (
-                      <p className="text-xs text-gray-500">{p.artistName}</p>
+                      <p className="text-xs text-gray-500">
+                        {(p as any).artistName}
+                      </p>
                     )}
                     {"purchaseCount" in p && (
                       <p className="text-xs text-gray-500">
-                        Purchased: {p.purchaseCount}
+                        Purchased: {(p as any).purchaseCount}
                       </p>
                     )}
                   </div>
@@ -217,11 +269,11 @@ export default function Gallery({
                     onClick={() => router.push(`/store/${p.id}`)}
                   >
                     <Image
-                      src={`/images/${(p as CartSelectedItem).print!.frame!
-                        .toLowerCase()
+                      src={`/images/${(p as CartSelectedItem)
+                        .print!.frame!.toLowerCase()
                         .split(" ")
                         .join("-")}.png`}
-                      alt={p.title}
+                      alt={(p as any).title}
                       fill
                       className="object-contain transition-transform duration-300 group-hover:scale-105"
                       onLoadingComplete={() =>
@@ -252,14 +304,13 @@ function getPrimaryImage(
   p: ProductListItem | ProductListAndOrderCount | CartSelectedItem
 ): string {
   const anyP = p as any;
+  // 🔧 Tiny cleanup: ensure placeholder is truly last fallback
   return (
     (Array.isArray(anyP.thumbnails) && anyP.thumbnails[0]) ||
     anyP.previewUrl ||
-    
-    "/placeholder.png"||
-
     anyP.imageUrl ||
-    anyP.svgPreview 
+    anyP.svgPreview ||
+    "/placeholder.png"
   );
 }
 

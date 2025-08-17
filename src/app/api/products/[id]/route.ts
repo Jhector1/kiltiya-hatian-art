@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const product = await db.product.findUnique({
     where: { id: productId },
     include: {
-      category: { select: { name: true } },  // 👈 join category
+      category: { select: { name: true } }, // 👈 join category
       reviews: true,
       variants: true,
     },
@@ -27,8 +27,15 @@ export async function GET(req: NextRequest) {
   let cartVariantIds: string[] = [];
   const { userId, guestId } = await getCustomerIdFromRequest(req);
   const cart = await db.cart.findFirst({
-    where: { OR: [{ userId: userId ?? undefined }, { guestId: guestId ?? undefined }] },
-    include: { items: { where: { productId }, include: { digitalVariant: true, printVariant: true } } },
+    where: {
+      OR: [{ userId: userId ?? undefined }, { guestId: guestId ?? undefined }],
+    },
+    include: {
+      items: {
+        where: { productId },
+        include: { digitalVariant: true, printVariant: true },
+      },
+    },
   });
   if (cart) {
     cartVariantIds = cart.items.flatMap((item) => {
@@ -50,9 +57,18 @@ export async function GET(req: NextRequest) {
     thumbnails: product.thumbnails,
     formats: product.formats,
     svgPreview: product.svgPreview,
-    variants: product.variants.map((v) => ({ ...v, inUserCart: cartVariantIds.includes(v.id) })),
+    variants: product.variants.map((v) => ({
+      ...v,
+      inUserCart: cartVariantIds.includes(v.id),
+    })),
     reviews: product.reviews,
+    salePercent: product.salePercent,
+    salePrice: product.salePrice,
+    saleStartsAt: product.saleStartsAt,
+    saleEndsAt: product.saleEndsAt,
+    sizes: product.sizes,
   };
+  // console.log(99999999,result)
 
   return NextResponse.json(result);
 }

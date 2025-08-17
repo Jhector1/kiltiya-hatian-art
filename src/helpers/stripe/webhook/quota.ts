@@ -1,10 +1,10 @@
-// import { stripe } from "@/lib/stripe";
+// src/server/stripe/webhook/quota.ts
 import { prisma } from "@/lib/prisma";
 import { QuotaKind } from "./types";
 import { listSessionLineItems, tryClaimIdempotencyTx } from "./utils";
 import Stripe from "stripe";
+import { EntitlementSource } from "@prisma/client";
 
-// unchanged
 export function isQuotaTopup(session: Stripe.Checkout.Session) {
   return (
     session?.metadata?.kind === "quota_topup" &&
@@ -36,39 +36,29 @@ export async function handleQuotaTopup(session: Stripe.Checkout.Session) {
   if (session.payment_status !== "paid") return;
 
   const units = await getQuotaUnits(session.id, quota);
-  if (units <= 0) return; // nothing to do
+  if (units <= 0) return;
 
-    const idemKey = `topup:${session.id}`;
+  const idemKey = `topup:${session.id}`;
 
   await prisma.$transaction(async (tx) => {
     const claimed = await tryClaimIdempotencyTx(tx, idemKey);
-    if (!claimed) return; // someone else already applied it — clean no-op
+    if (!claimed) return;
 
-    const where = userId
-      ? { userId_productId: { userId, productId } }
-      : ({ guestId_productId: { guestId: guestId!, productId } } as any);
-
-    const baseCreate = {
-      userId, guestId, productId,
-      style: {},
-      purchased: false,
-      exportsUsed: 0,
-      editsUsed: 0,
-    };
-
-    if (quota === "export") {
-      await tx.userDesign.upsert({
-        where,
-        create: { ...baseCreate, exportQuota: units, editQuota: 0 },
-        update: { exportQuota: { increment: units } },
-      });
-    } else {
-      await tx.userDesign.upsert({
-        where,
-        create: { ...baseCreate, editQuota: units, exportQuota: 0 },
-        update: { editQuota: { increment: units } },
-      });
-    }
+    // Additive entitlements: just insert a new row per top-up
+    await tx.designEntitlement.create({
+      data: {
+        userId: userId ?? undefined,
+        guestId: userId ? undefined : guestId ?? undefined,
+        productId,
+        source: EntitlementSource.TOPUP,
+        orderId: null,
+        orderItemId: null,
+        exportQuota: quota === "export" ? units : 0,
+        editQuota:   quota === "edit"   ? units : 0,
+        exportsUsed: 0,
+        editsUsed:   0,
+        expiresAt: null,
+      },
+    });
   });
 }
-

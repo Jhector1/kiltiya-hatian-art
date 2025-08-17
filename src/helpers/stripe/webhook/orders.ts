@@ -4,13 +4,16 @@ import { VariantType } from "@prisma/client";
 import Stripe from "stripe";
 import { canonLineItems, listSessionLineItems } from "./utils";
 import { createPurchaseWebP } from "./cloudinaryHelper";
+import { EntitlementSource } from "@prisma/client";
+
+const PURCHASE_EXPORT_CREDITS = 5; // same as before
 
 export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.userId ?? null;
   const guestId = session.metadata?.guestId ?? null;
   if (!userId && !guestId) throw new Error("Missing customer identity");
 
-  // idempotency for orders via Order.stripeSessionId unique index
+  // idempotency via unique stripeSessionId on Order
   const exists = await prisma.order.findFirst({
     where: { stripeSessionId: session.id },
     select: { id: true },
@@ -20,8 +23,9 @@ export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
   const items = await listSessionLineItems(session.id);
   const canonical = canonLineItems(items);
 
-  // collect cartItemIds to clear
-  const purchasedCartItemIds = canonical.map((c) => c.cartItemId).filter(Boolean) as string[];
+  const purchasedCartItemIds = canonical
+    .map((c) => c.cartItemId)
+    .filter(Boolean) as string[];
 
   await prisma.$transaction(async (tx) => {
     const order = await tx.order.create({
@@ -58,34 +62,45 @@ export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
       });
 
       // ----- DESIGN PRECEDENCE -----
-      // prefer explicit designId; else fallback to user's latest for that product
       const explicitDesignId = c.designId || null;
 
       let design = null as null | {
-        id: string; style: any; defs: string | null; previewUrl: string | null; previewPublicId: string | null; productId: string;
+        id: string;
+        style: any;
+        defs: string | null;
+        previewUrl: string | null;
+        previewPublicId: string | null;
+        productId: string;
       };
 
       if (explicitDesignId) {
         design = await tx.userDesign.findUnique({
           where: { id: explicitDesignId },
-          select: { id: true, style: true, defs: true, previewUrl: true, previewPublicId: true, productId: true },
+          select: {
+            id: true, style: true, defs: true,
+            previewUrl: true, previewPublicId: true, productId: true,
+          },
         });
       }
       if (!design) {
         const fallback = await tx.userDesign.findFirst({
-          where: userId ? { userId, productId: c.productId } : { guestId: guestId!, productId: c.productId },
+          where: userId
+            ? { userId, productId: c.productId }
+            : { guestId: guestId!, productId: c.productId },
           orderBy: { updatedAt: "desc" },
-          select: { id: true, style: true, defs: true, previewUrl: true, previewPublicId: true, productId: true },
+          select: {
+            id: true, style: true, defs: true,
+            previewUrl: true, previewPublicId: true, productId: true,
+          },
         });
         if (fallback) design = fallback as any;
       }
 
-      if (design) {
-        // mark purchased
-        await tx.userDesign.update({ where: { id: design.id }, data: { purchased: true, exportQuota:5 } });
+      let purchasedDesignId: string | null = null;
+      let purchasePreviewUrl: string | null = null;
 
-        // make a purchase-specific Cloudinary WebP
-        let purchasePreviewUrl: string | null = null;
+      if (design) {
+        // Create a purchase-specific Cloudinary preview (best-effort)
         try {
           const { url } = await createPurchaseWebP({
             orderId: order.id,
@@ -104,8 +119,8 @@ export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
           console.error("Cloudinary upload failed:", e?.message || e);
         }
 
-        // snapshot row
-        await tx.purchasedDesign.create({
+        // Snapshot the purchased design
+        const snap = await tx.purchasedDesign.create({
           data: {
             userId: userId ?? undefined,
             guestId: userId ? undefined : guestId ?? undefined,
@@ -117,9 +132,11 @@ export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
             svg: null,
             previewUrl: purchasePreviewUrl ?? design.previewUrl ?? null,
           },
+          select: { id: true },
         });
+        purchasedDesignId = snap.id;
 
-        // optional: store snapshot on the line (if you added the column)
+        // Optional: store snapshot URL on the line
         try {
           await tx.orderItem.update({
             where: { id: orderItem.id },
@@ -127,18 +144,38 @@ export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
           });
         } catch {}
       }
+
+      // ---- Grant export/edit entitlements for this purchase
+      await tx.designEntitlement.create({
+        data: {
+          userId: userId ?? undefined,
+          guestId: userId ? undefined : guestId ?? undefined,
+          productId: c.productId,
+          userDesignId: design?.id ?? null,
+          purchasedDesignId,
+          source: EntitlementSource.PURCHASE,
+          orderId: order.id,
+          orderItemId: orderItem.id,
+          exportQuota: PURCHASE_EXPORT_CREDITS, // used to be set on UserDesign
+          editQuota: 0,
+          exportsUsed: 0,
+          editsUsed: 0,
+          expiresAt: null, // keep unlimited unless you want guest expiry here
+        },
+      });
     }
 
-    // clear purchased cart items
+    // Clear purchased cart items
     if (purchasedCartItemIds.length) {
       await tx.cartItem.deleteMany({ where: { id: { in: purchasedCartItemIds } } });
     }
 
-    // (optional) create download tokens for DIGITAL items
+    // Create download tokens for DIGITAL items
     const digitalItems = await tx.orderItem.findMany({
       where: { orderId: order.id, type: "DIGITAL" },
       include: { product: { include: { assets: true } }, digitalVariant: { select: { license: true } } },
     });
+
     const now = Date.now();
     const guestExpiryMs = 7 * 24 * 60 * 60 * 1000;
     const userExpiryMs  = 365 * 24 * 60 * 60 * 1000;
@@ -155,7 +192,7 @@ export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
             assetId: asset.id,
             userId: userId ?? undefined,
             guestId: userId ? undefined : guestId ?? undefined,
-            signedUrl: asset.url, // TODO: sign it
+            signedUrl: asset.url, // TODO: sign
             expiresAt,
             remainingUses: null,
             licenseSnapshot: license,

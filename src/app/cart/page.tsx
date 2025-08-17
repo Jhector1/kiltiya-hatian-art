@@ -7,6 +7,7 @@ import { useUser } from "@/contexts/UserContext";
 import { toast } from "react-hot-toast";
 import { loadStripe } from "@stripe/stripe-js";
 import { useState } from "react";
+// import { getEffectiveSale } from "@/lib/pricing";
 
 export default function CartPage() {
   const { cart, loadingCart, totalPrice } = useCart();
@@ -37,31 +38,34 @@ export default function CartPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: user?.id ?? guestId,
-          cartProductList: cart.map((data) => ({
-            quantity: data.cartQuantity,
-            myProduct: {
-              id: data.id,
-              title: data.title,
-              price: data.price,
-              imageUrl: data.thumbnails[0] || "/placeholder.png",
-              digital: data.digital
-                ? {
-                    id: data.digital.id,
-                    format: data.digital.format,
-                  }
-                : undefined,
-              print: data.print
-                ? {
-                    id: data.print.id,
-                    format: data.print.format,
-                    size: data.print.size,
-                    material: data.print.material,
-                    frame: data.print.frame,
-                  }
-                : undefined,
-            },
-            cartItemId: data.cartItemId,
-          })),
+          cartProductList: cart.map((data) => {
+            
+            return {
+              quantity: data.cartQuantity,
+              myProduct: {
+                id: data.id,
+                title: data.title,
+                price: data.price,
+                imageUrl: data.thumbnails[0] || "/placeholder.png",
+                digital: data.digital
+                  ? {
+                      id: data.digital.id,
+                      format: data.digital.format,
+                    }
+                  : undefined,
+                print: data.print
+                  ? {
+                      id: data.print.id,
+                      format: data.print.format,
+                      size: data.print.size,
+                      material: data.print.material,
+                      frame: data.print.frame,
+                    }
+                  : undefined,
+              },
+              cartItemId: data.cartItemId,
+            };
+          }),
         }),
       });
 
@@ -107,7 +111,11 @@ export default function CartPage() {
           <p className="text-gray-600">Your cart is empty.</p>
         ) : (
           <>
-            <Gallery showCartItem={true} products={cart} showLikeButton={false} />
+            <Gallery
+              showCartItem={true}
+              products={cart}
+              showLikeButton={false}
+            />
             <div className="mt-10 flex justify-between items-center border-t pt-6">
               <span className="text-xl font-semibold text-gray-800">
                 Total: ${totalPrice.toFixed(2)}

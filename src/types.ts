@@ -141,6 +141,10 @@ export const productListSelect = {
   thumbnails: true,
   publicId: true,
   svgPreview: true,
+  salePercent: true,
+  salePrice: true,
+  saleStartsAt: true,
+  saleEndsAt: true,
 
   category: { select: { name: true } },
 } as const;
@@ -157,6 +161,7 @@ export type CartSelectedItem = ProductListItem & {
    designId?: string | null;    // NEW
   previewUrl?: string | null;  // NE
     isUserDesign?: boolean;
+    originalPrice: number;
 
 };
 // exactly the return type of
@@ -186,9 +191,14 @@ export interface ProductDetailResult {
   imageUrl: string;
   thumbnails: string[];
   formats: string[];
+  sizes: string[];
   variants: VariantWithInCart[];
   svgPreview: string;
   reviews: Review[];
+   salePercent: number,
+  salePrice: number,
+  saleStartsAt: string,
+  saleEndsAt: string,
 }
 export type CartUpdates = Record<string, string | number | boolean | null>;
 export interface HomeCategory {

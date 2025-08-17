@@ -11,18 +11,36 @@ export function useExportArtwork(productId: string) {
   const [canExport, setCanExport] = useState(false);
   const [exportsLeft, setExportsLeft] = useState(0);
   const [purchased, setPurchased] = useState(false);
+  const [purchasedDigital, setPurchasedDigital] = useState(false);
 
-  const refreshExportStatus = useCallback(async () => {
-    try {
-      const st = await fetch(`/api/products/${productId}/saveUserDesign/status`, { cache: "no-store" });
-      if (st.ok) {
-        const j = await st.json();
-        setCanExport(!!j.canExport);
-        setPurchased(!!j.purchased);
-        setExportsLeft(j.exportsLeft ?? 0);
-      }
-    } catch {}
-  }, [productId]);
+  const refreshExportStatus = useCallback(async (): Promise<boolean> => {
+  try {
+    const res = await fetch(
+      `/api/products/${productId}/saveUserDesign/status`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return false;
+
+    const j = await res.json();
+
+    // decide when we’re “ready” to stop retrying
+    const ready =
+      !!j.canExport ||
+      !!j.purchased ||
+      !!j.purchasedDigital ||
+      (j.exportsLeft ?? 0) > 0;
+
+    setCanExport(!!j.canExport);
+    setPurchased(!!j.purchased);
+    setExportsLeft(j.exportsLeft ?? 0);
+    setPurchasedDigital(!!j.purchasedDigital);
+
+    return ready;
+  } catch {
+    return false;
+  }
+}, [productId]);
+
 
   const quickDownloadPng = (canvas: HTMLCanvasElement | null, productId: string) => {
     if (!canvas) return;
@@ -113,6 +131,7 @@ export function useExportArtwork(productId: string) {
       const res = await fetch(`/api/products/${productId}/saveUserDesign/status`, { cache: "no-store" });
       if (!res.ok) return;
       const j = await res.json();
+      console.log(j)
       setCanExport(!!j.canExport);
       setPurchased(!!j.purchased);
       setExportsLeft(j.exportsLeft ?? 0);
@@ -124,6 +143,7 @@ export function useExportArtwork(productId: string) {
     exporting,
     canExport,
     purchased,
+    purchasedDigital,
     exportsLeft,
     quickDownloadPng,
     exportArtwork,

@@ -1,150 +1,237 @@
+// src/app/api/products/[id]/save/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { v2 as cloudinary } from "cloudinary";
-import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
+import sharp from "sharp";
+import { v2 as cloudinary } from "cloudinary";
 import { requireUser } from "@/utils/requireUser";
 import { getCustomerIdFromRequest } from "@/utils/guest";
+import { getEntitlementSummary } from "@/helpers/stripe/webhook/entitlements";
 
+export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
-  api_key: process.env.CLOUDINARY_API_KEY!,
-  api_secret: process.env.CLOUDINARY_API_SECRET!,
-});
+// Cloudinary config (safe no-op if envs missing)
+const HAS_CLOUDINARY =
+  !!process.env.CLOUDINARY_CLOUD_NAME &&
+  !!process.env.CLOUDINARY_API_KEY &&
+  !!process.env.CLOUDINARY_API_SECRET;
 
-type StylePayload = Record<string, any>;
-type Body = {
-  style: StylePayload;            // REQUIRED
-  // optional preview upload
-  previewDataUrl?: string;        // data:image/...;base64,...
-  width?: number;                 // default 800
-  quality?: number;               // default 70
-};
-
-export async function POST(req: NextRequest,   {params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const {id: productId} = await params;
-
-  // Accept both signed-in and guest
-  let userId: string | null = null;
-  let guestId: string | null = null;
-  try {
-    const u = await requireUser();
-    userId = u.id;
-  } catch {
-    const ids = await getCustomerIdFromRequest(req);
-    guestId = ids.guestId ?? null;
-  }
-
-  if (!userId && !guestId) {
-    return NextResponse.json({ error: "Please sign in" }, { status: 401 });
-  }
-
-  const body = (await req.json()) as Body;
-  const style = body?.style;
-  if (!style) return NextResponse.json({ error: "Missing style" }, { status: 400 });
-
-  const defs = typeof style.defs === "string" ? style.defs : undefined;
-
-  // Upsert the design first
-  const design = await prisma.userDesign.upsert({
-    where: userId
-      ? { userId_productId: { userId, productId } }
-      : { guestId_productId: { guestId: guestId!, productId } },
-    update: { style, defs },
-    create: { userId: userId ?? undefined, guestId: guestId ?? undefined, productId, style, defs },
-  });
-
-  let previewUrl: string | null = design.previewUrl;
-
-  // Optional: upload/overwrite preview to Cloudinary when provided
-  if (body.previewDataUrl?.startsWith("data:image/")) {
-    const base64 = body.previewDataUrl.split(",")[1];
-    const input = Buffer.from(base64, "base64");
-
-    const w = Math.max(64, Math.min(2000, Number(body.width) || 800));
-    const q = Math.max(1, Math.min(100, Number(body.quality) || 70));
-
-    const webp = await sharp(input)
-      .resize({ width: w, withoutEnlargement: true, fit: "inside", background: { r:255,g:255,b:255,alpha:0 } })
-      .webp({ quality: q })
-      .toBuffer();
-
-    const publicId = `products-customize-${process.env.NEXT_ENV}/designs/previews/design_${design.id}`;
-    const uploaded = await new Promise<any>((resolve, reject) => {
-      cloudinary.uploader
-        .upload_stream(
-          { public_id: publicId, resource_type: "image", type: "upload", overwrite: true, format: "webp", invalidate: true },
-          (err, res) => (err ? reject(err) : resolve(res))
-        )
-        .end(webp);
-    });
-
-    previewUrl = uploaded.secure_url as string;
-
-    await prisma.userDesign.update({
-      where: { id: design.id },
-      data: {
-        previewPublicId: uploaded.public_id,
-        previewUrl,
-        previewUpdatedAt: new Date(),
-      },
-    });
-  }
-
-  const refreshed = await prisma.userDesign.findUnique({
-    where: { id: design.id },
-    select: {
-      id: true, purchased: true, exportQuota: true, exportsUsed: true,
-      previewUrl: true, previewUpdatedAt: true,
-    },
-  });
-
-  const exportsLeft = Math.max(0, (refreshed?.exportQuota ?? 0) - (refreshed?.exportsUsed ?? 0));
-  const canExport = !!refreshed?.purchased && exportsLeft > 0;
-
-  return NextResponse.json({
-    ok: true,
-    designId: design.id,
-    previewUrl: refreshed?.previewUrl ?? null,
-    previewUpdatedAt: refreshed?.previewUpdatedAt ?? null,
-    purchased: refreshed?.purchased ?? false,
-    exportsLeft,
-    canExport,
+if (HAS_CLOUDINARY) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
+    api_key: process.env.CLOUDINARY_API_KEY!,
+    api_secret: process.env.CLOUDINARY_API_SECRET!,
   });
 }
 
-export async function GET(req: NextRequest, {params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const {id: productId} = await params;
+type StylePayload = {
+  fillColor: string;
+  fillOpacity?: number;
+  strokeColor: string;
+  strokeOpacity?: number;
+  strokeWidth: number;
+  backgroundColor: string;
+  backgroundOpacity?: number;
+  defs?: string;
+};
+
+type Body = {
+  style: StylePayload;           // REQUIRED (unchanged)
+  previewDataUrl?: string;       // data:image/...;base64,...
+  width?: number;                // default 800
+  quality?: number;              // default 70
+};
+
+// ---- helpers to mirror old fields via new tables ----
+// async function getEntitlementSummary(
+//   productId: string,
+//   ids: { userId?: string | null; guestId?: string | null }
+// ) {
+//   const now = new Date();
+//   const whereBase: any = {
+//     productId,
+//     OR: [] as any[],
+//     OR_1: undefined,
+//   };
+//   if (ids.userId) whereBase.OR.push({ userId: ids.userId });
+//   if (ids.guestId) whereBase.OR.push({ guestId: ids.guestId });
+//   if (!whereBase.OR.length) return { exportQuota: 0, exportsUsed: 0, exportsLeft: 0 };
+
+//   const ents = await prisma.designEntitlement.findMany({
+//     where: {
+//       productId,
+//       OR: whereBase.OR,
+//       OR_1: undefined,
+//       // active only
+//       OR_2: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+//     } as any,
+//     select: { exportQuota: true, exportsUsed: true },
+//   });
+
+//   const exportQuota = ents.reduce((s, r) => s + (r.exportQuota || 0), 0);
+//   const exportsUsed = ents.reduce((s, r) => s + (r.exportsUsed || 0), 0);
+//   const exportsLeft = Math.max(0, exportQuota - exportsUsed);
+//   return { exportQuota, exportsUsed, exportsLeft };
+// }
+
+async function hasPurchased(
+  productId: string,
+  ids: { userId?: string | null; guestId?: string | null }
+) {
+  if (!ids.userId && !ids.guestId) return false;
+  const row = await prisma.purchasedDesign.findFirst({
+    where: {
+      productId,
+      OR: [
+        ...(ids.userId ? [{ userId: ids.userId }] : []),
+        ...(ids.guestId ? [{ guestId: ids.guestId }] : []),
+      ],
+    },
+    select: { id: true },
+  });
+  return !!row;
+}
+
+// -------------------- POST: save design --------------------
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    const { id: productId } = await ctx.params;
+
+    // Accept signed-in or guest (keeps old behavior that allowed both in later version)
+    let userId: string | null = null;
+    let guestId: string | null = null;
+    try {
+      const u = await requireUser();
+      userId = u.id;
+    } catch {
+      const ids = await getCustomerIdFromRequest(req);
+      guestId = ids.guestId ?? null;
+    }
+
+    if (!userId && !guestId) {
+      // old hook expects 401 with this message
+      return NextResponse.json({ error: "Please sign in" }, { status: 401 });
+    }
+
+    const body = (await req.json().catch(() => null)) as Body | null;
+    const style = body?.style;
+    if (!style) return NextResponse.json({ error: "Missing style" }, { status: 400 });
+
+    // extract defs into its own column; keep shape identical to before
+    const defs = typeof style.defs === "string" ? style.defs : undefined;
+
+    // Upsert per-user/guest + product
+    const design = await prisma.userDesign.upsert({
+      where: userId
+        ? { userId_productId: { userId, productId } }
+        : { guestId_productId: { guestId: guestId!, productId } },
+      update: { style, defs },
+      create: { userId: userId ?? undefined, guestId: guestId ?? undefined, productId, style, defs },
+      select: { id: true, previewUrl: true, updatedAt: true },
+    });
+
+    // Optional preview upload (unchanged contract)
+    let previewUrl: string | null = design.previewUrl ?? null;
+    let previewUpdatedAt: string | null = null;
+
+    if (HAS_CLOUDINARY && body?.previewDataUrl?.startsWith("data:image/")) {
+      try {
+        const base64 = body.previewDataUrl.split(",")[1] || "";
+        const input = Buffer.from(base64, "base64");
+
+        const w = Math.max(64, Math.min(2000, Number(body.width) || 800));
+        const q = Math.max(1, Math.min(100, Number(body.quality) || 70));
+
+        const webp = await sharp(input)
+          .resize({ width: w, withoutEnlargement: true, fit: "inside", background: { r: 255, g: 255, b: 255, alpha: 0 } })
+          .webp({ quality: q })
+          .toBuffer();
+
+        const publicId = `products-customize-${process.env.NEXT_ENV || "dev"}/designs/previews/design_${design.id}`;
+        const uploaded = await new Promise<any>((resolve, reject) => {
+          cloudinary.uploader
+            .upload_stream(
+              { public_id: publicId, resource_type: "image", type: "upload", overwrite: true, format: "webp", invalidate: true },
+              (err, res) => (err ? reject(err) : resolve(res))
+            )
+            .end(webp);
+        });
+
+        previewUrl = uploaded.secure_url as string;
+        const updated = await prisma.userDesign.update({
+          where: { id: design.id },
+          data: { previewPublicId: uploaded.public_id, previewUrl, previewUpdatedAt: new Date() },
+          select: { previewUrl: true, previewUpdatedAt: true },
+        });
+
+        previewUrl = updated.previewUrl ?? previewUrl ?? null;
+        previewUpdatedAt = updated.previewUpdatedAt ? new Date(updated.previewUpdatedAt).toISOString() : null;
+      } catch (e) {
+        console.warn("Preview upload failed:", (e as Error).message);
+      }
+    }
+
+    // ---- Map new data model → old response names
+    const ent = await getEntitlementSummary({ userId, guestId }, productId);
+    const purchased = await hasPurchased(productId, { userId, guestId });
+
+    // same rule your status route used:
+    const signedIn = !!userId;
+    const canExport = signedIn && purchased && ent.exportsLeft > 0;
+
+    return NextResponse.json({
+      ok: true,
+      // old simple response:
+      canExport,
+      exportsLeft: ent.exportsLeft,
+      purchased,
+      // newer extras (kept for compatibility):
+      designId: design.id,
+      previewUrl,
+      previewUpdatedAt,
+    });
+  } catch (e: any) {
+    if (e?.message === "UNAUTHENTICATED") {
+      return NextResponse.json({ error: "Please sign in" }, { status: 401 });
+    }
+    console.error("SAVE_ERROR", e);
+    return NextResponse.json({ error: "Save failed" }, { status: 500 });
+  }
+}
+
+// -------------------- GET: load saved design --------------------
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: productId } = await params;
   const { userId, guestId } = await getCustomerIdFromRequest(req);
 
-  let design = null as any;
+  let design:
+    | {
+        id: string;
+        style: any;
+        defs: string | null;
+        updatedAt: Date;
+        previewUrl: string | null;
+        previewUpdatedAt: Date | null;
+      }
+    | null = null;
 
   if (userId) {
     design = await prisma.userDesign.findUnique({
       where: { userId_productId: { userId, productId } },
-      select: {
-        style: true, defs: true, purchased: true, exportQuota: true, exportsUsed: true,
-        updatedAt: true, previewUrl: true, previewUpdatedAt: true, id: true,
-      },
+      select: { id: true, style: true, defs: true, updatedAt: true, previewUrl: true, previewUpdatedAt: true },
     });
   } else if (guestId) {
     design = await prisma.userDesign.findUnique({
       where: { guestId_productId: { guestId, productId } },
-      select: {
-        style: true, defs: true, purchased: true, exportQuota: true, exportsUsed: true,
-        updatedAt: true, previewUrl: true, previewUpdatedAt: true, id: true,
-      },
+      select: { id: true, style: true, defs: true, updatedAt: true, previewUrl: true, previewUpdatedAt: true },
     });
   }
 
   if (!design) return NextResponse.json({ found: false });
+
+  // Provide old meta fields using new tables (aggregated)
+  const ent = await getEntitlementSummary( { userId, guestId }, productId);
+  const purchased = await hasPurchased(productId, { userId, guestId });
 
   return NextResponse.json({
     found: true,
@@ -152,13 +239,14 @@ export async function GET(req: NextRequest, {params,
     style: design.style ?? {},
     defs: design.defs ?? "",
     previewUrl: design.previewUrl ?? null,
+    updatedAt: design.updatedAt,
+    previewUpdatedAt: design.previewUpdatedAt ?? null,
     meta: {
-      purchased: design.purchased,
-      exportQuota: design.exportQuota,
-      exportsUsed: design.exportsUsed,
-      exportsLeft: Math.max(0, (design.exportQuota ?? 0) - (design.exportsUsed ?? 0)),
+      purchased,
+      exportQuota: ent.exportQuota,
+      exportsUsed: ent.exportsUsed,
+      exportsLeft: ent.exportsLeft,
       updatedAt: design.updatedAt,
-      previewUpdatedAt: design.previewUpdatedAt ?? null,
     },
   });
 }

@@ -11,6 +11,7 @@ export default function ExportFormatBar({
   loading,     // kept for backwards compatibility (global busy)
   exportsLeft,
   purchased,
+  purchasedDigial,
   onExport,
 }: {
   formats: ExportFormat[];
@@ -18,6 +19,7 @@ export default function ExportFormatBar({
   exporting: boolean;
   loading: boolean;
   purchased: boolean;
+  purchasedDigial:boolean;
   exportsLeft: number;
   onExport: (fmt: ExportFormat) => void | Promise<void>; // 👈 allow async
 }) {
@@ -120,7 +122,7 @@ export default function ExportFormatBar({
               <button
                 key={fmt}
                 onClick={() => handleExport(fmt)}
-                disabled={disabled || !canExport}
+                disabled={disabled || !canExport || !purchasedDigial}
                 aria-busy={isActive}
                 className={[
                   'shrink-0 snap-start rounded-lg px-3 py-2 text-xs font-medium min-w-[72px] transition',

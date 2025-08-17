@@ -8,6 +8,7 @@ import {
   MaterialOption,
   CartSelectedItem,
 } from "@/types";
+import { getEffectiveSale } from "@/lib/pricing";
 
 type SizeOption = { label: string; multiplier: number };
 
@@ -31,10 +32,12 @@ export interface CheckoutProps {
   guestId: string | null;
   inCart: CartSelectedItem | undefined;
   addToCart: (
-    productId: string,
+   productId: string,
     digitalType: string | null,
     printType: string | null,
     price: number,
+        originalPrice:number,
+
     format: string,
     size: string,
     material: string,
@@ -100,6 +103,7 @@ export async function handleCheckout({
       options.digital ? "Digital" : null,
       options.print ? "Print" : null,
       Number(finalPrice),
+        Number(finalPrice),
       format,
       size.label,
       material?.label || "",
@@ -110,13 +114,26 @@ export async function handleCheckout({
   }
 
   const cartItemId = inCart?.cartItemId ?? created?.result?.cartItemId;
-
+   const saleStartsAt = product?.saleStartsAt
+    ? new Date(product.saleStartsAt as any)
+    : null;
+  const saleEndsAt = product?.saleEndsAt
+    ? new Date(product.saleEndsAt as any)
+    : null;
+  const saleInfo = getEffectiveSale({
+        price: Number(finalPrice),
+        salePrice: product .salePrice ?? null,
+        salePercent: product .salePercent ?? null,
+        saleStartsAt: saleStartsAt,
+        saleEndsAt:saleEndsAt,
+     
+      })
   const productItem = {
     quantity: 1,
     myProduct: {
       id: product.id,
       title: product.title,
-      price: finalPrice,
+      price: saleInfo.price,
       imageUrl: product.imageUrl,
       digital: options.digital
         ? { id: options.digitalVariantId || created?.result?.digitalVariantId, format }

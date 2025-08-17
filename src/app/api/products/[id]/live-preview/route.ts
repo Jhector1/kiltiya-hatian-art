@@ -1,29 +1,29 @@
-import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+// app/api/products/[id]/live-preview/route.ts
+import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
-import * as cheerio from "cheerio";
-import { sanitizeDefs, sanitizeSvg } from "@/lib/sanitizeSvg";
+import { prisma } from "@/lib/prisma";
+import { sanitizeSvg, sanitizeDefs } from "@/lib/sanitizeSvg";
 import { addStaticWatermarkFullWidth, finalizeSvgNamespacesAndHrefs } from "@/lib/getSvgDims";
+import * as cheerio from "cheerio";
 
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs"; // needed for fs access in lib
+export const runtime = "nodejs";
 
 type StylePayload = {
-  fillColor: string;            // "#fff" | "none" | "url(#...)"
-  fillOpacity?: number;         // 0..1
-  strokeColor: string;          // "#111" | "none" | "url(#...)"
-  strokeOpacity?: number;       // 0..1
+  fillColor: string;
+  fillOpacity?: number;
+  strokeColor: string;
+  strokeOpacity?: number;
   strokeWidth: number;
-  backgroundColor: string;      // "#fff" | "none" | "url(#...)"
-  backgroundOpacity?: number;   // 0..1
-  defs?: string;                // raw <defs> fragment (gradients/patterns/etc)
+  backgroundColor: string;
+  backgroundOpacity?: number;
+  defs?: string;
 };
 
 async function loadSvgContent(svgOrUrl: string): Promise<string> {
-  const trimmed = svgOrUrl.trim();
-  if (/^https?:\/\//i.test(trimmed)) {
-    const res = await fetch(trimmed);
+  const t = svgOrUrl.trim();
+  if (/^https?:\/\//i.test(t)) {
+    const res = await fetch(t);
     if (!res.ok) throw new Error("Failed to fetch remote SVG");
     return await res.text();
   }
@@ -31,56 +31,35 @@ async function loadSvgContent(svgOrUrl: string): Promise<string> {
 }
 
 async function svgToPngBuffer(svg: string): Promise<Buffer> {
-  const header = svg.trim().startsWith("<?xml")
-    ? ""
-    : '<?xml version="1.0" encoding="UTF-8"?>\n';
+  const header = svg.trim().startsWith("<?xml") ? "" : '<?xml version="1.0" encoding="UTF-8"?>\n';
   const svgString = header + svg;
   return await sharp(Buffer.from(svgString, "utf8"), { density: 96 })
     .png({ quality: 80 })
     .toBuffer();
 }
 
-/* -------------------- GET: initial PNG preview -------------------- */
-export async function GET(
-  _request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const { id } = await context.params;
+/* -------------------- GET: initial watermarked PNG -------------------- */
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
 
   const product = await prisma.product.findUnique({
     where: { id },
     select: { svgFormat: true },
   });
-  if (!product?.svgFormat) {
-    return NextResponse.json({ error: "SVG not found" }, { status: 404 });
-  }
+  if (!product?.svgFormat) return NextResponse.json({ error: "SVG not found" }, { status: 404 });
 
   try {
-    const rawSvg = await loadSvgContent(product.svgFormat);
+    const raw = await loadSvgContent(product.svgFormat);
+    const clean = sanitizeSvg(raw);
 
-    // 1) sanitize base art
-    const clean = sanitizeSvg(rawSvg);
-
-    // 2) add full-width watermark (from public/watermark.svg or env URL)
     let withWm = clean;
     try {
-      withWm = await addStaticWatermarkFullWidth(clean, {
-        position: "bottom",
-        margin: 24,
-        opacity: 0.12,
-      });
-    } catch (e) {
-      console.warn("WM skipped:", (e as Error).message);
-    }
+      withWm = await addStaticWatermarkFullWidth(clean, { position: "bottom", margin: 24, opacity: 0.12 });
+    } catch {}
 
-    // 3) finalize namespaces/hrefs
     const finalSvg = finalizeSvgNamespacesAndHrefs(withWm);
-
-    // optional: debug
-    // console.debug("WM_PRESENT", finalSvg.includes('data-watermark="true"'));
-
-    // 4) rasterize
     const buffer = await svgToPngBuffer(finalSvg);
+
     return new NextResponse(buffer, {
       status: 200,
       headers: { "Content-Type": "image/png", "Cache-Control": "no-store" },
@@ -91,16 +70,14 @@ export async function GET(
   }
 }
 
-/* -------------------- POST: styled live preview -------------------- */
-export async function POST(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const { id } = await context.params;
+/* -------------------- POST: styled live preview (expects plain StylePayload) -------------------- */
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
 
-  let payload: StylePayload;
+  let payload = {} as StylePayload;
   try {
-    payload = await request.json();
+    // EXACTLY what the old frontend sends: the StylePayload object itself
+    payload = (await request.json()) as StylePayload;
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -114,100 +91,82 @@ export async function POST(
   }
 
   try {
-    const rawSvg = await loadSvgContent(product.svgFormat);
+    const raw = await loadSvgContent(product.svgFormat);
+    const clean = sanitizeSvg(raw);
 
-    // sanitize base art (keeps structure)
-    const clean = sanitizeSvg(rawSvg);
     const $ = cheerio.load(clean, { xmlMode: true });
     const $svg = $("svg").first();
 
-    // namespaces for in-doc operations
+    // namespaces
     if (!$svg.attr("xmlns")) $svg.attr("xmlns", "http://www.w3.org/2000/svg");
     if (!$svg.attr("xmlns:xlink")) $svg.attr("xmlns:xlink", "http://www.w3.org/1999/xlink");
 
-    // inject sanitized <defs> from client
-    let $defs = $("svg > defs").first();
+    // inject sanitized <defs>
     if (payload.defs && payload.defs.trim()) {
-      const defsClean = sanitizeDefs(payload.defs);
+      let $defs = $("svg > defs").first();
       if (!$defs.length) {
         $svg.prepend("<defs/>");
         $defs = $("svg > defs").first();
       }
-      const defsFrag = cheerio.load(defsClean, { xmlMode: true });
-      $defs.append(
-        defsFrag("defs").length
-          ? defsFrag("defs").children()
-          : defsFrag.root().children()
-      );
+      const defsClean = sanitizeDefs(payload.defs);
+      const frag = cheerio.load(defsClean, { xmlMode: true });
+      $defs.append(frag("defs").length ? frag("defs").children() : frag.root().children());
     }
 
-    // background management (supports "none" + opacity)
+    // background rect
+    const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
     const wantsTransparentBg =
       payload.backgroundColor === "none" ||
       (payload.backgroundOpacity != null && payload.backgroundOpacity <= 0);
 
-    const $existingBg = $('svg [data-bg="true"]').first();
-
-    const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-
+    const $bg = $('svg [data-bg="true"]').first();
     if (wantsTransparentBg) {
-      if ($existingBg.length) $existingBg.remove();
+      if ($bg.length) $bg.remove();
     } else {
-      const bgAlpha =
-        payload.backgroundOpacity != null ? clamp01(payload.backgroundOpacity) : undefined;
-
-      if ($existingBg.length) {
-        $existingBg.attr("fill", payload.backgroundColor);
-        if (bgAlpha != null) $existingBg.attr("fill-opacity", String(bgAlpha));
-        else $existingBg.removeAttr("fill-opacity");
+      const attrs: Record<string, string> = {
+        "data-bg": "true",
+        x: "0",
+        y: "0",
+        width: "100%",
+        height: "100%",
+        fill: payload.backgroundColor,
+      };
+      if (payload.backgroundOpacity != null) {
+        attrs["fill-opacity"] = String(clamp01(payload.backgroundOpacity));
+      }
+      if ($bg.length) {
+        Object.entries(attrs).forEach(([k, v]) => $bg.attr(k, v));
+        if (payload.backgroundOpacity == null) $bg.removeAttr("fill-opacity");
       } else {
-        const attrs = [
-          `data-bg="true"`,
-          `x="0"`, `y="0"`,
-          `width="100%"`, `height="100%"`,
-          `fill="${payload.backgroundColor}"`,
-          ...(bgAlpha != null ? [`fill-opacity="${bgAlpha}"`] : []),
-        ].join(" ");
-        const rect = `<rect ${attrs}/>`;
+        const rect = `<rect ${Object.entries(attrs).map(([k, v]) => `${k}="${v}"`).join(" ")} />`;
         const $defsNow = $("svg > defs").first();
         if ($defsNow.length) $defsNow.after(rect);
         else $svg.prepend(rect);
       }
     }
 
-    // apply fill/stroke + per-paint opacity (skip bg rect)
-    $svg
-      .find("path, circle, ellipse, polygon, polyline, line, rect:not([data-bg])")
-      .each((_, el) => {
-        const $el = $(el);
-        $el.attr("fill", payload.fillColor);
-        $el.attr("stroke", payload.strokeColor);
-        $el.attr("stroke-width", String(payload.strokeWidth));
+    // fills/strokes (skip bg rect)
+    $svg.find("path, circle, ellipse, polygon, polyline, line, rect:not([data-bg])").each((_, el) => {
+      const $el = $(el);
+      $el.attr("fill", payload.fillColor);
+      $el.attr("stroke", payload.strokeColor);
+      $el.attr("stroke-width", String(payload.strokeWidth));
 
-        if (payload.fillOpacity != null) $el.attr("fill-opacity", String(clamp01(payload.fillOpacity)));
-        else $el.removeAttr("fill-opacity");
+      if (payload.fillOpacity != null) $el.attr("fill-opacity", String(clamp01(payload.fillOpacity)));
+      else $el.removeAttr("fill-opacity");
 
-        if (payload.strokeOpacity != null) $el.attr("stroke-opacity", String(clamp01(payload.strokeOpacity)));
-        else $el.removeAttr("stroke-opacity");
-      });
+      if (payload.strokeOpacity != null) $el.attr("stroke-opacity", String(clamp01(payload.strokeOpacity)));
+      else $el.removeAttr("stroke-opacity");
+    });
 
-    // watermark last (full width)
+    // watermark + finalize
     let finalSvg = $.xml();
     try {
-      finalSvg = await addStaticWatermarkFullWidth(finalSvg, {
-        position: "bottom",
-        margin: 24,
-        opacity: 0.12,
-      });
-    } catch (e) {
-      console.warn("WM skipped:", (e as Error).message);
-    }
-
-    // finalize + rasterize
+      finalSvg = await addStaticWatermarkFullWidth(finalSvg, { position: "bottom", margin: 24, opacity: 0.12 });
+    } catch {}
     finalSvg = finalizeSvgNamespacesAndHrefs(finalSvg);
-    // console.debug("WM_PRESENT", finalSvg.includes('data-watermark="true"'));
-    const buffer = await svgToPngBuffer(finalSvg);
 
+    const buffer = await svgToPngBuffer(finalSvg);
     return new NextResponse(buffer, {
       status: 200,
       headers: { "Content-Type": "image/png", "Cache-Control": "no-store" },

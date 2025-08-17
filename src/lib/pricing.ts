@@ -1,0 +1,111 @@
+import { allFrames, allLicenses, allMaterials, allSizes } from "@/data/helpers";
+
+// lib/pricing.ts
+export type SaleFields = {
+  price: number;
+  salePrice?: number | null;
+  salePercent?: number | null;
+  saleStartsAt?: Date | null;
+  saleEndsAt?: Date | null;
+};
+
+export function getEffectiveSale(p: SaleFields, now = new Date()) {
+  const active =
+    (!p.saleStartsAt || p.saleStartsAt <= now) &&
+    (!p.saleEndsAt || p.saleEndsAt > now);
+
+  if (!active)
+    return {
+      price: p.price,
+      compareAt: null as number | null,
+      onSale: false,
+      endsAt: null as Date | null,
+    };
+
+  // salePrice wins if present; otherwise compute by percent
+  if (p.salePrice != null) {
+    const price = Math.max(0, +p.salePrice.toFixed(2));
+    return {
+      price,
+      compareAt: p.price,
+      onSale: price < p.price,
+      endsAt: p.saleEndsAt ?? null,
+    };
+  }
+
+  if (p.salePercent != null) {
+    const price = Math.max(
+      0,
+      +(p.price * (1 - p.salePercent / 100)).toFixed(2)
+    );
+    return {
+      price,
+      compareAt: price < p.price ? p.price : null,
+      onSale: price < p.price,
+      endsAt: p.saleEndsAt ?? null,
+    };
+  }
+
+  return { price: p.price, compareAt: null, onSale: false, endsAt: null };
+}
+
+/**
+ * Compute your *base* unit price from selection (before sale).
+ * Replace the multipliers with your real logic or import from your data.
+ */
+// src/lib/pricing.ts (or same file you’re editing)
+// import { allMaterials, allFrames, allLicenses, allSizes } from "@/pricing/tables";
+
+const round2 = (n: number) => Math.max(0, Math.round(n * 100) / 100);
+
+export function computeBaseUnit(args: {
+  productBase: number; // product.price
+  format?: string | null;
+  size?: string | null;
+  material?: string | null;
+  frame?: string | null;
+  license?: string | null;
+  digital?: any; // truthy when a digital variant is selected
+  print?: any;   // truthy when a print variant is selected
+}): number {
+  const {
+    productBase,
+    format = null,
+    size = null,
+    material = null,
+    frame = null,
+    license = null,
+    digital = null,
+    print = null,
+  } = args;
+
+  const isDigital = !!digital;
+  const isPrint = !!print;
+
+  // fixed add-on for license (adjust to your business rules)
+  const licenseAdd = allLicenses.find((l) => l.type === license)?.price ?? 0;
+
+  // PRINT multipliers (fallbacks are neutral)
+  const sizeMult = allSizes.find((s) => s.label === size)?.multiplier ?? 1;
+  const materialMult =
+    allMaterials.find((m) => m.label === material)?.multiplier ?? 1;
+  const frameMult = allFrames.find((f) => f.label === frame)?.multiplier ?? 1;
+  const formatMult = 1; // plug in a real lookup if you price per format
+
+  // Digital price (base + license add-on)
+  let digitalPrice = 0;
+  if (isDigital) {
+    digitalPrice = productBase + licenseAdd;
+  }
+
+  // Print price (multiplicative model)
+  let printPrice = 0;
+  if (isPrint) {
+    printPrice =
+      productBase * sizeMult * materialMult * frameMult * formatMult;
+  }
+
+  const total = digitalPrice + printPrice;
+  return round2(Number.isFinite(total) ? total : 0);
+}
+

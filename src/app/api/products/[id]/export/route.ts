@@ -1,11 +1,19 @@
+// src/app/api/products/[id]/export/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import { sanitizeDefs, sanitizeSvg } from "@/lib/sanitizeSvg";
 import { getCustomerIdFromRequest } from "@/utils/guest";
+import {
+  getEntitlementSummary,
+  getPurchasedFlag,
+  consumeOneExportCredit,
+} from "@/helpers/stripe/webhook/entitlements";
+import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 // ---------- helpers ----------
 async function loadSvgContent(svgOrUrl: string): Promise<string> {
@@ -133,7 +141,7 @@ async function rasterize(
   if (size?.width || size?.height) {
     img = img.resize(size.width, size.height, {
       fit: "contain",
-      position: "centre", // sharp supports "centre"/"center"
+      position: "centre",
       background: isSolid ? canvasBg! : "#0000",
     });
   }
@@ -210,26 +218,25 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // you must await params before using it
-    const { id } = await params;
+    const { id: productId } = await params;
 
-    // auth + export gate
+    // Require signed-in user (old behavior)
     const { userId } = await getCustomerIdFromRequest(req);
     if (!userId) {
       return NextResponse.json({ error: "Please sign in to export." }, { status: 401 });
     }
 
-    const body = await req.json();
+    // Parse body with safe defaults
+    const body = await req.json().catch(() => ({} as any));
     const {
       style,
       format = "png",
       width,
       height,
-      filename = `art-${id}-${Date.now()}.${format}`,
+      filename = `art-${productId}-${Date.now()}.${format}`,
       includeWatermark = true,
       scale,
       print,
-      // saveToLibrary // removed: no Cloudinary anymore
     }: {
       style: {
         fillColor: string;
@@ -241,7 +248,7 @@ export async function POST(
         backgroundOpacity?: number;
         defs?: string;
       };
-      format: "png" | "jpg" | "webp" | "tiff" | "svg";
+      format?: "png" | "jpg" | "jpeg" | "webp" | "tiff" | "svg";
       width?: number;
       height?: number;
       filename?: string;
@@ -250,70 +257,83 @@ export async function POST(
       print?: { unit: "in" | "mm"; width: number; height: number; dpi: number };
     } = body;
 
-    // check quota for this user+product
-    const design = await prisma.userDesign.findUnique({
-      where: { userId_productId: { userId, productId: id } },
-      select: { purchased: true, exportQuota: true, exportsUsed: true },
-    });
-    if (!design?.purchased) {
-      return NextResponse.json({ error: "Purchase required to export." }, { status: 403 });
-    }
-    if (design.exportsUsed >= design.exportQuota) {
-      return NextResponse.json({ error: "Export quota exceeded." }, { status: 403 });
+    if (!style) {
+      return NextResponse.json({ error: "Missing style" }, { status: 400 });
     }
 
-    // load + style svg
+    // Gate: must have purchased AND credits left
+    const who = { userId, guestId: null };
+    const purchased = await getPurchasedFlag(who, productId);
+    if (!purchased) {
+      return NextResponse.json({ error: "Purchase required to export." }, { status: 403 });
+    }
+
+    const summary = await getEntitlementSummary(who, productId);
+    if (summary.exportsLeft <= 0) {
+      return NextResponse.json({ error: "Export quota exhausted." }, { status: 403 });
+    }
+
+    // Load product SVG
     const product = await prisma.product.findUnique({
-      where: { id },
+      where: { id: productId },
       select: { svgFormat: true },
     });
     if (!product?.svgFormat) {
       return NextResponse.json({ error: "SVG not found" }, { status: 404 });
     }
 
+    // Style it
     const raw = await loadSvgContent(product.svgFormat);
     const styled = applyStyles(raw, { ...style, includeWatermark });
 
-    // SVG branch (no storage; return file; count usage)
-    if (format === "svg") {
-      // increment quota BEFORE returning
-      await prisma.userDesign.update({
-        where: { userId_productId: { userId, productId: id } },
-        data: { exportsUsed: { increment: 1 } },
-      });
+    // Render (do heavy work before consuming credit; use idempotency for safety)
+    let bodyBuf: Buffer | string;
+    let contentType: string;
 
-      return new NextResponse(styled, {
-        status: 200,
-        headers: {
-          "Content-Type": "image/svg+xml",
-          "Content-Disposition": `attachment; filename="${filename}"`,
-          "Cache-Control": "no-store",
-        },
-      });
+    const fmt = (format === "jpeg" ? "jpg" : format) as "png" | "jpg" | "webp" | "tiff" | "svg";
+
+    if (fmt === "svg") {
+      bodyBuf = styled;
+      contentType = "image/svg+xml";
+    } else {
+      const { width: frameW, height: frameH } = resolveTargetSize(styled, { width, height, scale, print });
+
+      const isSolidBg =
+        style.backgroundColor &&
+        style.backgroundColor !== "none" &&
+        !/^url\(/.test(style.backgroundColor);
+
+      const canvasBgForRaster = isSolidBg ? style.backgroundColor : undefined;
+      bodyBuf = await rasterize(styled, fmt as Exclude<typeof fmt, "svg">, { width: frameW, height: frameH }, canvasBgForRaster);
+      contentType = formatToMime(fmt);
     }
 
-    // Raster path
-    const { width: frameW, height: frameH } = resolveTargetSize(styled, { width, height, scale, print });
-
-    const isSolidBg =
-      style.backgroundColor &&
-      style.backgroundColor !== "none" &&
-      !/^url\(/.test(style.backgroundColor);
-
-    const canvasBgForRaster = isSolidBg ? style.backgroundColor : undefined;
-
-    const buf = await rasterize(styled, format, { width: frameW, height: frameH }, canvasBgForRaster);
-
-    // increment quota BEFORE returning
-    await prisma.userDesign.update({
-      where: { userId_productId: { userId, productId: id } },
-      data: { exportsUsed: { increment: 1 } },
+    // Atomically consume 1 credit (idempotent)
+    const idempotencyKey = req.headers.get("x-idempotency-key") ?? `export:${userId}:${productId}:${randomUUID()}`;
+    const consumed = await consumeOneExportCredit({
+      who,
+      productId,
+      userDesignId: undefined,
+      purchasedDesignId: undefined,
+      idempotencyKey,
+      meta: {
+        format: fmt,
+        width: typeof width === "number" ? width : null,
+        height: typeof height === "number" ? height : null,
+        extra: { scale: typeof scale === "number" ? scale : undefined, print: print ?? undefined },
+      },
     });
 
-    return new NextResponse(buf, {
+    if (!consumed.ok && !("already" in consumed)) {
+      // If idempotency said "already", let it pass; otherwise block
+      return NextResponse.json({ error: "Export quota exhausted." }, { status: 403 });
+    }
+
+    // Return file
+    return new NextResponse(bodyBuf as any, {
       status: 200,
       headers: {
-        "Content-Type": formatToMime(format),
+        "Content-Type": contentType,
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-store",
       },
