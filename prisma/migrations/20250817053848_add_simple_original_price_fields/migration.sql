@@ -12,6 +12,6 @@ UPDATE "public"."CartItem"
 SET "originalPrice" = 0
 WHERE "originalPrice" IS NULL;
 
--- 4) Enforce NOT NULL
+-- 4) nEnforce NOT NULL
 ALTER TABLE "public"."CartItem"
   ALTER COLUMN "originalPrice" SET NOT NULL;
