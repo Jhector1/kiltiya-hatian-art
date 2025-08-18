@@ -100,7 +100,7 @@ export async function handleCheckout({
   if (!inCart) {
     created = await addToCart(
       product.id,
-      options.digital ? "Digital" : null,
+       "Digital" ,
       options.print ? "Print" : null,
       Number(finalPrice),
         Number(finalPrice),

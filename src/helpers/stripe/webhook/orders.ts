@@ -42,11 +42,15 @@ export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
       if (!c.productId) continue;
 
       const type: VariantType =
-        c.variantType === "DIGITAL" ? VariantType.DIGITAL :
-        c.variantType === "PRINT"   ? VariantType.PRINT   :
-        c.digitalVariantId ? VariantType.DIGITAL :
-        c.printVariantId   ? VariantType.PRINT   :
-        VariantType.DIGITAL;
+        c.variantType === "DIGITAL"
+          ? VariantType.DIGITAL
+          : c.variantType === "PRINT"
+          ? VariantType.PRINT
+          : c.digitalVariantId
+          ? VariantType.DIGITAL
+          : c.printVariantId
+          ? VariantType.PRINT
+          : VariantType.PRINT; // 👈 safer default
 
       const orderItem = await tx.orderItem.create({
         data: {
@@ -77,8 +81,12 @@ export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
         design = await tx.userDesign.findUnique({
           where: { id: explicitDesignId },
           select: {
-            id: true, style: true, defs: true,
-            previewUrl: true, previewPublicId: true, productId: true,
+            id: true,
+            style: true,
+            defs: true,
+            previewUrl: true,
+            previewPublicId: true,
+            productId: true,
           },
         });
       }
@@ -89,8 +97,12 @@ export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
             : { guestId: guestId!, productId: c.productId },
           orderBy: { updatedAt: "desc" },
           select: {
-            id: true, style: true, defs: true,
-            previewUrl: true, previewPublicId: true, productId: true,
+            id: true,
+            style: true,
+            defs: true,
+            previewUrl: true,
+            previewPublicId: true,
+            productId: true,
           },
         });
         if (fallback) design = fallback as any;
@@ -140,12 +152,18 @@ export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
         try {
           await tx.orderItem.update({
             where: { id: orderItem.id },
-            data: { previewUrlSnapshot: purchasePreviewUrl ?? design.previewUrl ?? null },
+            data: {
+              previewUrlSnapshot:
+                purchasePreviewUrl ?? design.previewUrl ?? null,
+            },
           });
         } catch {}
       }
 
       // ---- Grant export/edit entitlements for this purchase
+
+      const isDigital = type === VariantType.DIGITAL;
+
       await tx.designEntitlement.create({
         data: {
           userId: userId ?? undefined,
@@ -156,7 +174,7 @@ export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
           source: EntitlementSource.PURCHASE,
           orderId: order.id,
           orderItemId: orderItem.id,
-          exportQuota: PURCHASE_EXPORT_CREDITS, // used to be set on UserDesign
+          exportQuota: isDigital ? PURCHASE_EXPORT_CREDITS : 0,
           editQuota: 0,
           exportsUsed: 0,
           editsUsed: 0,
@@ -167,18 +185,23 @@ export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
 
     // Clear purchased cart items
     if (purchasedCartItemIds.length) {
-      await tx.cartItem.deleteMany({ where: { id: { in: purchasedCartItemIds } } });
+      await tx.cartItem.deleteMany({
+        where: { id: { in: purchasedCartItemIds } },
+      });
     }
 
     // Create download tokens for DIGITAL items
     const digitalItems = await tx.orderItem.findMany({
       where: { orderId: order.id, type: "DIGITAL" },
-      include: { product: { include: { assets: true } }, digitalVariant: { select: { license: true } } },
+      include: {
+        product: { include: { assets: true } },
+        digitalVariant: { select: { license: true } },
+      },
     });
 
     const now = Date.now();
     const guestExpiryMs = 7 * 24 * 60 * 60 * 1000;
-    const userExpiryMs  = 365 * 24 * 60 * 60 * 1000;
+    const userExpiryMs = 365 * 24 * 60 * 60 * 1000;
     const expiresAt = new Date(now + (userId ? userExpiryMs : guestExpiryMs));
 
     for (const item of digitalItems) {

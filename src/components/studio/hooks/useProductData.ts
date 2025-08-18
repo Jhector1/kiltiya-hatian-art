@@ -16,7 +16,7 @@ export function useProductData({ productId }: { productId: string }) {
     null
   );
   const [options, setOptions] = useState<AddOptions>({
-    digital: false,
+    digital: true,
     print: false,
     digitalVariantId: "",
     printVariantId: "",
@@ -40,7 +40,7 @@ export function useProductData({ productId }: { productId: string }) {
         );
 
         setOptions({
-          digital: !!digitalVariant,
+          digital: true,
           print: !!printVariant,
           digitalVariantId: digitalVariant?.id || "",
           printVariantId: printVariant?.id || "",
@@ -197,7 +197,7 @@ const handleCheckoutAction = async (opts?: {
     size,
     material,
     frame,
-    { ...options, digital: wantDigital, print: wantPrint },
+    { ...options, digital: true, print: wantPrint },
     customSize,
     isCustom,
     license
@@ -211,7 +211,7 @@ const handleCheckoutAction = async (opts?: {
   useEffect(() => {
     if (!product) return;
 
-    setWantDigital(Boolean(options.digital));
+    setWantDigital(true);
     setWantPrint(Boolean(options.print));
 
     const dig = product.variants?.find(

@@ -6,9 +6,9 @@ import Image from "next/image";
 import type { LicenseOption } from "@/types";
 
 const ICON_SRC: Record<string, string> = {
-  personal:   "/icons/license-icons/personal.png",   // house + heart
-  commercial: "/icons/license-icons/commercial.png", // briefcase + check
-  extended:   "/icons/license-icons/extended.png",   // crown + star
+  personal:   "/license-icons/personal.png",   // house + heart
+  commercial: "/license-icons/commercial.png", // briefcase + check
+  extended:   "/license-icons/extended.png",   // crown + star
 };
 
 export default function LicenseSelectorCore({

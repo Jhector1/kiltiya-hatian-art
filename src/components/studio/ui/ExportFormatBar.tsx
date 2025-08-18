@@ -11,7 +11,7 @@ export default function ExportFormatBar({
   loading,     // kept for backwards compatibility (global busy)
   exportsLeft,
   purchased,
-  purchasedDigial,
+  purchasedDigital,
   onExport,
 }: {
   formats: ExportFormat[];
@@ -19,7 +19,7 @@ export default function ExportFormatBar({
   exporting: boolean;
   loading: boolean;
   purchased: boolean;
-  purchasedDigial:boolean;
+  purchasedDigital:boolean;
   exportsLeft: number;
   onExport: (fmt: ExportFormat) => void | Promise<void>; // 👈 allow async
 }) {
@@ -87,7 +87,7 @@ export default function ExportFormatBar({
   };
 
   const globallyDisabled = !canExport || exporting || loading || localBusy;
-
+// alert(purchasedDigital)
   return (
     <div className="relative w-full sm:w-auto rounded-xl ring-1 ring-black/10 bg-white">
       <div className="flex items-center justify-between gap-2 px-3 py-2">
@@ -122,11 +122,11 @@ export default function ExportFormatBar({
               <button
                 key={fmt}
                 onClick={() => handleExport(fmt)}
-                disabled={disabled || !canExport || !purchasedDigial}
+                disabled={disabled || !canExport || !purchasedDigital}
                 aria-busy={isActive}
                 className={[
                   'shrink-0 snap-start rounded-lg px-3 py-2 text-xs font-medium min-w-[72px] transition',
-                  !canExport || disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-50',
+                  !canExport || disabled||!purchasedDigital ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-50',
                   isActive ? 'ring-2 ring-emerald-300 bg-emerald-50' : 'ring-1 ring-black/5',
                 ].join(' ')}
                 title={canExport ? `Export as ${fmt.toUpperCase()}` : 'Export blocked'}

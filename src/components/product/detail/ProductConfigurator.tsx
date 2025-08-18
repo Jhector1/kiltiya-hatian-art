@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import PurchaseOptionsCore from "@/components/shared/core/PurchaseOptionsCore";
@@ -168,6 +168,11 @@ const availableSizes = (() => {
     setOptions: formatData.setOptions,
   });
 
+  // hard guard: never allow it to be false
+useEffect(() => {
+  if (!selection.wantDigital) selection.setWantDigital(true); // 👈 force back on
+}, [selection.wantDigital, selection.setWantDigital]);
+
  const baseTotal = (() => {
     const n =
       typeof finalPrice === "string" ? parseFloat(finalPrice) : finalPrice;
@@ -197,15 +202,17 @@ const availableSizes = (() => {
           onSale: false,
           endsAt: null as Date | null,
         };
+        const forceDigitalOn = () => selection.setWantDigital(true);
+
   return (
     <>
       <SaleAndCountdown {...saleInfo}/>
       <PurchaseOptionsCore
-        digitalChecked={selection.wantDigital}
+  digitalChecked={true}                  // 👈 always true
         printChecked={selection.wantPrint}
         digitalPrice={ctrl.digitalPriceStr}
         printPrice={ctrl.printPriceStr}
-        onToggleDigital={ctrl.handleToggleDigital}
+        onToggleDigital={forceDigitalOn}
         onTogglePrint={ctrl.handleTogglePrint}
       />
 

@@ -150,7 +150,7 @@ export function useUnifiedPurchaseFlow(opts: {
   ]);
 
   const finalPrice = useMemo(
-    () => (wantDigital ? digitalPrice : 0) + (wantPrint ? printPrice : 0),
+    () =>  digitalPrice + (wantPrint ? printPrice : 0),
     [wantDigital, wantPrint, digitalPrice, printPrice]
   );
 

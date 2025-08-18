@@ -144,7 +144,7 @@ export default function EditorHeaderBar({
         )}
         {/* </div> */}
         <ExportFormatBar
-        purchasedDigial={purchasedDigital}
+        purchasedDigital={purchasedDigital}
           purchased={purchased}
           formats={["png", "jpg", "webp", "tiff", "svg"]}
           canExport={canExport}

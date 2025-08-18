@@ -37,10 +37,13 @@ export async function POST(request: Request) {
     const description = formData.get("description")?.toString().trim() || "";
     const price = parseFloat(formData.get("price")?.toString() || "0");
     const mainFile = formData.get("main");
-    const svgFile  = formData.get("svg");
+    const svgFile = formData.get("svg");
 
     if (!categoryName || !mainFile || !(mainFile instanceof File)) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
     }
 
     const safeCategory = slugify(categoryName, { lower: true, strict: true });
@@ -67,7 +70,9 @@ export async function POST(request: Request) {
     });
 
     // 2) THUMBNAILS
-    const thumbFiles = formData.getAll("thumbnails").filter((f): f is File => f instanceof File);
+    const thumbFiles = formData
+      .getAll("thumbnails")
+      .filter((f): f is File => f instanceof File);
     const thumbRes = await Promise.all(
       thumbFiles.map(async (file) => {
         const uri = await fileToDataUri(file);
@@ -109,7 +114,9 @@ export async function POST(request: Request) {
     }
 
     // 4) OTHER FORMATS
-    const formatFiles = formData.getAll("formats").filter((f): f is File => f instanceof File);
+    const formatFiles = formData
+      .getAll("formats")
+      .filter((f): f is File => f instanceof File);
     const otherFormats = formatFiles.filter((f) => f.type !== "image/svg+xml");
 
     type Uploaded = {
@@ -137,7 +144,10 @@ export async function POST(request: Request) {
     );
 
     // sizes
-    const sizes = formData.getAll("sizes").map((s) => s.toString()).filter(Boolean);
+    const sizes = formData
+      .getAll("sizes")
+      .map((s) => s.toString())
+      .filter(Boolean);
 
     // 5) Category upsert
     const category = await db.category.upsert({
@@ -149,7 +159,9 @@ export async function POST(request: Request) {
     // 6) Create Product (keep legacy arrays for back-compat)
     const product = await db.product.create({
       data: {
-        title, description, price,
+        title,
+        description,
+        price,
         publicId: mainRes.public_id,
         thumbnails: [mainRes.secure_url, ...thumbRes.map((r) => r.secure_url)],
         formats: formatUploads.map((u) => u.secure_url),
@@ -165,23 +177,22 @@ export async function POST(request: Request) {
 
     await db.$transaction(async (tx) => {
       // SVG deliverable
-      if (rawSvg) {
-        await upsertProductAsset(tx, {
-          productId: product.id,
-          url: rawSvg.secure_url,
-          storageKey: rawSvg.public_id,
-          previewUrl: preview,
-          ext: "svg",
-          mimeType: "image/svg+xml",
-          isVector: true,
-          sizeBytes: rawSvg.bytes ?? undefined,
+      // if (rawSvg) {
+      //   await upsertProductAsset(tx, {
+      //     productId: product.id,
+      //     url: rawSvg.secure_url,
+      //     storageKey: rawSvg.public_id,
+      //     previewUrl: preview,
+      //     ext: "svg",
+      //     mimeType: "image/svg+xml",
+      //     isVector: true,
+      //     sizeBytes: rawSvg.bytes ?? undefined,
 
-              // NEW ↓↓↓
-    resourceType: rawSvg.resource_type as "raw" | "image" | "video",
-    deliveryType: rawSvg.type as "upload" | "authenticated" | "private",
- 
-        });
-      }
+      //     // NEW ↓↓↓
+      //     resourceType: rawSvg.resource_type as "raw" | "image" | "video",
+      //     deliveryType: rawSvg.type as "upload" | "authenticated" | "private",
+      //   });
+      // }
 
       // Other deliverables
       for (const up of formatUploads) {
@@ -198,11 +209,12 @@ export async function POST(request: Request) {
           width: up.width ?? undefined,
           height: up.height ?? undefined,
 
-
-              // NEW ↓↓↓
-    resourceType: up.resource_type as "raw" | "image" | "video",
-    deliveryType: (up as any).type as "upload" | "authenticated" | "private",
- 
+          // NEW ↓↓↓
+          resourceType: up.resource_type as "raw" | "image" | "video",
+          deliveryType: (up as any).type as
+            | "upload"
+            | "authenticated"
+            | "private",
         });
       }
     });
@@ -211,6 +223,9 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("POST /api/products/upload error:", err);
     const message = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: "General Error", details: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "General Error", details: message },
+      { status: 500 }
+    );
   }
 }

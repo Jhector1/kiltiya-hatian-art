@@ -173,42 +173,76 @@ function getBaseSizeFromSvg(styledSvg: string) {
   return { w: 1024, h: 1024 };
 }
 
+
 function clampToBounds(w: number, h: number) {
-  let W = Math.min(w, MAX_SIDE);
-  let H = Math.min(h, MAX_SIDE);
+  // Preserve aspect while clamping
+  let W = w;
+  let H = h;
+
+  // 1) Cap by max side, proportionally
+  if (W > MAX_SIDE || H > MAX_SIDE) {
+    const s = Math.min(MAX_SIDE / W, MAX_SIDE / H);
+    W = Math.max(1, Math.floor(W * s));
+    H = Math.max(1, Math.floor(H * s));
+  }
+
+  // 2) Cap by total pixels, proportionally
   if (W * H > MAX_PIXELS) {
-    const scale = Math.sqrt(MAX_PIXELS / (W * H));
-    W = Math.max(1, Math.floor(W * scale));
-    H = Math.max(1, Math.floor(H * scale));
+    const s = Math.sqrt(MAX_PIXELS / (W * H));
+    W = Math.max(1, Math.floor(W * s));
+    H = Math.max(1, Math.floor(H * s));
   }
   return { width: W, height: H };
 }
 
 function resolveTargetSize(
   styledSvg: string,
-  opts: { width?: number; height?: number; scale?: number; print?: { unit: "in" | "mm"; width: number; height: number; dpi: number } }
+  opts: {
+    width?: number;
+    height?: number;
+    scale?: number;
+    print?: { unit: "in" | "mm"; width: number; height: number; dpi: number };
+  }
 ) {
-  const base = getBaseSizeFromSvg(styledSvg);
+  const base = getBaseSizeFromSvg(styledSvg); // { w, h }
+  const aspect = base.w / base.h;
 
-  if (opts.width || opts.height) {
-    const width  = opts.width  ? Math.max(1, Math.floor(opts.width))  : undefined;
-    const height = opts.height ? Math.max(1, Math.floor(opts.height)) : undefined;
-    return clampToBounds(width ?? base.w, height ?? base.h);
+  // Explicit width/height handling
+  const hasW = typeof opts.width === "number" && opts.width > 0;
+  const hasH = typeof opts.height === "number" && opts.height > 0;
+
+  if (hasW && !hasH) {
+    const W = Math.max(1, Math.floor(opts.width!));
+    const H = Math.max(1, Math.round(W / aspect));
+    return clampToBounds(W, H);
+  }
+  if (!hasW && hasH) {
+    const H = Math.max(1, Math.floor(opts.height!));
+    const W = Math.max(1, Math.round(H * aspect));
+    return clampToBounds(W, H);
+  }
+  if (hasW && hasH) {
+    const W = Math.max(1, Math.floor(opts.width!));
+    const H = Math.max(1, Math.floor(opts.height!));
+    return clampToBounds(W, H);
   }
 
+  // Print target in px
   if (opts.print) {
     const toIn = (v: number) => (opts.print!.unit === "mm" ? v / 25.4 : v);
-    const wPx = Math.round(toIn(opts.print.width)  * opts.print.dpi);
-    const hPx = Math.round(toIn(opts.print.height) * opts.print.dpi);
-    return clampToBounds(wPx, hPx);
+    const W = Math.round(toIn(opts.print.width) * opts.print.dpi);
+    const H = Math.round(toIn(opts.print.height) * opts.print.dpi);
+    return clampToBounds(W, H);
   }
 
+  // Scale factor from base
   if (opts.scale && opts.scale > 0) {
-    const wPx = Math.round(base.w * opts.scale);
-    const hPx = Math.round(base.h * opts.scale);
-    return clampToBounds(wPx, hPx);
+    const W = Math.round(base.w * opts.scale);
+    const H = Math.round(base.h * opts.scale);
+    return clampToBounds(W, H);
   }
 
+  // Default: base size clamped
   return clampToBounds(base.w, base.h);
 }
 
