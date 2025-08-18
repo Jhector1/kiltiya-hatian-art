@@ -41,7 +41,7 @@ export default function EditorHeaderBar({
   onPurchaseClick,
   onPurchaseArtClick,
 }: Props) {
-  // alert(purchased)
+  // alert(purchasedDigital)
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-amber-50 p-3 md:p-4 ring-1 ring-black/5">
       <div className="min-w-0">
@@ -134,7 +134,7 @@ export default function EditorHeaderBar({
           Buy exports
         </button>
         {/* <div className="mt-2 mb-[-6px] flex justify-end"> */}
-        {(!purchased && !purchasedDigital) && (
+        {(!purchased || !purchasedDigital) && (
           <button
             onClick={onPurchaseArtClick}
             className="inline-flex items-center rounded-xl px-3 py-2 text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 ring-1 ring-indigo-600/20"

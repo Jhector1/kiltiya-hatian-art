@@ -1,6 +1,6 @@
 // src/components/shared/core/PrintCustomizerCore.tsx
 "use client";
-import React, { useMemo } from "react";
+import React from "react";
 import type { MaterialOption, FrameOption } from "@/types";
 
 export default function PrintCustomizerCore({
@@ -24,13 +24,13 @@ export default function PrintCustomizerCore({
   total: number;
   disabled?: boolean;
 }) {
-  const [parsedFrameWidth, parsedFrameColor] = useMemo(() => {
-    if (!frame?.border) return [0, "#000"];
-    const parts = frame.border.split(" ");
-    const widthPx = parseInt(parts[0], 10) || 0;
-    const color = parts[2] || "#000";
-    return [widthPx, color];
-  }, [frame]);
+  // const [parsedFrameWidth, parsedFrameColor] = useMemo(() => {
+  //   if (!frame?.border) return [0, "#000"];
+  //   const parts = frame.border.split(" ");
+  //   const widthPx = parseInt(parts[0], 10) || 0;
+  //   const color = parts[2] || "#000";
+  //   return [widthPx, color];
+  // }, [frame]);
 
   return (
     <div className="p-4 sm:p-6 bg-white rounded-xl ring-1 ring-black/10 space-y-6">
@@ -99,9 +99,9 @@ export default function PrintCustomizerCore({
       </div>
 
       {/* Price */}
-      <div className="flex justify-between items-center">
+      {/* <div className="flex justify-between items-center">
         <span className="text-xl font-bold">Due: ${Number(total).toFixed(2)}</span>
-      </div>
+      </div> */}
     </div>
   );
 }

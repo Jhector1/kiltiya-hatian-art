@@ -135,6 +135,8 @@ export function useExportArtwork(productId: string) {
       setCanExport(!!j.canExport);
       setPurchased(!!j.purchased);
       setExportsLeft(j.exportsLeft ?? 0);
+          setPurchasedDigital(!!j.purchasedDigital);
+
     } catch {}
   }, [productId]);
 
