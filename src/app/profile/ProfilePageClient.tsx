@@ -33,8 +33,11 @@ const TAB_SLUG: Record<Tab, string> = {
 };
 
 const fromSlug = (slug?: string): Tab =>
-  slug === "collections" ? "Collections" :
-  slug === "settings"    ? "Settings"    : "Profile";
+  slug === "collections"
+    ? "Collections"
+    : slug === "settings"
+    ? "Settings"
+    : "Profile";
 
 export default function ProfilePageClient({ initialTab }: { initialTab: Tab }) {
   // 1) Hooks (order must be stable on every render)
@@ -86,12 +89,19 @@ export default function ProfilePageClient({ initialTab }: { initialTab: Tab }) {
     avatar: "/images/default_avatar.png",
     location: "Port-au-Prince, Haiti",
     memberSince: user?.createdAt,
-    achievements: ["First Purchase", "Top Collector", "Supporter of Haitian Artists"],
+    achievements: [
+      "First Purchase",
+      "Top Collector",
+      "Supporter of Haitian Artists",
+    ],
   };
 
   return (
     <>
-      <SEO title="Your Profile" description="Manage your account and collection." />
+      <SEO
+        title="Your Profile"
+        description="Manage your account and collection."
+      />
 
       <div className="max-w-6xl mx-auto px-4 py-10 space-y-10">
         {/* Header & Tabs */}
@@ -100,21 +110,36 @@ export default function ProfilePageClient({ initialTab }: { initialTab: Tab }) {
           <ProfileTabs activeTab={activeTab} setActiveTab={onTabChange} />
         </div>
 
-{/* Stats */}
-<div
-  className="
+        {/* Stats */}
+        <div
+          className="
     flex gap-3 overflow-x-auto snap-x
     md:overflow-visible md:grid md:grid-cols-4 md:gap-4
     -mx-2 px-2 md:mx-0 md:px-0
     [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
   "
->
-  <StatCard icon={<HeartIcon className="h-6 w-6" />} value={favorites.size} label="Favorites" />
-  <StatCard icon={<ArrowDownTrayIcon className="h-6 w-6" />} value={dashboard?.downloadCount ?? '0'} label="Downloads" />
-  <StatCard icon={<StarIcon className="h-6 w-6" />} value={purchasedArtworks} label="Purchased Artworks" />
-  <StatCard icon={<ShoppingBagIcon className="h-6 w-6" />} value={ordersPlaced} label="Orders Placed" />
-</div>
-
+        >
+          <StatCard
+            icon={<HeartIcon className="h-6 w-6" />}
+            value={favorites.size}
+            label="Favorites"
+          />
+          <StatCard
+            icon={<ArrowDownTrayIcon className="h-6 w-6" />}
+            value={dashboard?.downloadCount ?? "0"}
+            label="Downloads"
+          />
+          <StatCard
+            icon={<StarIcon className="h-6 w-6" />}
+            value={purchasedArtworks}
+            label="Purchased Artworks"
+          />
+          <StatCard
+            icon={<ShoppingBagIcon className="h-6 w-6" />}
+            value={ordersPlaced}
+            label="Orders Placed"
+          />
+        </div>
 
         {/* Tab Content */}
         <div className="space-y-6">
@@ -126,7 +151,11 @@ export default function ProfilePageClient({ initialTab }: { initialTab: Tab }) {
           )}
 
           {activeTab === "Collections" && (
-            <CollectionGallery items={items} filter={filter} setFilter={setFilter} />
+            <CollectionGallery
+              items={items}
+              filter={filter}
+              setFilter={setFilter}
+            />
           )}
 
           {activeTab === "Settings" && <AccountSettings />}

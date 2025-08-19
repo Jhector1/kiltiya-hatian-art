@@ -13,10 +13,17 @@ export async function GET(req: NextRequest) {
   }
 
   const sessionId = new URL(req.url).searchParams.get("session_id");
-  if (!sessionId) return NextResponse.json({ digitalDownloads: [] });
+  if (!sessionId) {
+    return NextResponse.json({
+      hasDigital: false,
+      hasPrint: false,
+      order: null,
+      digitalDownloads: [],
+    });
+  }
 
   const orClauses: Prisma.OrderWhereInput[] = [
-    ...(userId  ? [{ userId }]  : []),
+    ...(userId ? [{ userId }] : []),
     ...(guestId ? [{ guestId }] : []),
   ];
 
@@ -27,54 +34,108 @@ export async function GET(req: NextRequest) {
     },
     include: {
       items: {
-        where: { type: VariantType.DIGITAL },
+        // ✅ include BOTH types (no where filter here)
         include: {
-          product: { select: { title: true, assets: true } },
-          digitalVariant: { select: { license: true } },
+          product: { select: { id: true, title: true, thumbnails: true } },
+          digitalVariant: { select: { id: true, license: true, format: true } },
+          printVariant: {
+            select: { id: true, format: true, size: true, material: true, frame: true },
+          },
         },
       },
-      downloadTokens: {
-        include: { asset: true },
-      },
+      downloadTokens: { include: { asset: true } },
     },
   });
 
-  if (!order) return NextResponse.json({ digitalDownloads: [] });
+  if (!order) {
+    return NextResponse.json({
+      hasDigital: false,
+      hasPrint: false,
+      order: null,
+      digitalDownloads: [],
+    });
+  }
 
-  // Map (assetId -> title/license) for quick lookups
-  const titleByAsset = new Map<string, string>();
-  const licenseByAsset = new Map<string, string>();
+  // ---------- Build a compact, UI-friendly order ----------
+  const orderItems = order.items.map((it) => ({
+    id: it.id,
+    type: it.type as "DIGITAL" | "PRINT",
+    price: it.price,
+    quantity: it.quantity,
+    myProduct: {
+      id: it.productId,
+      title: it.product?.title ?? "Artwork",
+      imageUrl: it.product?.thumbnails?.[0] ?? null,
+      digital:
+        it.type === "DIGITAL" && it.digitalVariant
+          ? {
+              id: it.digitalVariant.id,
+              format: it.digitalVariant.format ?? "",
+              license: it.digitalVariant.license ?? undefined,
+            }
+          : undefined,
+      print:
+        it.type === "PRINT" && it.printVariant
+          ? {
+              id: it.printVariant.id,
+              format: it.printVariant.format ?? "",
+              size: it.printVariant.size ?? "",
+              material: it.printVariant.material ?? "",
+              frame: it.printVariant.frame ?? "",
+            }
+          : undefined,
+    },
+  }));
+
+  const hasDigital = orderItems.some((i) => i.type === "DIGITAL");
+  const hasPrint = orderItems.some((i) => i.type === "PRINT");
+
+  // ---------- Digital downloads (from tokens) ----------
+  // Map productId -> title & license (license only from DIGITAL lines)
+  const titleByProduct = new Map<string, string>();
+  const licenseByProduct = new Map<string, string>();
+
   for (const it of order.items) {
-    const title = it.product?.title ?? "Artwork";
-    const license = it.digitalVariant?.license ?? "Personal";
-    for (const a of it.product?.assets ?? []) {
-      titleByAsset.set(a.id, title);
-      licenseByAsset.set(a.id, license);
+    if (it.productId && it.product?.title) {
+      titleByProduct.set(it.productId, it.product.title);
+    }
+    if (it.type === VariantType.DIGITAL && it.productId && it.digitalVariant?.license) {
+      licenseByProduct.set(it.productId, it.digitalVariant.license);
     }
   }
 
   const digitalDownloads = (order.downloadTokens ?? []).map((t) => {
-    const asset = t.asset!;
-    const title = titleByAsset.get(asset.id) ?? "Artwork";
-    const license = licenseByAsset.get(asset.id) ?? t.licenseSnapshot ?? "Personal";
+    const a = t.asset!;
+    const title = titleByProduct.get(a.productId) ?? "Artwork";
+    const license = licenseByProduct.get(a.productId) ?? t.licenseSnapshot ?? "Personal";
     return {
-      id: asset.id,
+      id: a.id,
       title,
-      format: asset.ext,
+      format: a.ext,
       downloadUrl: t.signedUrl,
-      previewUrl: asset.previewUrl ?? undefined,
-      width: asset.width ?? undefined,
-      height: asset.height ?? undefined,
-      dpi: asset.dpi ?? undefined,
-      colorProfile: asset.colorProfile ?? undefined,
-      sizeBytes: asset.sizeBytes ?? undefined,
+      previewUrl: a.previewUrl ?? undefined,
+      width: a.width ?? undefined,
+      height: a.height ?? undefined,
+      dpi: a.dpi ?? undefined,
+      colorProfile: a.colorProfile ?? undefined,
+      sizeBytes: a.sizeBytes ?? undefined,
       license,
-      isVector: asset.isVector,
-      checksum: asset.checksum ?? undefined,
+      isVector: a.isVector,
+      checksum: a.checksum ?? undefined,
       expiresAt: t.expiresAt.toISOString(),
       remainingUses: t.remainingUses ?? null,
     };
   });
 
-  return NextResponse.json({ digitalDownloads });
+  return NextResponse.json({
+    hasDigital,
+    hasPrint,
+    order: {
+      id: order.id,
+      placedAt: order.placedAt.toISOString(),
+      total: order.total,
+      items: orderItems,
+    },
+    digitalDownloads,
+  });
 }

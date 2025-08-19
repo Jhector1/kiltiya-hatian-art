@@ -23,6 +23,7 @@ export default function PurchaseOptionsCore({
   return (
     <fieldset className="w-full">
       <legend className="block text-sm font-medium text-gray-700 mb-2">Purchase Options</legend>
+     
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Digital */}
         <label className="cursor-pointer">

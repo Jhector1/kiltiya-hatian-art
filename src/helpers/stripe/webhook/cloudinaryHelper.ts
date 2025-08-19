@@ -31,7 +31,18 @@ export async function createPurchaseWebP(opts: {
     public_id,
     overwrite: true,
     format: "webp",
-    transformation: [{ quality: "auto" }],
+     transformation: [
+        { quality: "auto", fetch_format: "auto" },
+        {
+          overlay: { public_id: "watermark" },
+          width: "1.0",
+          height: "1.0",
+          crop: "fill",
+          gravity: "center",
+          opacity: 10,
+          flags: ["relative"],
+        },
+      ],
   });
 
   return { url: res.secure_url, publicId: res.public_id };

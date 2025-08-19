@@ -23,7 +23,7 @@ import type { PriceOptionsProps } from "@/hooks/usePriceCalculator";
 import { useCart } from "@/contexts/CartContext";
 import { usePurchaseConfigurator } from "@/hooks/usePurchaseConfigurator";
 import { SaleAndCountdown } from "@/components/shared/core/SalePriceAndCountDown";
-import { getEffectiveSale } from "@/lib/pricing";
+import { applyBundleIfBoth, getEffectiveSale, roundMoney } from "@/lib/pricing";
 
 interface SelectionModel {
   wantDigital: boolean;
@@ -33,7 +33,7 @@ interface SelectionModel {
 }
 
 interface ProductConfiguratorProps {
-    previewImageSrc?: string; // ✅ NEW
+  previewImageSrc?: string; // ✅ NEW
 
   showFormat?: boolean;
   product: ProductDetailResult;
@@ -80,56 +80,67 @@ interface ProductConfiguratorProps {
   finalPrice: number;
 }
 
-export default function ProductConfigurator({ showFormat = true, ...props }: ProductConfiguratorProps) {
+export default function ProductConfigurator({
+  showFormat = true,
+  ...props
+}: ProductConfiguratorProps) {
   const { updateCart } = useCart();
 
   const {
     product,
     inCart,
-  
-    materials, licenses, frames,
-    formatData, licenseData, sizeData, materialData, frameData,
-    selection, calculatePrice, finalPrice,
+
+    materials,
+    licenses,
+    frames,
+    formatData,
+    licenseData,
+    sizeData,
+    materialData,
+    frameData,
+    selection,
+    calculatePrice,
+    finalPrice,
   } = props;
-// Robust "WxH" parser: "8x10", "8 × 10", `8" x 10"`, "8in x 10in", etc.
-const parseWh = (s: string): [number, number] | null => {
-  if (!s) return null;
-  const cleaned = s.trim().toLowerCase().replace(/[×✕]/g, "x");
-  const m = cleaned.match(
-    /(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?\s*x\s*(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?/
-  );
-  if (!m) return null;
-  const w = parseFloat(m[1]);
-  const h = parseFloat(m[2]);
-  return Number.isFinite(w) && Number.isFinite(h) ? [w, h] : null;
-};
+  // Robust "WxH" parser: "8x10", "8 × 10", `8" x 10"`, "8in x 10in", etc.
+  const parseWh = (s: string): [number, number] | null => {
+    if (!s) return null;
+    const cleaned = s.trim().toLowerCase().replace(/[×✕]/g, "x");
+    const m = cleaned.match(
+      /(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?\s*x\s*(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?/
+    );
+    if (!m) return null;
+    const w = parseFloat(m[1]);
+    const h = parseFloat(m[2]);
+    return Number.isFinite(w) && Number.isFinite(h) ? [w, h] : null;
+  };
 
-// Build multipliers: area-based if all sizes parse; otherwise simple stepped.
-const STEP = 0.25;
-const BASE = 1;
+  // Build multipliers: area-based if all sizes parse; otherwise simple stepped.
+  const STEP = 0.25;
+  const BASE = 1;
 
-const availableSizes = (() => {
-  const parsed = product.sizes.map((s: string) => parseWh(s));
+  const availableSizes = (() => {
+    const parsed = product.sizes.map((s: string) => parseWh(s));
 
-  const allParsed = parsed.every((p) => Array.isArray(p));
-  if (allParsed) {
-    const areas = parsed.map(([w, h]) => w * h) as number[];
-    const minArea = Math.min(...areas);
-    return product.sizes.map((size: string, i: number) => {
-      const [w, h] = parsed[i] as [number, number];
-      return {
-        label: size,
-        multiplier: +((w * h) / minArea).toFixed(2),
-      };
-    });
-  }
+    const allParsed = parsed.every((p) => Array.isArray(p));
+    if (allParsed) {
+      const areas = parsed.map(([w, h]) => w * h) as number[];
+      const minArea = Math.min(...areas);
+      return product.sizes.map((size: string, i: number) => {
+        const [w, h] = parsed[i] as [number, number];
+        return {
+          label: size,
+          multiplier: +((w * h) / minArea).toFixed(2),
+        };
+      });
+    }
 
-  // Fallback: simple step by index so you never crash
-  return product.sizes.map((size: string, i: number) => ({
-    label: size,
-    multiplier: +(BASE + STEP * i).toFixed(2),
-  }));
-})();
+    // Fallback: simple step by index so you never crash
+    return product.sizes.map((size: string, i: number) => ({
+      label: size,
+      multiplier: +(BASE + STEP * i).toFixed(2),
+    }));
+  })();
 
   // alert(availableSizes)
 
@@ -168,40 +179,68 @@ const availableSizes = (() => {
     options: formatData?.options,
     setOptions: formatData.setOptions,
   });
-  
 
- const baseTotal = (() => {
-    const n =
-      typeof finalPrice === "string" ? parseFloat(finalPrice) : finalPrice;
-    return Number.isFinite(n) ? n : 0;
-  })();
-    // normalize date fields if they arrive as strings
-    const saleStartsAt = product?.saleStartsAt
-      ? new Date(product.saleStartsAt as any)
-      : null;
-    const saleEndsAt = product?.saleEndsAt
-      ? new Date(product.saleEndsAt as any)
-      : null;
-    //  alert(JSON.stringify(product))
-   
-    const saleInfo = product
-      ? getEffectiveSale({
-          price: (selection.wantDigital?ctrl.digitalPriceNum:0)+(selection.wantPrint?ctrl.printPriceNum:0),
-          salePrice: (product as any).salePrice ?? null,
-          salePercent: (product as any).salePercent ?? null,
-          saleStartsAt,
-          saleEndsAt,
-       
-        })
-      : {
-          price: baseTotal,
-          compareAt: null,
-          onSale: false,
-          endsAt: null as Date | null,
-        };
+  const baseTotal =
+    (selection.wantDigital ? ctrl.digitalPriceNum : 0) +
+    (selection.wantPrint ? ctrl.printPriceNum : 0);
+  // normalize date fields if they arrive as strings
+  const saleStartsAt = product?.saleStartsAt
+    ? new Date(product.saleStartsAt as any)
+    : null;
+  const saleEndsAt = product?.saleEndsAt
+    ? new Date(product.saleEndsAt as any)
+    : null;
+  //  alert(JSON.stringify(product))
+
+  const saleInfo = product
+    ? getEffectiveSale({
+        price: baseTotal,
+        salePrice: (product as any).salePrice ?? null,
+        salePercent: (product as any).salePercent ?? null,
+        saleStartsAt,
+        saleEndsAt,
+      })
+    : {
+        price: baseTotal,
+        compareAt: null,
+        onSale: false,
+        endsAt: null as Date | null,
+      };
+
+  // after computing baseTotal & saleInfo
+  const priceWithBundle = applyBundleIfBoth(
+    baseTotal,
+    selection.wantDigital,
+    selection.wantPrint
+  );
+  const priceWithSale = saleInfo.price;
+  const finalUnitPrice = roundMoney(Math.min(priceWithSale, priceWithBundle));
+
+  const hasBundle = selection.wantDigital && selection.wantPrint;
+  const bundleWins = hasBundle && priceWithBundle < priceWithSale;
+
+  // For strike-through math (what we compare against)
+  const baseRounded = roundMoney(baseTotal);
+  const compareAtForUI = bundleWins
+    ? baseRounded // bundle compares against base
+    : saleInfo.compareAt ?? baseRounded; // sale compares against original compareAt or base
+
+  // Shape the props the price bar expects
+  const pricing = {
+    price: finalUnitPrice,
+    compareAt: bundleWins ? compareAtForUI : saleInfo.compareAt ?? null,
+    onSale: bundleWins ? true : saleInfo.onSale, // turn on "discount visuals" for bundle too
+    endsAt: bundleWins ? null : saleInfo.endsAt, // bundles usually have no countdown
+  } as const;
   return (
     <>
-      <SaleAndCountdown {...saleInfo}/>
+      <SaleAndCountdown {...pricing} />
+      {bundleWins && (
+        <div className="mt-1 text-[11px] sm:text-xs text-emerald-700 font-medium">
+          Bundle applied: Digital + Print
+        </div>
+      )}
+
       <PurchaseOptionsCore
         digitalChecked={selection.wantDigital}
         printChecked={selection.wantPrint}
@@ -268,7 +307,7 @@ const availableSizes = (() => {
             <div className="mt-4" />
 
             <PrintCustomizerCore
-              imageSrc={props.previewImageSrc ?? product.imageUrl} 
+              imageSrc={props.previewImageSrc ?? product.imageUrl}
               // {/* ✅ use override if provided */}
               materials={materials}
               frames={frames}

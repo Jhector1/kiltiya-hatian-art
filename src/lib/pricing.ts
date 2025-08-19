@@ -1,4 +1,5 @@
 import { allFrames, allLicenses, allMaterials, allSizes } from "@/data/helpers";
+import { number } from "zod";
 
 // lib/pricing.ts
 export type SaleFields = {
@@ -109,3 +110,46 @@ export function computeBaseUnit(args: {
   return round2(Number.isFinite(total) ? total : 0);
 }
 
+
+
+
+// const BUNDLE_BOTH_PERCENT = 20;
+
+export const roundMoney = (v: number) => Number(v.toFixed(2)) //Math.round((v + Number.EPSILON) * 100) / 100;
+/** 20% off if BOTH are present. Accepts booleans or objects. */
+export function applyBundleIfBoth(
+  base: number,
+  digital?: unknown,
+  print?: unknown,
+  pct = 0.20
+) {
+  const wantDigital = Boolean(digital);
+  const wantPrint   = Boolean(print);
+  return wantDigital && wantPrint ? base * (1 - pct) : base;
+}
+
+
+// function finalWithBestOf({
+//   baseUnit,
+//   salePrice,
+//   hasDigital,
+//   hasPrint,
+// }: {
+//   baseUnit: number;
+//   salePrice: number;
+//   hasDigital: unknown;
+//   hasPrint: unknown;
+// }) {
+//   const bundleEligible = Boolean(hasDigital && hasPrint);
+//   const bundlePrice = bundleEligible
+//     ? roundMoney(baseUnit * (1 - BUNDLE_PERCENT / 100))
+//     : null;
+
+//   let price = salePrice;
+//   let applied: "sale" | "bundle" = "sale";
+//   if (bundlePrice !== null && bundlePrice < price) {
+//     price = bundlePrice;
+//     applied = "bundle";
+//   }
+//   return { price, applied };
+// }
