@@ -214,6 +214,7 @@ export function usePurchaseState(opts: {
     () => computeDigitalPrice(baseDigitalPrice, license),
     [baseDigitalPrice, license]
   );
+  // alert(digitalPrice)
   const printPrice = useMemo(
     () => computePrintPrice(basePrintPrice, size, material, frame),
     [basePrintPrice, size, material, frame]

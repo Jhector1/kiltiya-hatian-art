@@ -1,28 +1,25 @@
-'use client';
-import { AddOptions, CartSelectedItem, CartUpdates } from '@/types';
-import React from 'react';
+// src/components/shared/core/PurchaseOptionsCore.tsx
+"use client";
+import React from "react";
 
-export default function PurchaseOptions({
+export default function PurchaseOptionsCore({
+  digitalChecked,
+  printChecked,
   digitalPrice,
   printPrice,
-  options,
-  onToggle,
-  updateCart,
-  updateCart2,
-  removeFromCart,
-  removeFromCart2,
-  inCart,
+  onToggleDigital,
+  onTogglePrint,
+  disabled,
 }: {
-  digitalPrice: string;
-  printPrice: string;
-  options: AddOptions;
-  onToggle: (key: 'digital' | 'print') => void;
-  updateCart: (updates: CartUpdates) => void;
-  updateCart2: (updates: CartUpdates) => void;
-  removeFromCart: (updates: CartUpdates) => void;
-  removeFromCart2: (updates: CartUpdates) => void;
-  inCart: CartSelectedItem | null;
+  digitalChecked: boolean;
+  printChecked: boolean;
+  digitalPrice: string | number;
+  printPrice: string | number;
+  onToggleDigital: () => void;
+  onTogglePrint: () => void;
+  disabled?: boolean;
 }) {
+  const isDisabled = !!disabled;
   return (
     <fieldset className="w-full">
       <legend className="block text-sm font-medium text-gray-700 mb-2">Purchase Options</legend>
@@ -32,18 +29,18 @@ export default function PurchaseOptions({
           <input
             type="checkbox"
             className="sr-only peer"
-            checked={options.digital}
-            onChange={() => {
-              onToggle('digital');
-              if (inCart) {
-                if (options.digital) removeFromCart2({ price: printPrice });
-                else updateCart2({ format: 'jpg', price: Number(digitalPrice) + Number(printPrice) });
-              }
-            }}
+            checked={digitalChecked}
+            onChange={onToggleDigital}
+            disabled={isDisabled}
           />
-          <div className="flex items-center justify-between px-4 py-3 border rounded-xl transition peer-checked:bg-purple-600 peer-checked:text-white border-gray-300">
+          <div className={[
+            "flex items-center justify-between px-4 py-3 border rounded-xl transition",
+            "border-gray-300 peer-checked:bg-purple-600 peer-checked:text-white",
+            isDisabled ? "opacity-50 cursor-not-allowed" : "hover:border-gray-400",
+          ].join(" ")}
+          >
             <span>Digital</span>
-            <span className="font-medium">${digitalPrice}</span>
+            <span className="font-medium">${Number(digitalPrice).toFixed(2)}</span>
           </div>
         </label>
 
@@ -52,26 +49,18 @@ export default function PurchaseOptions({
           <input
             type="checkbox"
             className="sr-only peer"
-            checked={options.print}
-            onChange={() => {
-              onToggle('print');
-              if (inCart) {
-                if (options.print) removeFromCart({ price: digitalPrice });
-                else
-                  updateCart({
-                    format: 'jpg',
-                    size: '11x14 in',
-                    material: 'Matte Paper',
-                    frame: null,
-                    quantity: 1,
-                    price: Number(digitalPrice) + Number(printPrice),
-                  });
-              }
-            }}
+            checked={printChecked}
+            onChange={onTogglePrint}
+            disabled={isDisabled}
           />
-          <div className="flex items-center justify-between px-4 py-3 border rounded-xl transition peer-checked:bg-purple-600 peer-checked:text-white border-gray-300">
+          <div className={[
+            "flex items-center justify-between px-4 py-3 border rounded-xl transition",
+            "border-gray-300 peer-checked:bg-purple-600 peer-checked:text-white",
+            isDisabled ? "opacity-50 cursor-not-allowed" : "hover:border-gray-400",
+          ].join(" ")}
+          >
             <span>Print</span>
-            <span className="font-medium">${printPrice}</span>
+            <span className="font-medium">${Number(printPrice).toFixed(2)}</span>
           </div>
         </label>
       </div>

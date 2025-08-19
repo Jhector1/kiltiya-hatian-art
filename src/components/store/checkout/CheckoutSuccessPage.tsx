@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { AnimatePresence, motion } from "framer-motion";
 import SaveOrderCta from "@/components/orders/SaveOrderCta";
+import { useUser } from "@/contexts/UserContext";
+import { OrderSuccessHeader } from "@/components/orders/OrderSuccessHeader";
 
 /* ------------ Types from /api/checkout/success ------------- */
 interface PurchasedArtwork {
@@ -92,10 +94,11 @@ export default function CheckoutSuccessPage() {
   const [artworks, setArtworks] = useState<PurchasedArtwork[]>([]);
   const [loadingPage, setLoadingPage] = useState(true);
   const [notAuthorized, setNotAuthorized] = useState(false);
+const [hasPrint, setHasPrint] = useState(false);
 
   // Which button is currently downloading
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-
+const {isLoggedIn}= useUser();
   // expanded details
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggle = (id: string) => setExpanded((m) => ({ ...m, [id]: !m[id] }));
@@ -104,6 +107,7 @@ export default function CheckoutSuccessPage() {
     () => artworks.some((a) => a.isVector || /^(svg|pdf)$/i.test(a.format)),
     [artworks]
   );
+const hasDigital = artworks.length > 0;
 
   // helper to download any URL as a file
   const downloadFile = async (url: string, filename: string, buttonId: string) => {
@@ -146,6 +150,12 @@ export default function CheckoutSuccessPage() {
         if (!res.ok) throw new Error(data.error || "Could not fetch downloads.");
         setNotAuthorized(false);
         setArtworks(data.digitalDownloads || []);
+
+              const fromApi = data.hasPrint;
+      const fromItems = data.order?.items?.some((it: any) => it?.myProduct?.print);
+      setHasPrint(Boolean(fromApi ?? fromItems ?? false));
+    
+
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Unexpected error";
         console.error(msg);
@@ -173,7 +183,7 @@ export default function CheckoutSuccessPage() {
     return (
       <div className="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16 text-center">
         <h1 className="text-2xl sm:text-3xl font-semibold">We couldn’t verify this purchase</h1>
-        <p className="mt-2 text-gray-600">
+<p className="mt-2 text-gray-600">
           Make sure you’re signed in with the account used at checkout, or open the download link
           from your receipt email.
         </p>
@@ -184,24 +194,11 @@ export default function CheckoutSuccessPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
       {/* Header / intro */}
-      <header className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-green-700">
-          Your downloads are ready
-        </h1>
-        <p className="text-gray-600 mt-2 text-sm sm:text-base">
-          Save your files below. Guests get time-limited links—create an account to keep access
-          forever.
-        </p>
-        <p className="text-gray-500 text-xs sm:text-sm mt-1">
-          <span className="font-medium">Kreyòl:</span> Lyen yo ekspire pou envite. Kreye yon kont
-          pou w kenbe yo pou tout tan.
-        </p>
-        {sessionId && (
-          <div className="mt-3">
-            <SaveOrderCta sessionId={sessionId} />
-          </div>
-        )}
-      </header>
+    <OrderSuccessHeader
+  hasDigital={hasDigital}
+  hasPrint={hasPrint}
+  sessionId={sessionId ?? undefined}
+/>
 
       {/* Summary card */}
       <section className="rounded-2xl border bg-white/70 backdrop-blur p-4 sm:p-5 mb-6 sm:mb-8 shadow-sm">
@@ -210,10 +207,10 @@ export default function CheckoutSuccessPage() {
           {anyVector && <Badge label="Includes vector formats" tone="indigo" />}
           <Badge label="Watermarks removed in downloads" tone="emerald" />
         </div>
-        <p className="text-xs sm:text-sm text-gray-600 mt-3">
+               {!isLoggedIn&& <p className="text-xs sm:text-sm text-gray-600 mt-3">
           Tip: Keep the original downloads safe. You can re-download from your{" "}
           <span className="font-medium">Order Library</span> if you created an account.
-        </p>
+        </p>}
       </section>
 
       {artworks.length === 0 ? (

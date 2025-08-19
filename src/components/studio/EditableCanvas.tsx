@@ -212,40 +212,44 @@ function EditableCanvasInner({ productId }: { productId: string }) {
   // in a component that stays mounted (e.g., editor page)
   // const { refreshExportStatus } = useExportArtwork(productId);
 
- useEffect(() => {
-  let dead = false;
+  useEffect(() => {
+    let dead = false;
 
-  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  const refreshWithRetry = async (tries = 8, ms = 600) => {
-    for (let i = 0; i < tries; i++) {
-      const ok = await refreshExportStatus(); // should return boolean; if not, treat truthy
-      if (ok) break;
-      await sleep(ms);
-    }
-  };
+    const refreshWithRetry = async (tries = 8, ms = 600) => {
+      for (let i = 0; i < tries; i++) {
+        const ok = await refreshExportStatus(); // should return boolean; if not, treat truthy
+        if (ok) break;
+        await sleep(ms);
+      }
+    };
 
-  const stop = () => { if (!dead) setHeaderBooting(false); };
+    const stop = () => {
+      if (!dead) setHeaderBooting(false);
+    };
 
-  const onComplete = async () => {
-    try { await refreshWithRetry(); }
-    finally { stop(); } // ✅ even if webhook isn’t done after retries, don’t leave header spinning
-  };
+    const onComplete = async () => {
+      try {
+        await refreshWithRetry();
+      } finally {
+        stop();
+      } // ✅ even if webhook isn’t done after retries, don’t leave header spinning
+    };
 
-  const onAbortOrError = () => stop();
+    const onAbortOrError = () => stop();
 
-  window.addEventListener("checkout-complete", onComplete);
-  window.addEventListener("checkout-abort", onAbortOrError);
-  window.addEventListener("checkout-error", onAbortOrError);
+    window.addEventListener("checkout-complete", onComplete);
+    window.addEventListener("checkout-abort", onAbortOrError);
+    window.addEventListener("checkout-error", onAbortOrError);
 
-  return () => {
-    dead = true;
-    window.removeEventListener("checkout-complete", onComplete);
-    window.removeEventListener("checkout-abort", onAbortOrError);
-    window.removeEventListener("checkout-error", onAbortOrError);
-  };
-}, [refreshExportStatus, setHeaderBooting]);
-
+    return () => {
+      dead = true;
+      window.removeEventListener("checkout-complete", onComplete);
+      window.removeEventListener("checkout-abort", onAbortOrError);
+      window.removeEventListener("checkout-error", onAbortOrError);
+    };
+  }, [refreshExportStatus, setHeaderBooting]);
 
   // Keep state + ref in sync
   useEffect(() => {
@@ -445,31 +449,31 @@ function EditableCanvasInner({ productId }: { productId: string }) {
 
   // ——— early skeleton
   if (booting) return <BootLayoutSkeleton />;
-  
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
-      {headerBooting?
-   
-      // <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
+      {headerBooting ? (
+        // <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
         <HeaderSkeleton />
-      // </div>
-    :<EditorHeaderBar
-        purchased={purchased}
-        purchasedDigital={purchasedDigital}
-        loading={loading}
-        saving={saving}
-        canExport={canExport}
-        exporting={exporting}
-        exportsLeft={exportsLeft}
-        onSave={onSaveClick}
-        onQuickPng={onQuickPng}
-        onExport={onExport}
-        showControls={showControls}
-        setShowControls={setShowControls}
-        onPurchaseClick={() => setShowPurchase(true)}
-        onPurchaseArtClick={() => setShowBuyArt(true)}
-      />}
+      ) : (
+        // </div>
+        <EditorHeaderBar
+          purchased={purchased}
+          purchasedDigital={purchasedDigital}
+          loading={loading}
+          saving={saving}
+          canExport={canExport}
+          exporting={exporting}
+          exportsLeft={exportsLeft}
+          onSave={onSaveClick}
+          onQuickPng={onQuickPng}
+          onExport={onExport}
+          showControls={showControls}
+          setShowControls={setShowControls}
+          onPurchaseClick={() => setShowPurchase(true)}
+          onPurchaseArtClick={() => setShowBuyArt(true)}
+        />
+      )}
 
       {/* Credits / exports pack */}
       <PurchaseExportsModal
@@ -488,7 +492,7 @@ function EditableCanvasInner({ productId }: { productId: string }) {
       {/* Art purchase (Add to cart + Buy now) */}
 
       <PurchaseArtModal
-      setHeaderBooting={setHeaderBooting}
+        setHeaderBooting={setHeaderBooting}
         open={showBuyArt}
         onClose={() => setShowBuyArt(false)}
         productId={productId}
@@ -540,12 +544,15 @@ function EditableCanvasInner({ productId }: { productId: string }) {
       />
 
       <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px] gap-4">
-        <CanvasStage
-          zoom={zoom}
-          setZoom={setZoom}
-          ref={canvasRef}
-          loading={loading}
-        />
+        <div>
+          {isDirty && <i className="bg-white p-2 text-red-500 text-xs">Don't forget to save your changes</i>}
+          <CanvasStage
+            zoom={zoom}
+            setZoom={setZoom}
+            ref={canvasRef}
+            loading={loading}
+          />
+        </div>
 
         <aside
           id="controls-panel"

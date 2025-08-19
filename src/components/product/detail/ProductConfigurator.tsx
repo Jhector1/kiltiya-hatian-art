@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import PurchaseOptionsCore from "@/components/shared/core/PurchaseOptionsCore";
@@ -86,7 +86,8 @@ export default function ProductConfigurator({ showFormat = true, ...props }: Pro
   const {
     product,
     inCart,
-    materials, licenses, frames, optionSizes,
+  
+    materials, licenses, frames,
     formatData, licenseData, sizeData, materialData, frameData,
     selection, calculatePrice, finalPrice,
   } = props;
@@ -167,11 +168,7 @@ const availableSizes = (() => {
     options: formatData?.options,
     setOptions: formatData.setOptions,
   });
-
-  // hard guard: never allow it to be false
-useEffect(() => {
-  if (!selection.wantDigital) selection.setWantDigital(true); // 👈 force back on
-}, [selection.wantDigital, selection.setWantDigital]);
+  
 
  const baseTotal = (() => {
     const n =
@@ -186,10 +183,10 @@ useEffect(() => {
       ? new Date(product.saleEndsAt as any)
       : null;
     //  alert(JSON.stringify(product))
-    // alert(saleEndsAt)
+   
     const saleInfo = product
       ? getEffectiveSale({
-          price: baseTotal,
+          price: (selection.wantDigital?ctrl.digitalPriceNum:0)+(selection.wantPrint?ctrl.printPriceNum:0),
           salePrice: (product as any).salePrice ?? null,
           salePercent: (product as any).salePercent ?? null,
           saleStartsAt,
@@ -202,17 +199,15 @@ useEffect(() => {
           onSale: false,
           endsAt: null as Date | null,
         };
-        const forceDigitalOn = () => selection.setWantDigital(true);
-
   return (
     <>
       <SaleAndCountdown {...saleInfo}/>
       <PurchaseOptionsCore
-  digitalChecked={true}                  // 👈 always true
+        digitalChecked={selection.wantDigital}
         printChecked={selection.wantPrint}
         digitalPrice={ctrl.digitalPriceStr}
         printPrice={ctrl.printPriceStr}
-        onToggleDigital={forceDigitalOn}
+        onToggleDigital={ctrl.handleToggleDigital}
         onTogglePrint={ctrl.handleTogglePrint}
       />
 

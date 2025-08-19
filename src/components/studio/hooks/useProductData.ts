@@ -16,7 +16,7 @@ export function useProductData({ productId }: { productId: string }) {
     null
   );
   const [options, setOptions] = useState<AddOptions>({
-    digital: true,
+    digital: false,
     print: false,
     digitalVariantId: "",
     printVariantId: "",
@@ -40,7 +40,7 @@ export function useProductData({ productId }: { productId: string }) {
         );
 
         setOptions({
-          digital: true,
+          digital: !!digitalVariant,
           print: !!printVariant,
           digitalVariantId: digitalVariant?.id || "",
           printVariantId: printVariant?.id || "",
@@ -64,75 +64,32 @@ export function useProductData({ productId }: { productId: string }) {
         return true;
       });
   }, [productFormats]);
-// at top (only if you'll use the sessionId fallback here)
-// import { loadStripe } from "@stripe/stripe-js";
-
-// ...
-
-const handleCheckoutAction = async (opts?: {
-  /** If false, don't open any UI; just return the session so caller can handle it */
-  openUI?: boolean;
-  /** Optional: where to send user after success */
-  exportHref?: string;
-  /** Optional success hook */
-  onPurchaseComplete?: () => void;
-  /** Optional: show your login/auth */
-  openAuth?: () => void;
-}) => {
-  if (!product) return { status: "error", message: "Product not loaded" } as const;
-
-  const result = await handleCheckout({
+// useProductData.ts (inside your hook)
+const handleCheckoutAction = (maybeSetOpen?: unknown) =>
+  handleCheckout({
     user,
     guestId,
     inCart,
     addToCart,
-    product,
-    options: { ...options, digital: wantDigital, print: wantPrint },
+    product: product!, // you already guard usage
+    options: {
+      ...options,
+      digital: wantDigital,
+      print: wantPrint,
+    },
     format: product?.formats[0]?.split(".").pop() || "",
     size,
     material,
     frame,
     license,
-    // IMPORTANT: don't pass setModalOpen here; caller (modal/page) will close/open UI
-    finalPrice: String(finalPriceUI),
-    exportHref: opts?.exportHref,
-    onPurchaseComplete: opts?.onPurchaseComplete,
-    openUI: false, // ← let caller decide when/how to open checkout UI
+    // ✅ only pass if it's a function
+    setModalOpen:
+      typeof maybeSetOpen === "function"
+        ? (maybeSetOpen as (open: boolean) => void)
+        : undefined,
+    // id: productId,
+    finalPrice: String(finalPrice),
   });
-
-  // Auth gate
-  if ((result as any).status === "auth_required") {
-    opts?.openAuth?.();
-    return result;
-  }
-
-  // Optionally open UI here (e.g., when called from a page, not a modal)
-  if (opts?.openUI !== false && (result as any).status === "ok") {
-    // Give React a tick in case caller just closed something
-    await new Promise((r) => requestAnimationFrame(r));
-
-    if ((result as any).flow === "embedded") {
-      window.dispatchEvent(
-        new CustomEvent("open-checkout", {
-          detail: {
-            clientSecret: (result as any).clientSecret,
-            exportHref: opts?.exportHref,
-            onPurchaseComplete: opts?.onPurchaseComplete,
-          },
-        })
-      );
-    } else if ((result as any).flow === "redirect") {
-      window.location.href = (result as any).url;
-    } else if ((result as any).flow === "sessionId") {
-      const stripe = await import("@stripe/stripe-js").then((m) =>
-        m.loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
-      );
-      await stripe?.redirectToCheckout({ sessionId: (result as any).sessionId });
-    }
-  }
-
-  return result;
-};
 
 
   const stubProduct = useMemo(
@@ -197,7 +154,7 @@ const handleCheckoutAction = async (opts?: {
     size,
     material,
     frame,
-    { ...options, digital: true, print: wantPrint },
+    { ...options, digital: wantDigital, print: wantPrint },
     customSize,
     isCustom,
     license
@@ -211,7 +168,7 @@ const handleCheckoutAction = async (opts?: {
   useEffect(() => {
     if (!product) return;
 
-    setWantDigital(true);
+    setWantDigital(Boolean(options.digital));
     setWantPrint(Boolean(options.print));
 
     const dig = product.variants?.find(

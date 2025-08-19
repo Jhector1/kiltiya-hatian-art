@@ -418,7 +418,7 @@ export default function PurchaseArtModal({
                       materialData={{ material, setMaterial }}
                       frameData={{ frame, setFrame }}
                       selection={{
-                        wantDigital:true,
+                        wantDigital,
                         setWantDigital,
                         wantPrint,
                         setWantPrint,
