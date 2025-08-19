@@ -1,7 +1,7 @@
 "use client";
 
 import AboutComponent from "@/components/AboutComponent";
-import EditableCanvas from "@/components/studio/EditableCanvas";
+// import EditableCanvas from "@/components/studio/EditableCanvas";
 // import PngEditor from "@/components/PNGEditor";
 import SEO from "@/components/SEO";
 import VeveDrawFromSvg from "@/components/animation/VeveDrawFromSvg";
@@ -17,6 +17,7 @@ import VeveDrawFromSvg from "@/components/animation/VeveDrawFromSvg";
 import CategoryGrid from "@/components/home/CategoryGrid";
 import CategorySlider from "@/components/home/CategorySlider";
 import Hero from "@/components/home/Hero";
+import EditorPromo from "@/components/home/HeroVideoLooTeaser";
 import PromoBanner from "@/components/home/PromoBanner";
 import Testimonial from "@/components/home/Testimonial";
 import WhyHaitianArt from "@/components/home/WhyHaitianArt";
@@ -35,6 +36,9 @@ export default function Home() {
       <Hero />
       {/* <ImageSlider images={images} />; */}
       <PromoBanner />
+   
+
+
       {/* <div className="flex justify-around w-[min(90vw,900px)]"> */}
         <div className="m-auto pb-4 w-[min(90vw,900px)]">
           <VeveDrawFromSvg
@@ -50,6 +54,7 @@ export default function Home() {
       <CategoryGrid categories={categories} />
 
       <WhyHaitianArt />
+         <EditorPromo />
       <AboutComponent />
       <Testimonial />
 
