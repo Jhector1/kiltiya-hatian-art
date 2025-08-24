@@ -14,7 +14,7 @@ export default function AboutComponent() {
     <div className="py-16">
       <div className="max-w-5xl mx-auto text-center px-4">
         <h1 className="text-5xl font-extrabold text-gray-800 mb-6">
-          About Our Digital Gallery
+          Celebrating Haiti’s Spirit Through Digital Art
         </h1>
         <p className="text-xl text-gray-700 mb-12">
           A curated digital art marketplace inspired by Haiti&apos;s vibrant culture,

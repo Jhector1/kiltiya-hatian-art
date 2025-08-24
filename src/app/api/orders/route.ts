@@ -1,45 +1,165 @@
 // File: src/app/api/orders/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient, VariantType } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { getCustomerIdFromRequest } from "@/utils/guest";
-// import { getCustomerId } from "@/utils/guest";
 
 const prisma = new PrismaClient();
 
-/** Ensure the request is authenticated and return the user’s ID, or throw a 401 response */
+/**
+ * GET /api/orders?type=ALL|DIGITAL|PRINT
+ * Returns groups of order items keyed by YYYY-MM-DD date with download-ready metadata.
+ */
 export async function GET(req: NextRequest) {
   const { userId, guestId } = await getCustomerIdFromRequest(req);
-
   const url = new URL(req.url);
-  const typeParam = (url.searchParams.get("type") ?? "ALL") as VariantType;
+  const typeParam = (url.searchParams.get("type") || "ALL").toUpperCase();
 
-  const filter =
-    typeParam === VariantType.DIGITAL || typeParam === VariantType.PRINT
-      ? { type: typeParam }
+  const whereType =
+    typeParam === "DIGITAL" || typeParam === "PRINT"
+      ? { type: typeParam as "DIGITAL" | "PRINT" }
       : {};
 
   const items = await prisma.orderItem.findMany({
     where: {
-      ...filter,
+      ...whereType,
       order: {
         ...(userId ? { userId } : {}),
         ...(guestId ? { guestId } : {}),
       },
     },
     include: {
-      order:          { select: { placedAt: true, stripeSessionId: true } },
-      product:        { select: { title: true, thumbnails: true } },
-      digitalVariant: true,
-      printVariant:   true,
+      order: { select: { placedAt: true, stripeSessionId: true, status: true } },
+      product: { select: { id: true, title: true, thumbnails: true } },
+      digitalVariant: { select: { id: true, format: true, license: true, size: true } },
+      printVariant: { select: { id: true, size: true, material: true, frame: true } },
+      purchasedDesign: { select: { id: true, previewUrl: true } },
+      downloadTokens: {
+        where: {
+          expiresAt: { gt: new Date() },
+          OR: [{ remainingUses: null }, { remainingUses: { gt: 0 } }],
+        },
+        orderBy: { createdAt: "desc" },
+        include: {
+          asset: {
+            select: {
+              url: true,
+              previewUrl: true,
+              mimeType: true,
+              ext: true,
+              isVector: true,
+              width: true,
+              height: true,
+              dpi: true,
+              colorProfile: true,
+              sizeBytes: true,
+              hasAlpha: true,
+            },
+          },
+        },
+      },
     },
     orderBy: { order: { placedAt: "desc" } },
   });
 
-  const grouped: Record<string, typeof items> = {};
-  for (const item of items) {
-    const date = item.order.placedAt.toISOString().slice(0, 10);
-    (grouped[date] ??= []).push(item);
+  type CollectionDigitalAsset = {
+    tokenId: string;
+    url: string;
+    ext: string | null;
+    width?: number | null;
+    height?: number | null;
+    dpi?: number | null;
+    sizeBytes?: number | null;
+    colorProfile?: string | null;
+    isVector?: boolean | null;
+    hasAlpha?: boolean | null;
+  };
+
+  type CollectionItem = {
+    id: string;
+    type: "DIGITAL" | "PRINT";
+    price: number;
+    quantity: number;
+    order: {
+      placedAt: string;
+      stripeSessionId?: string | null;
+      status?: string | null;
+    };
+    product: { id: string; title: string; thumbnails: string[] };
+    previewUrl: string | null;
+    digital?: {
+      variantId?: string | null;
+      format?: string | null;
+      license?: string | null;
+      size?: string | null;
+      tokens: CollectionDigitalAsset[];
+    };
+    print?: {
+      variantId?: string | null;
+      size?: string | null;
+      material?: string | null;
+      frame?: string | null;
+    };
+  };
+
+  const shaped: Record<string, CollectionItem[]> = {};
+
+  for (const it of items) {
+    const dateKey = it.order.placedAt.toISOString().slice(0, 10);
+
+    const tokens: CollectionDigitalAsset[] = it.downloadTokens.map((dt) => ({
+      tokenId: dt.id,
+      url: dt.signedUrl,
+      ext: dt.asset.ext,
+      width: dt.asset.width,
+      height: dt.asset.height,
+      dpi: dt.asset.dpi,
+      sizeBytes: dt.asset.sizeBytes,
+      colorProfile: dt.asset.colorProfile,
+      isVector: dt.asset.isVector,
+      hasAlpha: dt.asset.hasAlpha,
+    }));
+
+    const previewUrl =
+      it.purchasedDesign?.previewUrl ||
+      it.previewUrlSnapshot ||
+      it.product.thumbnails[0] ||
+      it.downloadTokens[0]?.asset.previewUrl ||
+      null;
+
+    const entry: CollectionItem = {
+      id: it.id,
+      type: it.type as "DIGITAL" | "PRINT",
+      price: it.price,
+      quantity: it.quantity,
+      order: {
+        placedAt: it.order.placedAt.toISOString(),
+        stripeSessionId: it.order.stripeSessionId,
+        status: it.order.status,
+      },
+      product: it.product,
+      previewUrl,
+      ...(it.type === "DIGITAL"
+        ? {
+            digital: {
+              variantId: it.digitalVariant?.id ?? null,
+              format: it.digitalVariant?.format ?? null,
+              license: it.digitalVariant?.license ?? null,
+              size: it.digitalVariant?.size ?? null,
+              tokens,
+            },
+          }
+        : {
+            print: {
+              variantId: it.printVariant?.id ?? null,
+              size: it.printVariant?.size ?? null,
+              material: it.printVariant?.material ?? null,
+              frame: it.printVariant?.frame ?? null,
+            },
+          }),
+    };
+
+    (shaped[dateKey] ||= []).push(entry);
   }
 
-  return NextResponse.json(grouped);
+  return NextResponse.json(shaped);
 }

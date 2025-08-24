@@ -6,6 +6,7 @@ import { v2 as cloudinary } from "cloudinary";
 import { requireUser } from "@/utils/requireUser";
 import { getCustomerIdFromRequest } from "@/utils/guest";
 import { getEntitlementSummary } from "@/helpers/stripe/webhook/entitlements";
+import { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -32,14 +33,14 @@ type StylePayload = {
   strokeWidth: number;
   backgroundColor: string;
   backgroundOpacity?: number;
-  defs?: string;
+  defs?: Prisma.JsonValue | null;
 };
 
 type Body = {
-  style: StylePayload;           // REQUIRED (unchanged)
-  previewDataUrl?: string;       // data:image/...;base64,...
-  width?: number;                // default 800
-  quality?: number;              // default 70
+  style: StylePayload; // REQUIRED (unchanged)
+  previewDataUrl?: string; // data:image/...;base64,...
+  width?: number; // default 800
+  quality?: number; // default 70
 };
 
 // ---- helpers to mirror old fields via new tables ----
@@ -73,7 +74,11 @@ type Body = {
 //   const exportsLeft = Math.max(0, exportQuota - exportsUsed);
 //   return { exportQuota, exportsUsed, exportsLeft };
 // }
-
+// use this for any nullable JSON column write
+const toJsonInput = (
+  v: Prisma.JsonValue | null | undefined
+): Prisma.InputJsonValue | Prisma.NullTypes.JsonNull =>
+  v == null ? Prisma.JsonNull : (v as Prisma.InputJsonValue);
 async function hasPurchased(
   productId: string,
   ids: { userId?: string | null; guestId?: string | null }
@@ -93,7 +98,10 @@ async function hasPurchased(
 }
 
 // -------------------- POST: save design --------------------
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
   try {
     const { id: productId } = await ctx.params;
 
@@ -115,21 +123,34 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const body = (await req.json().catch(() => null)) as Body | null;
     const style = body?.style;
-    if (!style) return NextResponse.json({ error: "Missing style" }, { status: 400 });
+    if (!style)
+      return NextResponse.json({ error: "Missing style" }, { status: 400 });
+    const { defs: defsRaw, ...styleNoDefs } = (style as any) ?? {};
 
     // extract defs into its own column; keep shape identical to before
-    const defs = typeof style.defs === "string" ? style.defs : undefined;
+    // const defs = typeof style.defs === "string" ? style.defs : undefined;
+    const defs: Prisma.JsonValue | null = defsRaw ?? null;
 
     // Upsert per-user/guest + product
+    // ⬇️ use styleNoDefs + defs in the upsert
+    const styleJson = JSON.parse(
+      JSON.stringify(styleNoDefs)
+    ) as Prisma.JsonValue;
+
     const design = await prisma.userDesign.upsert({
       where: userId
         ? { userId_productId: { userId, productId } }
         : { guestId_productId: { guestId: guestId!, productId } },
-      update: { style, defs },
-      create: { userId: userId ?? undefined, guestId: guestId ?? undefined, productId, style, defs },
+      update: { style: toJsonInput(styleJson), defs: toJsonInput(defs) },
+      create: {
+        userId: userId ?? undefined,
+        guestId: guestId ?? undefined,
+        productId,
+        style: toJsonInput(styleJson),
+        defs: toJsonInput(defs),
+      },
       select: { id: true, previewUrl: true, updatedAt: true },
     });
-
     // Optional preview upload (unchanged contract)
     let previewUrl: string | null = design.previewUrl ?? null;
     let previewUpdatedAt: string | null = null;
@@ -143,15 +164,29 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         const q = Math.max(1, Math.min(100, Number(body.quality) || 70));
 
         const webp = await sharp(input)
-          .resize({ width: w, withoutEnlargement: true, fit: "inside", background: { r: 255, g: 255, b: 255, alpha: 0 } })
+          .resize({
+            width: w,
+            withoutEnlargement: true,
+            fit: "inside",
+            background: { r: 255, g: 255, b: 255, alpha: 0 },
+          })
           .webp({ quality: q })
           .toBuffer();
 
-        const publicId = `products-customize-${process.env.NEXT_ENV || "dev"}/designs/previews/design_${design.id}`;
+        const publicId = `products-customize-${
+          process.env.NEXT_ENV || "dev"
+        }/designs/previews/design_${design.id}`;
         const uploaded = await new Promise<any>((resolve, reject) => {
           cloudinary.uploader
             .upload_stream(
-              { public_id: publicId, resource_type: "image", type: "upload", overwrite: true, format: "webp", invalidate: true },
+              {
+                public_id: publicId,
+                resource_type: "image",
+                type: "upload",
+                overwrite: true,
+                format: "webp",
+                invalidate: true,
+              },
               (err, res) => (err ? reject(err) : resolve(res))
             )
             .end(webp);
@@ -160,12 +195,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         previewUrl = uploaded.secure_url as string;
         const updated = await prisma.userDesign.update({
           where: { id: design.id },
-          data: { previewPublicId: uploaded.public_id, previewUrl, previewUpdatedAt: new Date() },
+          data: {
+            previewPublicId: uploaded.public_id,
+            previewUrl,
+            previewUpdatedAt: new Date(),
+          },
           select: { previewUrl: true, previewUpdatedAt: true },
         });
 
         previewUrl = updated.previewUrl ?? previewUrl ?? null;
-        previewUpdatedAt = updated.previewUpdatedAt ? new Date(updated.previewUpdatedAt).toISOString() : null;
+        await syncDesignToCartItems(prisma, {
+          userId,
+          guestId,
+          productId,
+          designId: design.id,
+          previewUrl,
+        });
+        previewUpdatedAt = updated.previewUpdatedAt
+          ? new Date(updated.previewUpdatedAt).toISOString()
+          : null;
       } catch (e) {
         console.warn("Preview upload failed:", (e as Error).message);
       }
@@ -200,44 +248,64 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 // -------------------- GET: load saved design --------------------
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { id: productId } = await params;
   const { userId, guestId } = await getCustomerIdFromRequest(req);
 
-  let design:
-    | {
-        id: string;
-        style: any;
-        defs: string | null;
-        updatedAt: Date;
-        previewUrl: string | null;
-        previewUpdatedAt: Date | null;
-      }
-    | null = null;
+  // ⬇️ update the local type to match Prisma (defs is JSON now)
+  function defsToString(v: Prisma.JsonValue | null): string | null {
+    if (v == null) return null;
+    return typeof v === "string" ? v : JSON.stringify(v);
+  }
+  let design: {
+    id: string;
+    style: Prisma.JsonValue;
+    defs: Prisma.JsonValue | null;
+    updatedAt: Date;
+    previewUrl: string | null;
+    previewUpdatedAt: Date | null;
+  } | null = null;
 
   if (userId) {
     design = await prisma.userDesign.findUnique({
       where: { userId_productId: { userId, productId } },
-      select: { id: true, style: true, defs: true, updatedAt: true, previewUrl: true, previewUpdatedAt: true },
+      select: {
+        id: true,
+        style: true,
+        defs: true,
+        updatedAt: true,
+        previewUrl: true,
+        previewUpdatedAt: true,
+      },
     });
   } else if (guestId) {
     design = await prisma.userDesign.findUnique({
       where: { guestId_productId: { guestId, productId } },
-      select: { id: true, style: true, defs: true, updatedAt: true, previewUrl: true, previewUpdatedAt: true },
+      select: {
+        id: true,
+        style: true,
+        defs: true,
+        updatedAt: true,
+        previewUrl: true,
+        previewUpdatedAt: true,
+      },
     });
   }
 
   if (!design) return NextResponse.json({ found: false });
 
   // Provide old meta fields using new tables (aggregated)
-  const ent = await getEntitlementSummary( { userId, guestId }, productId);
+  const ent = await getEntitlementSummary({ userId, guestId }, productId);
   const purchased = await hasPurchased(productId, { userId, guestId });
 
   return NextResponse.json({
     found: true,
     designId: design.id,
     style: design.style ?? {},
-    defs: design.defs ?? "",
+    defs: defsToString(design.defs) ?? "", // ← was "" before; keep that
     previewUrl: design.previewUrl ?? null,
     updatedAt: design.updatedAt,
     previewUpdatedAt: design.previewUpdatedAt ?? null,
@@ -249,4 +317,50 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       updatedAt: design.updatedAt,
     },
   });
+}
+
+// Keeps cart lines for (user|guest, product) pointing at the canonical UserDesign
+async function syncDesignToCartItems(
+  db: typeof prisma,
+  opts: {
+    userId?: string | null;
+    guestId?: string | null;
+    productId: string;
+    designId: string;
+    style?: any;
+    previewUrl?: string | null;
+  }
+) {
+  const { userId, guestId, productId, designId, style, previewUrl } = opts;
+
+  // locate the caller's cart
+  const cart = await db.cart.findFirst({
+    where: {
+      OR: [...(userId ? [{ userId }] : []), ...(guestId ? [{ guestId }] : [])],
+    },
+    select: { id: true },
+  });
+  if (!cart) return;
+
+  // 1) ensure every matching line references this design
+  await db.cartItem.updateMany({
+    where: {
+      cartId: cart.id,
+      productId,
+      OR: [{ designId: null }, { designId: { not: designId } }],
+    },
+    data: {
+      designId,
+      // optional: keep a stable snapshot on the line
+      styleSnapshot: style as any,
+    },
+  });
+
+  // 2) (optional) if you just produced a preview, mirror it to lines
+  if (previewUrl) {
+    await db.cartItem.updateMany({
+      where: { cartId: cart.id, productId },
+      data: { previewUrlSnapshot: previewUrl },
+    });
+  }
 }

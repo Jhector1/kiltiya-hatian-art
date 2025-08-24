@@ -10,12 +10,14 @@ interface AuthenticationFormProps {
   onSuccess?: () => Promise<void> | void; // ⬅️ ADD THIS
   handlerAction?: () => void;              // keep for backwards-compat if you need it
   isGuest?: boolean;
+    callbackUrl?: string;
 }
 
 export default function AuthenticationForm({
   onSuccess,               // ⬅️ ADD THIS
   handlerAction = () => {},
   isGuest = false,
+  callbackUrl
 }: AuthenticationFormProps) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [fullName, setFullName] = useState("");
@@ -35,46 +37,52 @@ export default function AuthenticationForm({
     // DO NOT reload here, we want the parent to finish the claim if needed
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError(null);
+  setLoading(true);
 
-    try {
-      if (mode === "signup") {
-        const res = await fetch("/api/auth/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: fullName, email, password }),
-        });
-        if (!res.ok) {
-          const { error: msg } = await res.json().catch(() => ({ error: "" }));
-          throw new Error(msg || "Signup failed");
-        }
-      }
-
-      const result = await signIn("credentials", {
-        redirect: false,
-        email,
-        password,
+  try {
+    if (mode === "signup") {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: fullName, email, password }),
       });
-
-      if (!result || result.error) {
-        throw new Error(result?.error || "Login failed");
+      if (!res.ok) {
+        const { error: msg } = await res.json().catch(() => ({ error: "" }));
+        throw new Error(msg || "Signup failed");
       }
-
-      // ✅ Finish the claim (parent will POST /api/orders/claim with the token)
-      await onSuccess?.();
-
-      // Optional: refresh UI AFTER claim is done
-      // window.location.reload();
-
-      setLoading(false);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-      setLoading(false);
     }
-  };
+
+    const result = await signIn("credentials", {
+      redirect: false,       // ❌ never auto-redirect
+      email,
+      password,
+      callbackUrl: callbackUrl || undefined,
+    });
+
+    if (!result || result.error) {
+      throw new Error(result?.error || "Login failed");
+    }
+
+    // ✅ success — run parent claim, then navigate
+    await onSuccess?.();
+
+    // redirect manually
+    if (callbackUrl) {
+      window.location.href = callbackUrl;
+    } else {
+      window.location.reload(); // or use router.push("/dashboard")
+    }
+
+  } catch (err: unknown) {
+    setError(err instanceof Error ? err.message : String(err));
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -184,6 +192,10 @@ export default function AuthenticationForm({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { delay: 0.6 } }}
       >
+              <button onClick={() => signIn("google")}>
+        Login with Google
+      </button>
+
         <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition">
           <GlobeAltIcon className="h-6 w-6 text-gray-600" />
         </button>

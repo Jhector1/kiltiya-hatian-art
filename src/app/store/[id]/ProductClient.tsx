@@ -3,12 +3,12 @@
 import React, { useState } from "react";
 import ProductImageGallery from "@/components/product/detail/ProductImageGallery";
 import ProductConfigurator from "@/components/product/detail/ProductConfigurator";
-import ProductDescriptionBlock from "@/components/product/detail/ProductDescriptionBlock";
+// import ProductDescriptionBlock from "@/components/product/detail/ProductDescriptionBlock";
 import UniversalModal from "@/components/modal/UniversalModal";
 import AuthenticationForm from "@/components/authenticate/AuthenticationFom";
 import CartActions from "@/components/product/CartActions";
 // import ReviewsSection from "@/components/product/review/ReviewsSection";
-import Link from "next/link";
+// import Link from "next/link";
 
 import type { MaterialOption, FrameOption, LicenseOption } from "@/types";
 import { allFrames, allLicenses, allMaterials, allSizes } from "@/data/helpers";
@@ -18,6 +18,7 @@ import { useProductData } from "@/components/studio/hooks/useProductData";
 // ⬇️ NEW: sale helper
 import { getEffectiveSale } from "@/lib/pricing";
 import ReviewsSection from "@/components/product/review/ReviewSection";
+import { useRouter } from "next/navigation";
 // import { SaleAndCountdown, SaleCountdown } from "@/components/shared/core/SalePriceAndCountDown";
 
 interface ProductDetailProps {
@@ -64,7 +65,7 @@ export default function ProductDetail({
     calculatePrice,
     finalPrice, // base total (we'll apply sale below)
   } = useProductData({ productId });
-
+  const router = useRouter();
   const loadingUI = <div className="p-10 text-center">Loading product…</div>;
 
   // ⬇️ Compute sale-aware price for current selection
@@ -109,11 +110,18 @@ export default function ProductDetail({
   // const pctOff = saleInfo.compareAt
   //   ? Math.max(0, Math.round(100 * (1 - saleInfo.price / saleInfo.compareAt)))
   //   : 0;
-
+ const handleClick = () => {
+    if (!isLoggedIn) return setModalOpen(true);
+    if (!productId) return; // guard
+    router.push(`${encodeURIComponent(String(productId))}/studio`);
+  };
   return (
     <>
       <UniversalModal isOpen={isModalOpen} onClose={() => setModalOpen(false)}>
         <AuthenticationForm
+
+        onSuccess={()=>setModalOpen(false)}
+        
           isGuest={true}
           handlerAction={async () => {
             if (!isLoggedIn && !guestId) setModalOpen(true);
@@ -155,10 +163,12 @@ export default function ProductDetail({
                 setPreview={setPreview}
               />
             )}
+            
+       
 
             <div className="flex relative flex-col gap-6 w-full">
               {/* <div className="w-full left-0 top-0 h-full absolute bg-black p-5 opacity-50"></div> */}
-              <ProductDescriptionBlock product={product} />
+              {/* <ProductDescriptionBlock product={product} /> */}
 
               {/* <SaleAndCountdown {...saleInfo}/> */}
 {/* 
@@ -191,15 +201,16 @@ export default function ProductDetail({
                       <p className="text-sm text-black/70 text-center sm:text-left">
                         Want different colors or gradients?
                       </p>
-                      <Link
-                        href={`${productId}/studio`}
+                      <button
+                      onClick={handleClick}
+                 
                         className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition"
                       >
                         ✨ Customize this piece
-                      </Link>
+                      </button>
                     </div>
                   </div>
-                )}
+                )} 
 
               <ProductConfigurator
                 showFormat={true}

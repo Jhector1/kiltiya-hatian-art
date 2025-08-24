@@ -381,7 +381,7 @@ model UserDesign {
 
   // saved state only
   style Json
-  defs  String?
+  defs  Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -424,8 +424,8 @@ model PurchasedDesign {
 
   // snapshots
   style      Json
-  defs       String?
-  svg        String?
+  defs       Json?
+  svg        Json?
   previewUrl String?
 
   createdAt         DateTime            @default(now())

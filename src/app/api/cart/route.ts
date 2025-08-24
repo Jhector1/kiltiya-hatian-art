@@ -208,87 +208,105 @@ export async function POST(req: NextRequest) {
   let previewUrlSnapshot: string | null = null;
   let styleSnapshot: any = null;
 
- if (design) {
-  const found = await prisma.userDesign.findFirst({
-    where: {
-      productId,
-      ...(design.id ? { id: design.id } : {}),
-      OR: [{ userId: userId ?? "" }, { guestId: guestId ?? "" }],
-    },
-    select: {
-      id: true,
-      previewUrl: true,
-      previewPublicId: true,
-      previewUpdatedAt: true,
-    },
-  });
-  if (!found) {
-    return NextResponse.json(
-      { error: "Design not found or not owned by user." },
-      { status: 403 }
-    );
-  }
+//  if (design) {
+//   const found = await prisma.userDesign.findFirst({
+//     where: {
+//       productId,
+//       ...(design.id ? { id: design.id } : {}),
+//       OR: [{ userId: userId ?? "" }, { guestId: guestId ?? "" }],
+//     },
+//     select: {
+//       id: true,
+//       previewUrl: true,
+//       previewPublicId: true,
+//       previewUpdatedAt: true,
+//     },
+//   });
+//   if (!found) {
+//     return NextResponse.json(
+//       { error: "Design not found or not owned by user." },
+//       { status: 403 }
+//     );
+//   }
 
-  // Persist style/defs updates if provided
-  if (design.style || typeof design.defs !== "undefined") {
-    await prisma.userDesign.update({
-      where: { id: found.id },
-      data: {
-        ...(design.style ? { style: design.style } : {}),
-        ...(typeof design.defs !== "undefined" ? { defs: design.defs } : {}),
-      },
-    });
-  }
+//   // Persist style/defs updates if provided
+//   if (design.style || typeof design.defs !== "undefined") {
+//     await prisma.userDesign.update({
+//       where: { id: found.id },
+//       data: {
+//         ...(design.style ? { style: design.style } : {}),
+//         ...(typeof design.defs !== "undefined" ? { defs: design.defs } : {}),
+//       },
+//     });
+//   }
 
-    designId = found.id;
+//     designId = found.id;
 
-    if (design.previewDataUrl?.startsWith("data:")) {
-      const base64 = design.previewDataUrl.split(",")[1];
-      const input = Buffer.from(base64, "base64");
-      const sharp = (await import("sharp")).default;
-      const webp = await sharp(input)
-        .resize({ width: 800, withoutEnlargement: true, fit: "inside" })
-        .webp({ quality: 70 })
-        .toBuffer();
+//     if (design.previewDataUrl?.startsWith("data:")) {
+//       const base64 = design.previewDataUrl.split(",")[1];
+//       const input = Buffer.from(base64, "base64");
+//       const sharp = (await import("sharp")).default;
+//       const webp = await sharp(input)
+//         .resize({ width: 800, withoutEnlargement: true, fit: "inside" })
+//         .webp({ quality: 70 })
+//         .toBuffer();
 
-      const publicId = `products/designs/previews/design_${found.id}`;
-      const upload = await new Promise<any>((resolve, reject) => {
-        cloudinary.uploader
-          .upload_stream(
-            {
-              public_id: publicId,
-              resource_type: "image",
-              type: "upload",
-              overwrite: true,
-              format: "webp",
-              invalidate: true,
-            },
-            (err, result) => (err ? reject(err) : resolve(result))
-          )
-          .end(webp);
-      });
+//       const publicId = `products/designs/previews/design_${found.id}`;
+//       const upload = await new Promise<any>((resolve, reject) => {
+//         cloudinary.uploader
+//           .upload_stream(
+//             {
+//               public_id: publicId,
+//               resource_type: "image",
+//               type: "upload",
+//               overwrite: true,
+//               format: "webp",
+//               invalidate: true,
+//             },
+//             (err, result) => (err ? reject(err) : resolve(result))
+//           )
+//           .end(webp);
+//       });
 
-      previewUrlSnapshot = upload.secure_url as string;
+//       previewUrlSnapshot = upload.secure_url as string;
 
-      await prisma.userDesign.update({
-        where: { id: found.id },
-        data: {
-          previewPublicId: upload.public_id,
-          previewUrl: previewUrlSnapshot,
-          previewUpdatedAt: new Date(),
-        },
-      });
-    }
-else {
-    // NEW: if no fresh upload, use existing design preview as snapshot
-    previewUrlSnapshot = found.previewUrl ?? null;
-  }
-    if (snapshot && design.style) {
-      styleSnapshot = design.style;
-    }
-  }
+//       await prisma.userDesign.update({
+//         where: { id: found.id },
+//         data: {
+//           previewPublicId: upload.public_id,
+//           previewUrl: previewUrlSnapshot,
+//           previewUpdatedAt: new Date(),
+//         },
+//       });
+//     }
+// else {
+//     // NEW: if no fresh upload, use existing design preview as snapshot
+//     previewUrlSnapshot = found.previewUrl ?? null;
+//   }
+//     if (snapshot && design.style) {
+//       styleSnapshot = design.style;
+//     }
+//   }
 
   // Create variants (if needed)
+
+
+const newest = await prisma.userDesign.findFirst({
+  where: { productId, ...(userId ? { userId } : { guestId }) },
+  orderBy: { updatedAt: "desc" },
+  select: {
+    id: true,
+    previewUrl: true,
+    previewUpdatedAt: true,
+    style: true,
+  },
+});
+
+if (newest) {
+  designId = newest.id;
+  previewUrlSnapshot = newest.previewUrl ?? null; // frozen at add time
+  styleSnapshot = newest.style ?? null;
+}
   const digitalVariant = digitalType
     ? await prisma.productVariant.create({
         data: { productId, type: "DIGITAL", format, license: String(license) },

@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { canonLineItems, listSessionLineItems } from "./utils";
 import { createPurchaseWebP } from "./cloudinaryHelper";
 import { EntitlementSource, Prisma, VariantType } from "@prisma/client";
+import { toJsonInput, toNullableJson } from "@/utils/helpers";
 
 const PURCHASE_EXPORT_CREDITS = 5;
 
@@ -15,291 +16,292 @@ type CanonicalLine = {
   variantType?: "DIGITAL" | "PRINT" | "BUNDLE";
   digitalVariantId?: string | null;
   printVariantId?: string | null;
-  digitalUnitCents?: number; // optional precise split from metadata
-  printUnitCents?: number; // optional precise split from metadata
+  digitalUnitCents?: number;
+  printUnitCents?: number;
   designId?: string | null;
 };
+
+type PreviewJob = {
+  orderId: string;
+  orderItemId: string;
+  purchasedDesignId: string;
+  userId: string | null;
+  guestId: string | null;
+  previewPublicId?: string | null;
+  fallbackUrl?: string | null;
+  style?: Prisma.InputJsonValue | null;
+  defs?: Prisma.InputJsonValue | null;
+};
+
+// const toJsonInput = (
+//   v: Prisma.JsonValue | null | undefined
+// ): Prisma.InputJsonValue | Prisma.NullTypes.JsonNull =>
+//   v === null || v === undefined ? Prisma.JsonNull : (v as Prisma.InputJsonValue);
 
 export async function handleOrderFulfillment(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.userId ?? null;
   const guestId = session.metadata?.guestId ?? null;
   if (!userId && !guestId) throw new Error("Missing customer identity");
 
-  const toJsonInput = (
-    v: Prisma.JsonValue | null | undefined
-  ): Prisma.InputJsonValue | Prisma.NullTypes.JsonNull =>
-    v === null || v === undefined
-      ? Prisma.JsonNull
-      : (v as Prisma.InputJsonValue);
-
-  // idempotency by stripeSessionId
-  const exists = await prisma.order.findFirst({
+  // Idempotency quick-exit (helps if a previous run fully completed)
+  const existing = await prisma.order.findUnique({
     where: { stripeSessionId: session.id },
     select: { id: true },
   });
-  if (exists) return;
+  if (existing) return;
 
+  // 1) Gather Stripe line items (outside tx)
   const items = await listSessionLineItems(session.id);
   const canonical = canonLineItems(items) as CanonicalLine[];
+  const purchasedCartItemIds = canonical.map(c => c.cartItemId).filter(Boolean) as string[];
 
-  const purchasedCartItemIds = canonical
-    .map((c) => c.cartItemId)
-    .filter(Boolean) as string[];
+  // 2) Preload product fallback previews (outside tx)
+  const productIds = [...new Set(canonical.map(c => c.productId))];
+  const productPreviewRows = await prisma.product.findMany({
+    where: { id: { in: productIds } },
+    select: {
+      id: true,
+      thumbnails: true,
+      assets: { select: { previewUrl: true, url: true }, take: 1, orderBy: { createdAt: "asc" } },
+    },
+  });
+  const fallbackByProduct = new Map<string, string | null>(
+    productPreviewRows.map(p => [
+      p.id,
+      p.thumbnails?.[0] ?? p.assets?.[0]?.previewUrl ?? p.assets?.[0]?.url ?? null,
+    ])
+  );
 
-  await prisma.$transaction(async (tx) => {
-    const order = await tx.order.create({
-      data: {
-        userId: userId ?? undefined,
-        guestId: userId ? undefined : guestId!,
-        total: (session.amount_total ?? 0) / 100,
-        status: "COMPLETED",
-        stripeSessionId: session.id,
-      },
-    });
-
-    // Reusable helper: get a sensible fallback preview if no design
-    const getProductFallbackPreview = async (productId: string) => {
-      const p = await tx.product.findUnique({
-        where: { id: productId },
-        select: {
-          thumbnails: true,
-          assets: {
-            select: { previewUrl: true, url: true },
-            take: 1,
-            orderBy: { createdAt: "asc" },
-          },
+  // 3) Phase A (short tx): order + items + purchasedDesign stub + entitlements
+  const previewJobs: PreviewJob[] = [];
+  const { orderId } = await prisma.$transaction(
+    async (tx) => {
+      // Upsert for idempotency (requires @unique on stripeSessionId)
+      const order = await tx.order.upsert({
+        where: { stripeSessionId: session.id },
+        update: {}, // no-op on retry
+        create: {
+          userId: userId ?? undefined,
+          guestId: userId ? undefined : guestId!,
+          total: (session.amount_total ?? 0) / 100,
+          status: "COMPLETED",
+          stripeSessionId: session.id,
         },
+        select: { id: true },
       });
-      return (
-        p?.thumbnails?.[0] ??
-        p?.assets?.[0]?.previewUrl ??
-        p?.assets?.[0]?.url ??
-        null
-      );
-    };
 
-    for (const c of canonical) {
-      if (!c.productId) continue;
+      for (const c of canonical) {
+        const hasDigital = !!c.digitalVariantId;
+        const hasPrint = !!c.printVariantId;
+        const unitCents = c.unitAmountCents;
 
-      const hasDigital = Boolean(c.digitalVariantId);
-      const hasPrint = Boolean(c.printVariantId);
-      const unitCents = c.unitAmountCents;
-
-      // Compute price split (precise if provided; else 50/50; else single-variant)
-      const split = (() => {
-        if (hasDigital && hasPrint) {
-          if (
-            typeof c.digitalUnitCents === "number" &&
-            typeof c.printUnitCents === "number"
-          ) {
-            return { digital: c.digitalUnitCents, print: c.printUnitCents };
+        const split = (() => {
+          if (hasDigital && hasPrint) {
+            if (
+              typeof c.digitalUnitCents === "number" &&
+              typeof c.printUnitCents === "number"
+            ) {
+              return { digital: c.digitalUnitCents, print: c.printUnitCents };
+            }
+            const half = Math.floor(unitCents / 2);
+            return { digital: half, print: unitCents - half };
           }
-          const half = Math.floor(unitCents / 2);
-          return { digital: half, print: unitCents - half };
-        }
-        return {
-          digital: hasDigital ? unitCents : 0,
-          print: hasPrint ? unitCents : 0,
-        };
-      })();
+          return { digital: hasDigital ? unitCents : 0, print: hasPrint ? unitCents : 0 };
+        })();
 
-      // Get design once (use tx)
-      const explicitDesignId = c.designId || null;
-      const design = explicitDesignId
-        ? await tx.userDesign.findUnique({
-            where: { id: explicitDesignId },
-            select: {
-              id: true,
-              style: true,
-              defs: true,
-              previewUrl: true,
-              previewPublicId: true,
-              productId: true,
-            },
-          })
-        : await tx.userDesign.findFirst({
-            where: userId
-              ? { userId, productId: c.productId }
-              : { guestId: guestId!, productId: c.productId },
-            orderBy: { updatedAt: "desc" },
-            select: {
-              id: true,
-              style: true,
-              defs: true,
-              previewUrl: true,
-              previewPublicId: true,
-              productId: true,
-            },
-          });
+        // Resolve design (DB-only) quickly
+        const design =
+          c.designId
+            ? await tx.userDesign.findUnique({
+                where: { id: c.designId },
+                select: { id: true, style: true, defs: true, previewUrl: true, previewPublicId: true, productId: true },
+              })
+            : await tx.userDesign.findFirst({
+                where: userId
+                  ? { userId, productId: c.productId }
+                  : { guestId: guestId!, productId: c.productId },
+                orderBy: { updatedAt: "desc" },
+                select: { id: true, style: true, defs: true, previewUrl: true, previewPublicId: true, productId: true },
+              });
 
-      // All writes must use tx.* inside the transaction
-      const createLine = async (
-        variant: "DIGITAL" | "PRINT",
-        cents: number
-      ) => {
-        if (!cents) return;
+        // Initial snapshot to show in UIs (updated later if Cloudinary render succeeds)
+        const initialPreview = design?.previewUrl ?? fallbackByProduct.get(c.productId) ?? null;
 
-        const orderItem = await tx.orderItem.create({
-          data: {
-            orderId: order.id,
-            productId: c.productId!,
-            type: variant as VariantType,
-            price: cents / 100,
-            quantity: c.quantity,
-            digitalVariantId:
-              variant === "DIGITAL" ? c.digitalVariantId || null : null,
-            printVariantId:
-              variant === "PRINT" ? c.printVariantId || null : null,
-          },
-          select: { id: true },
-        });
+        const makeLine = async (variant: "DIGITAL" | "PRINT", cents: number) => {
+          if (!cents) return;
 
-        // Preferred image: purchase-specific webp (from design), else design preview, else product fallback
-        let previewForLine: string | null = null;
-
-        // If we have a design, try to render a purchase-specific preview
-        if (design) {
-          try {
-            const { url } = await createPurchaseWebP({
-              orderId: order.id,
-              orderItemId: orderItem.id,
-              userId,
-              guestId,
-              design: {
-                previewPublicId: design.previewPublicId,
-                previewUrl: design.previewUrl,
-                style: design.style,
-                defs: design.defs,
-              },
-            });
-            previewForLine = url ?? design.previewUrl ?? null;
-          } catch (e: any) {
-            console.error("Cloudinary upload failed:", e?.message || e);
-            previewForLine = design.previewUrl ?? null;
-          }
-
-          // Snapshot purchased design (so the order keeps its own copy)
-          const snap = await tx.purchasedDesign.create({
+          const orderItem = await tx.orderItem.create({
             data: {
-              userId: userId ?? undefined,
-              guestId: userId ? undefined : guestId ?? undefined,
               orderId: order.id,
-              orderItemId: orderItem.id,
-              productId: design.productId,
-              style: toJsonInput(design.style),
-              defs: design.defs,
-              svg: null,
-              previewUrl: previewForLine,
+              productId: c.productId,
+              type: variant as VariantType,
+              price: cents / 100,
+              quantity: c.quantity,
+              digitalVariantId: variant === "DIGITAL" ? c.digitalVariantId ?? null : null,
+              printVariantId: variant === "PRINT" ? c.printVariantId ?? null : null,
+              // set snapshot immediately (can be improved post-commit)
+              previewUrlSnapshot: initialPreview,
             },
             select: { id: true },
           });
 
-          // Save the preview URL on the line for order UIs
-          await tx.orderItem.update({
-            where: { id: orderItem.id },
-            data: { previewUrlSnapshot: previewForLine },
-          });
+          if (design) {
+            // Create purchasedDesign stub (without heavy Cloudinary work)
+            const purchased = await tx.purchasedDesign.create({
+              data: {
+                userId: userId ?? undefined,
+                guestId: userId ? undefined : guestId ?? undefined,
+                orderId: order.id,
+                orderItemId: orderItem.id,
+                productId: design.productId,
+                style: toJsonInput(design.style),
+                defs: toJsonInput(design.defs),
+                svg: Prisma.JsonNull,
+                previewUrl: initialPreview, // will be updated post-commit if render succeeds
+              },
+              select: { id: true },
+            });
 
-          // Entitlements per line
-          await tx.designEntitlement.create({
-            data: {
-              userId: userId ?? undefined,
-              guestId: userId ? undefined : guestId ?? undefined,
-              productId: c.productId!,
-              userDesignId: design?.id ?? null,
-              purchasedDesignId: snap.id,
-              source: EntitlementSource.PURCHASE,
+            // Entitlement immediately (fast write)
+            await tx.designEntitlement.create({
+              data: {
+                userId: userId ?? undefined,
+                guestId: userId ? undefined : guestId ?? undefined,
+                productId: c.productId,
+                userDesignId: design.id,
+                purchasedDesignId: purchased.id,
+                source: EntitlementSource.PURCHASE,
+                orderId: order.id,
+                orderItemId: orderItem.id,
+                exportQuota: variant === "DIGITAL" ? PURCHASE_EXPORT_CREDITS : 0,
+                editQuota: 0,
+                exportsUsed: 0,
+                editsUsed: 0,
+                expiresAt: null,
+              },
+            });
+
+            // Schedule post-commit Cloudinary render
+            previewJobs.push({
               orderId: order.id,
               orderItemId: orderItem.id,
-              exportQuota: variant === "DIGITAL" ? PURCHASE_EXPORT_CREDITS : 0,
-              editQuota: 0,
-              exportsUsed: 0,
-              editsUsed: 0,
-              expiresAt: null,
-            },
-          });
+              purchasedDesignId: purchased.id,
+              userId,
+              guestId,
+              previewPublicId: design.previewPublicId,
+              fallbackUrl: design.previewUrl ?? fallbackByProduct.get(c.productId) ?? null,
+              style: toNullableJson(design.style),
+              defs: toNullableJson(design.defs),
+            });
+          } else {
+            // No design: entitlement without purchasedDesign
+            await tx.designEntitlement.create({
+              data: {
+                userId: userId ?? undefined,
+                guestId: userId ? undefined : guestId ?? undefined,
+                productId: c.productId,
+                userDesignId: null,
+                purchasedDesignId: null,
+                source: EntitlementSource.PURCHASE,
+                orderId: order.id,
+                orderItemId: orderItem.id,
+                exportQuota: variant === "DIGITAL" ? PURCHASE_EXPORT_CREDITS : 0,
+                editQuota: 0,
+                exportsUsed: 0,
+                editsUsed: 0,
+                expiresAt: null,
+              },
+            });
+          }
+        };
+
+        if (hasDigital && hasPrint) {
+          await makeLine("DIGITAL", split.digital);
+          await makeLine("PRINT", split.print);
+        } else if (hasDigital) {
+          await makeLine("DIGITAL", split.digital);
+        } else if (hasPrint) {
+          await makeLine("PRINT", split.print);
         } else {
-          // No design: still ensure previewUrlSnapshot is useful for order displays
-          const fallback = await getProductFallbackPreview(c.productId!);
-          previewForLine = fallback;
-
-          await tx.orderItem.update({
-            where: { id: orderItem.id },
-            data: { previewUrlSnapshot: previewForLine },
-          });
-
-          await tx.designEntitlement.create({
-            data: {
-              userId: userId ?? undefined,
-              guestId: userId ? undefined : guestId ?? undefined,
-              productId: c.productId!,
-              userDesignId: null,
-              purchasedDesignId: null,
-              source: EntitlementSource.PURCHASE,
-              orderId: order.id,
-              orderItemId: orderItem.id,
-              exportQuota: variant === "DIGITAL" ? PURCHASE_EXPORT_CREDITS : 0,
-              editQuota: 0,
-              exportsUsed: 0,
-              editsUsed: 0,
-              expiresAt: null,
-            },
-          });
+          // default to PRINT if variant info missing
+          await makeLine("PRINT", unitCents);
         }
-      };
-
-      if (hasDigital && hasPrint) {
-        await createLine("DIGITAL", split.digital);
-        await createLine("PRINT", split.print);
-      } else if (hasDigital) {
-        await createLine("DIGITAL", split.digital);
-      } else if (hasPrint) {
-        await createLine("PRINT", split.print);
-      } else {
-        // No variant ids, treat as PRINT by default
-        await createLine("PRINT", unitCents);
       }
-    }
 
-    // Clear purchased cart items
-    if (purchasedCartItemIds.length) {
-      await tx.cartItem.deleteMany({
-        where: { id: { in: purchasedCartItemIds } },
+      return { orderId: order.id };
+    },
+    { timeout: 15_000, maxWait: 10_000, isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }
+  );
+
+  // 4) Phase B (post-commit): Cloudinary renders + preview updates (non-fatal)
+  for (const job of previewJobs) {
+    try {
+      const { url } = await createPurchaseWebP({
+        orderId: job.orderId,
+        orderItemId: job.orderItemId,
+        userId: job.userId ?? undefined,
+        guestId: job.guestId ?? undefined,
+        design: {
+          previewPublicId: job.previewPublicId,
+          previewUrl: job.fallbackUrl,
+          style: job.style as any,
+          defs: job.defs as any,
+        },
       });
+      const finalUrl = url ?? job.fallbackUrl ?? null;
+
+      await prisma.$transaction(async (tx) => {
+        await tx.purchasedDesign.update({
+          where: { id: job.purchasedDesignId },
+          data: { previewUrl: finalUrl },
+        });
+        await tx.orderItem.update({
+          where: { id: job.orderItemId },
+          data: { previewUrlSnapshot: finalUrl },
+        });
+      });
+    } catch (e: any) {
+      console.warn("Non-fatal preview render failure:", e?.message || e);
+      // Keep initialPreview as-is; user still sees something.
     }
+  }
 
-    // Create download tokens for DIGITAL items
-    const digitalItems = await tx.orderItem.findMany({
-      where: { orderId: order.id, type: "DIGITAL" },
-      include: {
-        product: { include: { assets: true } },
-        digitalVariant: { select: { license: true } },
-      },
-    });
+  // 5) Post-commit cleanups (cart + download tokens)
+  if (purchasedCartItemIds.length) {
+    await prisma.cartItem.deleteMany({ where: { id: { in: purchasedCartItemIds } } });
+  }
 
+  // Build tokens with a single createMany
+  const digitalItems = await prisma.orderItem.findMany({
+    where: { orderId, type: "DIGITAL" },
+    include: {
+      product: { include: { assets: true } },
+      digitalVariant: { select: { license: true } },
+    },
+  });
+
+  if (digitalItems.length) {
     const now = Date.now();
     const guestExpiryMs = 7 * 24 * 60 * 60 * 1000;
     const userExpiryMs = 365 * 24 * 60 * 60 * 1000;
     const expiresAt = new Date(now + (userId ? userExpiryMs : guestExpiryMs));
 
-    for (const item of digitalItems) {
-      const assets = item.product?.assets ?? [];
-      const license = item.digitalVariant?.license ?? "Personal";
-      for (const asset of assets) {
-        await tx.downloadToken.create({
-          data: {
-            orderId: order.id,
-            orderItemId: item.id,
-            assetId: asset.id,
-            userId: userId ?? undefined,
-            guestId: userId ? undefined : guestId ?? undefined,
-            signedUrl: asset.url, // TODO: replace with signed URL
-            expiresAt,
-            remainingUses: null,
-            licenseSnapshot: license,
-          },
-        });
-      }
+    const tokenRows = digitalItems.flatMap((item) =>
+      (item.product?.assets ?? []).map((asset) => ({
+        orderId,
+        orderItemId: item.id,
+        assetId: asset.id,
+        userId: userId ?? undefined,
+        guestId: userId ? undefined : guestId ?? undefined,
+        signedUrl: asset.url, // TODO: replace with signed URL
+        expiresAt,
+        remainingUses: null as number | null,
+        licenseSnapshot: item.digitalVariant?.license ?? "Personal",
+      }))
+    );
+
+    if (tokenRows.length) {
+      await prisma.downloadToken.createMany({ data: tokenRows, skipDuplicates: true });
     }
-  });
+  }
 }

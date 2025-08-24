@@ -51,6 +51,7 @@ import{ NextAuthOptions } from "next-auth";
 import CredentialsProvider          from "next-auth/providers/credentials";
 import { PrismaClient }             from "@prisma/client";
 import { verifyPassword } from "@/lib/password";
+import GoogleProvider from "next-auth/providers/google";
 
 const prisma = new PrismaClient();
 
@@ -87,6 +88,12 @@ export const authOptions: NextAuthOptions = {
         return { id: user.id, email: user.email, name: user.name };
       },
     }),
+ // ---- Google Login ----
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+
   ],
 
   session: { strategy: "jwt" },

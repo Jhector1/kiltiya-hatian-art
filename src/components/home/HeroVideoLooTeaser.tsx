@@ -50,7 +50,7 @@ export default function EditorPromo({
     "Swap backgrounds, fine‑tune strokes, adjust sizes/DPI, and export a crisp JPG when you're ready.",
   videoSrc =
     "https://res.cloudinary.com/dqeqbgxvn/video/upload/v1755645824/YouCut_20250819_181240433_xksigu.mp4",
-  posterSrc = "/images/editor-poster.jpg",
+  posterSrc = "/images/editor-poster.png",
   ctaHref = "https://ziledigital.com/store/a0f28028-86a8-40df-ad53-ced5014a1ff7/studio",
   ctaLabel = "Try the Customizer",
   className = "",
@@ -153,29 +153,25 @@ export default function EditorPromo({
           </div>
         </div>
 
-        {/* Video demo */}
-        <div className="order-1 lg:order-2">
-          <figure className="relative rounded-2xl border border-black/10 bg-white shadow-xl shadow-black/5 overflow-hidden">
-            <div className="relative aspect-video">
-              {/* Prefer muted+autoPlay+playsInline for mobile */}
-              <video
-                autoPlay
-                muted
-                loop
-                playsInline
-                src={videoSrc}
-                poster={posterSrc}
-                className="h-full w-full object-cover"
-                aria-label="Customizer demo: changing background and stroke, then exporting a JPG"
-              />
-            </div>
-            {children ? (
-              <figcaption className="px-4 py-3 text-xs text-gray-500 border-t border-black/10">
-                {children}
-              </figcaption>
-            ) : null}
-          </figure>
-        </div>
+    {/* Video demo */}
+<div className="order-1 lg:order-2">
+  <figure className="relative rounded-2xl border border-black/10 bg-white shadow-xl shadow-black/5 overflow-hidden">
+    <div className="relative aspect-video">
+      <ClientOnlyVideo
+        src={videoSrc}
+        poster={posterSrc}
+        className="h-full w-full object-cover"
+        ariaLabel="Customizer demo: changing background and stroke, then exporting a JPG"
+      />
+    </div>
+    {children ? (
+      <figcaption className="px-4 py-3 text-xs text-gray-500 border-t border-black/10">
+        {children}
+      </figcaption>
+    ) : null}
+  </figure>
+</div>
+
       </motion.div>
     </section>
   );
@@ -302,5 +298,66 @@ function Details({ title, children }: { title: string; children: React.ReactNode
       </summary>
       <div className="mt-2">{children}</div>
     </details>
+  );
+}
+
+
+function ClientOnlyVideo({
+  src,
+  poster,
+  className,
+  ariaLabel,
+}: {
+  src: string;
+  poster: string;
+  className?: string;
+  ariaLabel?: string;
+}) {
+  const [mounted, setMounted] = React.useState(false);
+  const ref = React.useRef<HTMLVideoElement>(null);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  React.useEffect(() => {
+    // Nudge autoplay on iOS once mounted
+    if (mounted && ref.current && ref.current.paused) {
+      ref.current.play().catch(() => {});
+    }
+  }, [mounted]);
+
+  // SSR + first client render: identical <img>, avoiding hydration mismatch
+  if (!mounted) {
+    return (
+      <img
+        src={poster}
+        alt="Customizer demo preview"
+        className={className}
+        loading="eager"
+        decoding="async"
+      />
+    );
+  }
+
+  // After hydration, swap to the actual <video>
+  return (
+    <video
+      ref={ref}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="metadata"
+      poster={poster}
+      className={className}
+      aria-label={ariaLabel}
+      // Optional UX hardening:
+      // controls={false}
+      // disablePictureInPicture
+      // controlsList="nodownload noplaybackrate noremoteplayback"
+    >
+      <source src={src} type="video/mp4" />
+    </video>
   );
 }

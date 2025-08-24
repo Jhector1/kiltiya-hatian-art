@@ -22,6 +22,10 @@ import { useFavorites } from "@/contexts/FavoriteContext";
 import { useUserOrders } from "@/hooks/useUserOrders";
 import { useUser } from "@/contexts/UserContext";
 import { useDashboard } from "@/hooks/useDashboard";
+// ⬇️ add these two type-only imports near the top with your other imports
+import type { CollectionItem as BaseItem } from "@/types";
+import type { CollectionItem as GalleryItem } from "@/components/profile/CollectionGallery";
+
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type Tab = "Profile" | "Collections" | "Settings";
@@ -39,6 +43,36 @@ const fromSlug = (slug?: string): Tab =>
     ? "Settings"
     : "Profile";
 
+
+
+// ⬇️ add this helper (place it above the component return)
+function toGalleryItem(i: BaseItem): GalleryItem {
+  // Try common field names; fall back safely
+  const price =
+    (i as any).price ??
+    (i as any).unitPrice ??
+    ((i as any).unitAmountCents ?? 0) / 100;
+
+  const quantity = (i as any).quantity ?? (i as any).qty ?? 1;
+
+  const previewUrl =
+    (i as any).previewUrl ??
+    (i as any).thumbnailUrl ??
+    (i as any).imageUrl ??
+    (i as any).product?.thumbnails?.[0] ??
+    null;
+
+  return {
+    // keep whatever your BaseItem already has (id, type, order, product, digital/print, etc.)
+    ...(i as any),
+    price,
+    quantity,
+    previewUrl,
+  };
+}
+
+
+
 export default function ProfilePageClient({ initialTab }: { initialTab: Tab }) {
   // 1) Hooks (order must be stable on every render)
   const router = useRouter();
@@ -53,6 +87,20 @@ export default function ProfilePageClient({ initialTab }: { initialTab: Tab }) {
   const { data: dashboard, loading: dlLoading } = useDashboard();
   const { data: grouped, loading: ordLoading, error } = useUserOrders(filter);
   const { data: allOrders } = useUserOrders("ALL");
+
+
+
+
+  // ⬇️ replace your existing `items` memo with both memos
+const baseItems: BaseItem[] = useMemo(
+  () => (grouped ? (Object.values(grouped).flat() as BaseItem[]) : []),
+  [grouped]
+);
+
+const galleryItems: GalleryItem[] = useMemo(
+  () => baseItems.map(toGalleryItem),
+  [baseItems]
+);
 
   // Keep state in sync with ?tab=... when user uses back/forward or manual edits
   useEffect(() => {
@@ -152,7 +200,7 @@ export default function ProfilePageClient({ initialTab }: { initialTab: Tab }) {
 
           {activeTab === "Collections" && (
             <CollectionGallery
-              items={items}
+              items={galleryItems}
               filter={filter}
               setFilter={setFilter}
             />

@@ -100,7 +100,7 @@ export async function handleCheckout({
   if (!inCart) {
     created = await addToCart(
       product.id,
-       "Digital" ,
+      options.digital ? "Digital" : null,
       options.print ? "Print" : null,
       Number(finalPrice),
         Number(finalPrice),
@@ -136,7 +136,7 @@ export async function handleCheckout({
       price: saleInfo.price,
       imageUrl: product.imageUrl,
       digital: options.digital
-        ? { id: options.digitalVariantId || created?.result?.digitalVariantId, format }
+        ? { id: options.digitalVariantId || created?.result?.digitalVariantId, format, license }
         : undefined,
       print: options.print
         ? {
