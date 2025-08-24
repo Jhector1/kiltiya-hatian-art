@@ -1,51 +1,64 @@
 // File: src/app/api/downloads/proxy/route.ts
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";  // avoid static 404
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 function sanitizeFilename(name: string) {
-  // keep it simple and safe for Content-Disposition
-  const base = name.replace(/[^\w.-]+/g, "_").slice(0, 120) || "download.bin";
-  return base;
+  return (name.replace(/[^\w.-]+/g, "_").slice(0, 120) || "download.bin");
 }
 
 export async function GET(req: NextRequest) {
-  const urlParam = req.nextUrl.searchParams.get("url");
-  const fileParam = req.nextUrl.searchParams.get("filename") || "download.bin";
+  const sp = req.nextUrl.searchParams;
+  const urlParam = sp.get("url");
+  const fileParam = sp.get("filename") || "download.bin";
 
   if (!urlParam) return new Response("Missing url", { status: 400 });
 
-  // ✅ IMPORTANT: decode once to undo client encodeURIComponent
-  let src: string;
+  // ✅ searchParams.get() is already decoded; no need to decode again.
+  // Resolve relative URLs ("/api/...") against the current origin.
+  let target: URL;
   try {
-    src = decodeURIComponent(urlParam);
+    target = new URL(urlParam, req.nextUrl.origin);
   } catch {
-    return new Response("Bad url encoding", { status: 400 });
+    return new Response("Invalid URL", { status: 400 });
   }
 
-  // (Optional but recommended) SSRF allowlist
-  // const allowed = new Set(["res.cloudinary.com", "storage.googleapis.com", "s3.amazonaws.com"]);
-  // const host = new URL(src).hostname;
-  // if (!allowed.has(host)) return new Response("Forbidden", { status: 403 });
+  // (Optional) SSRF allowlist — always allow same-origin
+  // const allowed = new Set<string>([new URL(req.nextUrl.origin).host, "res.cloudinary.com"]);
+  // if (!allowed.has(target.host)) return new Response("Forbidden", { status: 403 });
 
-  const upstream = await fetch(src, { cache: "no-store" });
+  // Forward Range for resumable downloads
+  const fwdHeaders: HeadersInit = {};
+  const range = req.headers.get("range");
+  if (range) (fwdHeaders as any).Range = range;
+
+  const upstream = await fetch(target.toString(), {
+    cache: "no-store",
+    headers: fwdHeaders,
+    // credentials: "include", // uncomment if your upstream needs cookies for same-origin calls
+  });
+
   if (!upstream.ok || !upstream.body) {
-    // bubble up the upstream status for easier debugging
     return new Response(`Upstream fetch failed (${upstream.status})`, { status: upstream.status });
   }
 
-  const ct = upstream.headers.get("content-type") || "application/octet-stream";
-  const len = upstream.headers.get("content-length") || undefined;
+  const headers = new Headers(upstream.headers);
+  headers.set("Cache-Control", "no-store");
+
+  // Ensure a sensible Content-Type
+  if (!headers.get("Content-Type")) headers.set("Content-Type", "application/octet-stream");
+
+  // Override filename if provided
   const filename = sanitizeFilename(fileParam);
+  headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+
+  // Some servers don’t send Content-Length (chunked). Preserve if present.
+  // If you want to guarantee it, you’d need to buffer — not recommended for large files.
 
   return new Response(upstream.body, {
-    headers: {
-      "Content-Type": ct,
-      ...(len ? { "Content-Length": len } : {}),
-      "Content-Disposition": `attachment; filename="${filename}"`,
-      "Cache-Control": "no-store",
-    },
+    status: upstream.status,
+    headers,
   });
 }
