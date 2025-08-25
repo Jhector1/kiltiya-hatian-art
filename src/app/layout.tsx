@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { UserContextInner, UserProvider } from "@/contexts/UserContext";
+import { UserProvider } from "@/contexts/UserContext";
 import { CartProvider } from "@/contexts/CartContext";
 import Header from "@/components/header/Header";
 import { FavoriteProvider } from "@/contexts/FavoriteContext";
@@ -82,7 +82,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <UserProvider>
-          <UserContextInner>
+          <UserProvider>
             <CartProvider>
               <FavoriteProvider>
                 <div className="bg-[#0f0f1a] bg-dot-grid bg-[length:var(--tw-background-size-dot-grid)] min-h-screen bg-gradient-to-r from-amber-100 via-white to-slate-100 text-gray-900">
@@ -100,7 +100,7 @@ export default function RootLayout({
                 </div>
               </FavoriteProvider>
             </CartProvider>
-          </UserContextInner>
+          </UserProvider>
         </UserProvider>
       </body>
     </html>
