@@ -7,6 +7,8 @@ import { compare } from "bcryptjs";
 const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
+  
+
   providers: [
     // Email / Password
     CredentialsProvider({
