@@ -1,124 +1,67 @@
-// File: src/lib/api/auth.ts
-import { signIn, signOut, SignOutResponse } from "next-auth/react";
-import { SignupData }      from "@/types";
-
-const API_BASE = "/api/auth";
-
-
-export async function signup(data: SignupData): Promise<void> {
-  const res = await fetch(`${API_BASE}/signup`, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify(data),
-  });
-  const payload = await res.json();
-  if (!res.ok) throw new Error(payload.error || "Signup failed");
-
-  const result = await signIn("credentials", {
-    redirect: false,
-    email:    data.email,
-    password: data.password,
-  });
-  if (!result || result.error) {
-    throw new Error(result?.error || "Automatic login failed");
-  }
-}
-
-export async function login(credentials: { email: string; password: string; }): Promise<void> {
-  const result = await signIn("credentials", {
-    redirect: false,
-    email:    credentials.email,
-    password: credentials.password,
-  });
-  if (!result || result.error) {
-    throw new Error(result?.error || "Login failed");
-  }
-}
-
-/**
- * Log out the current user.
- * Returns the signOut response (so you can inspect or await navigation).
- */
-export function logout(): Promise<SignOutResponse> {
-  return signOut({ redirect: false });
-}
-
-
-
-
-// File: src/lib/auth.ts
-import{ NextAuthOptions } from "next-auth";
-import CredentialsProvider          from "next-auth/providers/credentials";
-import { PrismaClient }             from "@prisma/client";
-import { verifyPassword } from "@/lib/password";
+import type { NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
+import { PrismaClient } from "@prisma/client";
+import { compare } from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    // Email / Password
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email:    { label: "Email",    type: "text"     },
+        email:    { label: "Email", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      authorize: async (creds) => {
-        if (!creds?.email || !creds?.password) {
-          console.log("[Auth] Missing email or password");
-          return null;
-        }
+      async authorize(creds) {
+        if (!creds?.email || !creds?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: creds.email },
-        });
-        if (!user) {
-          console.log("[Auth] No user found for:", creds.email);
-          return null;
-        }
+        const user = await prisma.user.findUnique({ where: { email: creds.email } });
+        if (!user) return null;
 
-        const isValid = await verifyPassword(creds.password, user.password);
-        console.log("[Auth] password valid?", isValid);
-        if (!isValid) {
-          console.log("[Auth] Invalid password for:", creds.email);
-          return null;
-        }
+        const ok = await compare(creds.password, user.password);
+        if (!ok) return null;
 
-        // success
-        return { id: user.id, email: user.email, name: user.name };
+        return { id: user.id, email: user.email, name: user.name ?? null };
       },
     }),
- // ---- Google Login ----
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
 
+    // Google OAuth (optional)
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+    }),
   ],
 
   session: { strategy: "jwt" },
 
   callbacks: {
-    jwt:     ({ token, user }) => (user ? { ...token, ...user } : token),
-    session: ({ session, token }) => ({ ...session, user: token }),
-  },
-
-  pages: {
-    signIn: "/login",
-  },
-
-  cookies: {
-    sessionToken: {
-      name: "next-auth.session-token",
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
+    async jwt({ token, user }) {
+      // When the user first logs in, copy fields onto the token
+      if (user) {
+        token.id = (user as any).id;
+        token.email = user.email;
+        token.name = user.name;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      // Keep session.user clean & predictable
+      if (session.user) {
+        (session.user as any).id = token.id as string;
+        session.user.email = token.email as string;
+        session.user.name = token.name as string | null;
+      }
+      return session;
     },
   },
 
-  // This is critical to sign/verify the JWT
+  // Let NextAuth manage cookies automatically (no custom cookie config)
+  pages: {
+    signIn: "/authenticate", // where our form lives
+  },
+
   secret: process.env.NEXTAUTH_SECRET,
 };

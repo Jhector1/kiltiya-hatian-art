@@ -1,30 +1,34 @@
-// File: src/components/AuthenticationForm.tsx
 "use client";
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlobeAltIcon, DevicePhoneMobileIcon, CubeIcon } from "@heroicons/react/24/outline";
 import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 interface AuthenticationFormProps {
-  onSuccess?: () => Promise<void> | void; // ⬅️ ADD THIS
-  handlerAction?: () => void;              // keep for backwards-compat if you need it
+  onSuccess?: () => Promise<void> | void;
+  handlerAction?: () => void;
   isGuest?: boolean;
-    callbackUrl?: string;
+  callbackUrl?: string; // should be relative (startsWith("/"))
 }
 
 export default function AuthenticationForm({
-  onSuccess,               // ⬅️ ADD THIS
+  onSuccess,
   handlerAction = () => {},
   isGuest = false,
-  callbackUrl
+  callbackUrl,
 }: AuthenticationFormProps) {
+  const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const safeCb =
+    callbackUrl && callbackUrl.startsWith("/") ? callbackUrl : "/profile";
 
   const handleGuestLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,56 +37,47 @@ export default function AuthenticationForm({
       const guestId = crypto.randomUUID();
       document.cookie = `guest_id=${guestId}; max-age=${60 * 60 * 24 * 30}; path=/; SameSite=Lax`;
     }
-    handlerAction?.(); // still supported
-    // DO NOT reload here, we want the parent to finish the claim if needed
+    handlerAction?.();
   };
 
- const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError(null);
-  setLoading(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
 
-  try {
-    if (mode === "signup") {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: fullName, email, password }),
-      });
-      if (!res.ok) {
-        const { error: msg } = await res.json().catch(() => ({ error: "" }));
-        throw new Error(msg || "Signup failed");
+    try {
+      if (mode === "signup") {
+        const res = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: fullName, email, password }),
+        });
+        if (!res.ok) {
+          const { error: msg } = await res.json().catch(() => ({ error: "" }));
+          throw new Error(msg || "Signup failed");
+        }
+        // Immediately log them in via NextAuth after successful signup
       }
+
+      const result = await signIn("credentials", {
+        redirect: false, // keep control in the UI
+        email,
+        password,
+        callbackUrl: safeCb, // relative path, NextAuth resolves it
+      });
+
+      if (!result || result.error) {
+        throw new Error(result?.error || "Login failed");
+      }
+
+      await onSuccess?.();
+      router.push(safeCb);
+    } catch (err: any) {
+      setError(err?.message ?? "Something went wrong");
+    } finally {
+      setLoading(false);
     }
-
-    const result = await signIn("credentials", {
-      redirect: false,       // ❌ never auto-redirect
-      email,
-      password,
-      callbackUrl: callbackUrl || undefined,
-    });
-
-    if (!result || result.error) {
-      throw new Error(result?.error || "Login failed");
-    }
-
-    // ✅ success — run parent claim, then navigate
-    await onSuccess?.();
-
-    // redirect manually
-    if (callbackUrl) {
-      window.location.href = callbackUrl;
-    } else {
-      window.location.reload(); // or use router.push("/dashboard")
-    }
-
-  } catch (err: unknown) {
-    setError(err instanceof Error ? err.message : String(err));
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -91,11 +86,7 @@ export default function AuthenticationForm({
   const formVariants = {
     hidden: { x: mode === "login" ? -50 : 50, opacity: 0 },
     show: { x: 0, opacity: 1, transition: { duration: 0.5 } },
-    exit: {
-      x: mode === "login" ? 50 : -50,
-      opacity: 0,
-      transition: { duration: 0.3 },
-    },
+    exit: { x: mode === "login" ? 50 : -50, opacity: 0, transition: { duration: 0.3 } },
   };
 
   return (
@@ -111,9 +102,7 @@ export default function AuthenticationForm({
             key={m}
             onClick={() => setMode(m)}
             className={`px-6 py-2 rounded-full font-medium transition-all focus:outline-none ${
-              mode === m
-                ? "bg-white shadow-lg"
-                : "text-gray-500 hover:text-gray-700"
+              mode === m ? "bg-white shadow-lg" : "text-gray-500 hover:text-gray-700"
             }`}
           >
             {m === "login" ? "Login" : "Sign Up"}
@@ -171,11 +160,7 @@ export default function AuthenticationForm({
                 : "bg-pink-500 hover:bg-pink-600 text-white"
             }`}
           >
-            {loading
-              ? "Please wait..."
-              : mode === "login"
-              ? "Log In"
-              : "Sign Up"}
+            {loading ? "Please wait..." : mode === "login" ? "Log In" : "Sign Up"}
           </button>
         </motion.form>
       </AnimatePresence>
@@ -187,26 +172,26 @@ export default function AuthenticationForm({
       >
         Or continue with
       </motion.div>
+
       <motion.div
         className="flex justify-center space-x-4 mt-4"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { delay: 0.6 } }}
       >
-              <button onClick={() => signIn("google")}>
-        Login with Google
-      </button>
-
-        <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition">
+        {/* Google auth must redirect (can't be redirect:false) */}
+        <button
+          className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition"
+          onClick={() => signIn("google", { callbackUrl: safeCb })}
+        >
           <GlobeAltIcon className="h-6 w-6 text-gray-600" />
         </button>
+
         <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition">
           <DevicePhoneMobileIcon className="h-6 w-6 text-gray-600" />
         </button>
         <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition">
           <CubeIcon className="h-6 w-6 text-gray-600" />
         </button>
-
-        {/* 🟨 Add Guest Button */}
 
         {isGuest && (
           <button
@@ -223,9 +208,7 @@ export default function AuthenticationForm({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { delay: 0.8 } }}
       >
-        {mode === "login"
-          ? "Don't have an account?"
-          : "Already have an account?"}
+        {mode === "login" ? "Don't have an account?" : "Already have an account?"}
         <button
           className="ml-1 text-indigo-500 hover:underline focus:outline-none"
           onClick={() => setMode(mode === "login" ? "signup" : "login")}
