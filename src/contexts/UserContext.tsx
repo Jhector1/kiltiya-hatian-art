@@ -8,8 +8,8 @@ export type User = {
   id: string;
   email: string;
   name?: string | null;
-  createdAt?: string;   // optional unless you add to session callback
-  updatedAt?: string;   // optional unless you add to session callback
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type UserContextType = {
@@ -32,10 +32,6 @@ const UserContext = createContext<UserContextType>({
 
 export const useUser = () => useContext(UserContext);
 
-/**
- * Wrap your app in <UserProvider> (in app/layout.tsx) so useUser() works everywhere.
- * We include SessionProvider here and expose a simplified user state.
- */
 export function UserProvider({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider refetchOnWindowFocus={false}>
@@ -44,38 +40,39 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Internal provider that reads NextAuth’s session and exposes:
- * user, isLoggedIn, loading, guestId, login(), logout()
- */
 function UserContextInner({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const loading = status === "loading";
   const isLoggedIn = status === "authenticated";
   const user = (session?.user as User) ?? null;
 
-  // Generate/return a guestId only if not logged in
   const guestId = !isLoggedIn ? getOrCreateGuestId() : null;
 
   const login = () => {
-    // Build a RELATIVE callbackUrl based on current location
-    const cb = typeof window !== "undefined"
-      ? `${window.location.pathname}${window.location.search}`
-      : "/";
-    // pages.signIn is "/authenticate", NextAuth will route to it
-    // Passing undefined provider opens the signIn page
+    const cb =
+      typeof window !== "undefined"
+        ? `${window.location.pathname}${window.location.search}`
+        : "/";
+    // NextAuth will route to pages.signIn
     signIn(undefined, { callbackUrl: cb });
   };
+// in your UserProvider logout:
+const logout = async () => {
+  // Clear your own front-end cookies
+  document.cookie = "guest_id=; max-age=0; path=/; SameSite=Lax";
 
-  const logout = () => {
-    // If you prefer to land on home after logout:
-    signOut({ redirect: true, callbackUrl: "/" });
-  };
+  // Optional: nuke callback-url helpers if they exist
+  document.cookie = "next-auth.callback-url=; max-age=0; path=/";
+  document.cookie = "__Secure-next-auth.callback-url=; max-age=0; path=/";
+
+  // Now let NextAuth clear its httpOnly cookies
+await fetch("/api/auth/clear", { method: "POST" });
+await signOut({ redirect: true, callbackUrl: "/" });
+};
+
 
   return (
-    <UserContext.Provider
-      value={{ user, loading, isLoggedIn, guestId, login, logout }}
-    >
+    <UserContext.Provider value={{ user, loading, isLoggedIn, guestId, login, logout }}>
       {children}
     </UserContext.Provider>
   );

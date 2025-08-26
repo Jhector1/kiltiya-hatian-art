@@ -7,10 +7,8 @@ import { compare } from "bcryptjs";
 const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
-  
-
+  // trustHost: true, // important if behind proxy/CDN
   providers: [
-    // Email / Password
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -19,29 +17,21 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(creds) {
         if (!creds?.email || !creds?.password) return null;
-
         const user = await prisma.user.findUnique({ where: { email: creds.email } });
         if (!user) return null;
-
         const ok = await compare(creds.password, user.password);
         if (!ok) return null;
-
         return { id: user.id, email: user.email, name: user.name ?? null };
       },
     }),
-
-    // Google OAuth (optional)
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     }),
   ],
-
   session: { strategy: "jwt" },
-
   callbacks: {
     async jwt({ token, user }) {
-      // When the user first logs in, copy fields onto the token
       if (user) {
         token.id = (user as any).id;
         token.email = user.email;
@@ -50,20 +40,14 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      // Keep session.user clean & predictable
       if (session.user) {
         (session.user as any).id = token.id as string;
         session.user.email = token.email as string;
-        session.user.name = token.name as string | null;
+        session.user.name = (token.name as string) ?? null;
       }
       return session;
     },
   },
-
-  // Let NextAuth manage cookies automatically (no custom cookie config)
-  pages: {
-    signIn: "/authenticate", // where our form lives
-  },
-
+  pages: { signIn: "/authenticate" },
   secret: process.env.NEXTAUTH_SECRET,
 };

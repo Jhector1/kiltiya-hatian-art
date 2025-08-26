@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlobeAltIcon, DevicePhoneMobileIcon, CubeIcon } from "@heroicons/react/24/outline";
 import { signIn } from "next-auth/react";
@@ -12,6 +12,14 @@ interface AuthenticationFormProps {
   isGuest?: boolean;
   callbackUrl?: string; // should be relative (startsWith("/"))
 }
+
+const ERROR_MAP: Record<string, string> = {
+  CredentialsSignin: "Invalid email or password.",
+  OAuthSignin: "Could not sign in with the provider.",
+  OAuthCallback: "The provider did not authorize this login.",
+  OAuthAccountNotLinked: "Account already exists with a different sign-in method.",
+  default: "Login failed. Please try again.",
+};
 
 export default function AuthenticationForm({
   onSuccess,
@@ -27,8 +35,17 @@ export default function AuthenticationForm({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const safeCb =
-    callbackUrl && callbackUrl.startsWith("/") ? callbackUrl : "/profile";
+  // Extra defense: ensure we only ever use a RELATIVE path as callback
+  const safeCb = useMemo(() => {
+    if (!callbackUrl) return "/profile";
+    try {
+      // If someone passed a full URL by mistake, force it to a relative path
+      const u = new URL(callbackUrl, "http://dummy");
+      return u.pathname + u.search + u.hash;
+    } catch {
+      return callbackUrl.startsWith("/") ? callbackUrl : "/profile";
+    }
+  }, [callbackUrl]);
 
   const handleGuestLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +59,7 @@ export default function AuthenticationForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError(null);
     setLoading(true);
 
@@ -56,18 +74,22 @@ export default function AuthenticationForm({
           const { error: msg } = await res.json().catch(() => ({ error: "" }));
           throw new Error(msg || "Signup failed");
         }
-        // Immediately log them in via NextAuth after successful signup
       }
 
       const result = await signIn("credentials", {
-        redirect: false, // keep control in the UI
+        redirect: false,       // stay on the page; handle success manually
         email,
         password,
-        callbackUrl: safeCb, // relative path, NextAuth resolves it
+        callbackUrl: safeCb,   // relative path; NextAuth resolves it
       });
 
-      if (!result || result.error) {
-        throw new Error(result?.error || "Login failed");
+      if (!result) {
+        throw new Error("Login failed");
+      }
+      if (result.error) {
+        // NextAuth returns short codes like "CredentialsSignin"
+        setError(ERROR_MAP[result.error] ?? ERROR_MAP.default);
+        return;
       }
 
       await onSuccess?.();
@@ -88,6 +110,7 @@ export default function AuthenticationForm({
     show: { x: 0, opacity: 1, transition: { duration: 0.5 } },
     exit: { x: mode === "login" ? 50 : -50, opacity: 0, transition: { duration: 0.3 } },
   };
+  
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 bg-white rounded-2xl shadow-xl">
@@ -100,7 +123,10 @@ export default function AuthenticationForm({
         {(["login", "signup"] as const).map((m) => (
           <button
             key={m}
-            onClick={() => setMode(m)}
+            onClick={() => {
+              setMode(m);
+              setError(null); // clear errors when toggling
+            }}
             className={`px-6 py-2 rounded-full font-medium transition-all focus:outline-none ${
               mode === m ? "bg-white shadow-lg" : "text-gray-500 hover:text-gray-700"
             }`}
@@ -140,6 +166,9 @@ export default function AuthenticationForm({
             placeholder="Email"
             className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-indigo-400"
             required
+            autoComplete="email"
+            autoCapitalize="none"
+            autoCorrect="off"
           />
 
           <input
@@ -149,6 +178,8 @@ export default function AuthenticationForm({
             placeholder="Password"
             className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-indigo-400"
             required
+            // minLength={}
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
           />
 
           <button
@@ -178,18 +209,20 @@ export default function AuthenticationForm({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { delay: 0.6 } }}
       >
-        {/* Google auth must redirect (can't be redirect:false) */}
+        {/* Google auth must redirect */}
         <button
           className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition"
+          type="button"
           onClick={() => signIn("google", { callbackUrl: safeCb })}
+          aria-label="Sign in with Google"
         >
           <GlobeAltIcon className="h-6 w-6 text-gray-600" />
         </button>
 
-        <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition">
+        <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition" type="button">
           <DevicePhoneMobileIcon className="h-6 w-6 text-gray-600" />
         </button>
-        <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition">
+        <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition" type="button">
           <CubeIcon className="h-6 w-6 text-gray-600" />
         </button>
 
@@ -197,6 +230,7 @@ export default function AuthenticationForm({
           <button
             className="text-sm text-gray-500 hover:text-gray-700 hover:underline mt-4"
             onClick={handleGuestLogin}
+            type="button"
           >
             Continue as Guest
           </button>
@@ -211,7 +245,11 @@ export default function AuthenticationForm({
         {mode === "login" ? "Don't have an account?" : "Already have an account?"}
         <button
           className="ml-1 text-indigo-500 hover:underline focus:outline-none"
-          onClick={() => setMode(mode === "login" ? "signup" : "login")}
+          onClick={() => {
+            setMode(mode === "login" ? "signup" : "login");
+            setError(null);
+          }}
+          type="button"
         >
           {mode === "login" ? "Sign Up" : "Log In"}
         </button>
