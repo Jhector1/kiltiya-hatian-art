@@ -59,6 +59,7 @@ export default function AuthenticationForm({
       document.cookie = `guest_id=${guestId}; max-age=${
         60 * 60 * 24 * 30
       }; path=/; SameSite=Lax`;
+      location.reload()
     }
     handlerAction?.();
   };

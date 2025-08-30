@@ -147,6 +147,7 @@ export default function Header() {
         <AuthenticationForm
           onSuccess={() => setModalOpen(false)}
           callbackUrl={pathname || "/profile"}
+          // handlerAction={location.reload()}
         />
       </UniversalModal>
 
