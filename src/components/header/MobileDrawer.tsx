@@ -1,11 +1,15 @@
-// components/MobileDrawer.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence, useReducedMotion, Transition } from "framer-motion";
+import {
+  motion,
+  AnimatePresence,
+  useReducedMotion,
+  Transition,
+} from "framer-motion";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 
 type Item = { label: string; href: string };
@@ -55,14 +59,14 @@ export default function MobileDrawer({
 
   if (!mounted) return null;
 
-const drawerTransition: Transition = prefersReduced
-  ? { type: "tween", duration: 0.25 }
-  : { type: "spring", stiffness: 260, damping: 24, mass: 1 };
+  const drawerTransition: Transition = prefersReduced
+    ? { type: "tween", duration: 0.25 }
+    : { type: "spring", stiffness: 260, damping: 24, mass: 1 };
 
   return createPortal(
     <AnimatePresence initial={false}>
       {open && (
-        <div className="fixed inset-0 z-[9999] md:hidden pointer-events-auto">
+        <div className="fixed inset-0 z-[9999] pointer-events-auto">
           {/* Backdrop */}
           <motion.button
             type="button"
@@ -86,7 +90,7 @@ const drawerTransition: Transition = prefersReduced
             transition={drawerTransition}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Drawer header */}
+            {/* Header */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
               <span className="text-sm font-semibold text-gray-900">{title}</span>
               <button
@@ -98,7 +102,7 @@ const drawerTransition: Transition = prefersReduced
               </button>
             </div>
 
-            {/* Main nav */}
+            {/* Links */}
             <nav className="px-2 py-3 space-y-1 overflow-y-auto">
               {items.map((link, i) => (
                 <motion.div
@@ -118,12 +122,15 @@ const drawerTransition: Transition = prefersReduced
               ))}
             </nav>
 
-            {/* Account section */}
+            {/* Account */}
             <div className="mt-auto border-t border-gray-100 p-3">
               {isLoggedIn ? (
                 <div className="space-y-2">
                   <div className="px-3 py-2 text-sm text-gray-600">
-                    Signed in as <span className="font-medium text-gray-900">{userName || "User"}</span>
+                    Signed in as{" "}
+                    <span className="font-medium text-gray-900">
+                      {userName || "User"}
+                    </span>
                   </div>
                   <Link
                     href="/profile"
@@ -146,7 +153,6 @@ const drawerTransition: Transition = prefersReduced
                 <button
                   onClick={() => {
                     onClose();
-                    // let the drawer finish sliding before opening modal
                     setTimeout(() => onSignIn?.(), 250);
                   }}
                   className="w-full rounded-xl border border-gray-200 px-3 py-3 text-base font-medium text-gray-700 hover:text-gray-900 hover:border-gray-300 active:scale-95 transition"

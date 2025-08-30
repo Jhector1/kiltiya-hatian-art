@@ -26,6 +26,7 @@ export default function ProductImageGallery({
           selected={{ src: preview?.src || "" }}
         />
         <div className="w-[50vw] lg:h-screen">
+        
           <ProductImage src={preview?.src || ""} alt={preview?.alt || ""} />
         </div>
       </div>

@@ -154,14 +154,35 @@ export default function EditorHeaderBar({
           onExport={onExport}
         />
 
-        <button
-          className="sm:hidden inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium ring-1 ring-black/10 bg-white hover:bg-emerald-50"
-          onClick={() => setShowControls((s) => !s)}
-          aria-expanded={showControls}
-          aria-controls="controls-panel"
-        >
-          {showControls ? "Hide Controls" : "Show Controls"}
-        </button>
+       <button
+  className="sm:hidden inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium ring-1 ring-black/10 bg-white hover:bg-emerald-50"
+  onClick={() =>
+    setShowControls(prev => {
+      const next = !prev;
+
+      // If we’re about to SHOW the controls, wait for the next paint
+      // (twice) then smooth-scroll the target into view.
+      if (!prev) {
+        const scroll = () => {
+          const el = document.getElementById("controls-panel");
+          if (el) {
+            // optional: ensure it can receive focus for a11y jump
+            el.setAttribute("tabindex", "-1");
+            el.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+            el.focus({ preventScroll: true });
+          }
+        };
+        requestAnimationFrame(() => requestAnimationFrame(scroll));
+      }
+
+      return next;
+    })
+  }
+  aria-expanded={showControls}
+  aria-controls="controls-panel"
+>
+  {showControls ? "Hide Controls" : "Show Controls"}
+</button>
       </div>
     </div>
   );

@@ -158,11 +158,10 @@ export type CartSelectedItem = ProductListItem & {
   cartQuantity: number;
   digital: ProductVariant | null;
   print: ProductVariant | null;
-   designId?: string | null;    // NEW
-  previewUrl?: string | null;  // NE
-    isUserDesign?: boolean;
-    originalPrice: number;
-
+  designId?: string | null; // NEW
+  previewUrl?: string | null; // NE
+  isUserDesign?: boolean;
+  originalPrice: number;
 };
 // exactly the return type of
 //   prisma.review.findMany({ include: { user: true } })
@@ -195,10 +194,17 @@ export interface ProductDetailResult {
   variants: VariantWithInCart[];
   svgPreview: string;
   reviews: Review[];
-   salePercent: number,
-  salePrice: number,
-  saleStartsAt: string,
-  saleEndsAt: string,
+  salePercent: number;
+  salePrice: number;
+  saleStartsAt: string;
+  saleEndsAt: string;
+  userDesign: {
+    id: string;
+    previewUrl: string;
+    previewPublicId: string;
+    previewUpdatedAt: string;
+  };
+  userDesignPreviewUrl: string;
 }
 export type CartUpdates = Record<string, string | number | boolean | null>;
 export interface HomeCategory {
@@ -234,28 +240,24 @@ export type AddToCartResponse = {
     cartItemId?: string;
     digitalVariantId?: string;
     printVariantId?: string;
-      designId?: string | null;    // NEW
-  previewUrl?: string | null;  // NEW (snapshot URL)
+    designId?: string | null; // NEW
+    previewUrl?: string | null; // NEW (snapshot URL)
   };
 };
 
 export type LicenseOption = {
-     type: string,
-    name: string,
-    price: number,
-    description: string,
-  
-}
-
-
-
+  type: string;
+  name: string;
+  price: number;
+  description: string;
+};
 
 //USer design
 export type DesignPayload = {
-  id?: string;                 // existing design id (if any)
-  style?: StyleState;                 // your StyleState
-  defs?: string | null;        // serialized <defs> (or JSON of defsMap)
-  previewDataUrl?: string;     // data:image/webp;base64,...
+  id?: string; // existing design id (if any)
+  style?: StyleState; // your StyleState
+  defs?: string | null; // serialized <defs> (or JSON of defsMap)
+  previewDataUrl?: string; // data:image/webp;base64,...
 };
 
 export type AddToCartBody = {
@@ -270,6 +272,6 @@ export type AddToCartBody = {
   frame?: string | null;
   license?: string;
 
-  design?: DesignPayload;      // 👈 new
-  snapshot?: boolean;          // default true (store styleSnapshot)
+  design?: DesignPayload; // 👈 new
+  snapshot?: boolean; // default true (store styleSnapshot)
 };

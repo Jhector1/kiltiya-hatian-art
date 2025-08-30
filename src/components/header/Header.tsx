@@ -7,10 +7,8 @@ import {
   HeartIcon,
   ShoppingCartIcon,
   Bars3Icon,
- 
   UserCircleIcon,
 } from "@heroicons/react/24/outline";
-import { signOut } from "next-auth/react";
 
 import { useUser } from "@/contexts/UserContext";
 import { useCart } from "@/contexts/CartContext";
@@ -21,14 +19,6 @@ import AuthenticationForm from "../authenticate/AuthenticationFom";
 import { navLinks } from "@/data/helpers";
 import MobileDrawer from "./MobileDrawer";
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Config
-// ──────────────────────────────────────────────────────────────────────────────
-
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Small building blocks
-// ──────────────────────────────────────────────────────────────────────────────
 function Logo() {
   return (
     <Link
@@ -52,7 +42,13 @@ interface IconButtonProps {
   ariaLabel: string;
 }
 
-function IconButton({ href, Icon, count = 0, badgeColor = "bg-blue-600", ariaLabel }: IconButtonProps) {
+function IconButton({
+  href,
+  Icon,
+  count = 0,
+  badgeColor = "bg-blue-600",
+  ariaLabel,
+}: IconButtonProps) {
   return (
     <Link
       href={href}
@@ -74,20 +70,29 @@ function IconButton({ href, Icon, count = 0, badgeColor = "bg-blue-600", ariaLab
 
 function DesktopNav({ pathname }: { pathname: string }) {
   return (
-    <nav className="hidden md:flex items-center gap-1" aria-label="Main navigation">
+    <nav
+      className="hidden md:flex items-center gap-1"
+      aria-label="Main navigation"
+    >
       {navLinks.map((link) => {
-        const active = pathname === link.href || (link.href !== "/" && pathname.startsWith(link.href));
+        const active =
+          pathname === link.href ||
+          (link.href !== "/" && pathname.startsWith(link.href));
         return (
           <Link
             key={link.href}
             href={link.href}
-            className={`relative px-3 py-2 text-sm font-medium transition-colors duration-200 rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600
-              ${active ? "text-gray-900" : "text-gray-600 hover:text-gray-900"}`}
+            className={`relative px-3 py-2 text-sm font-medium transition-colors duration-200 rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${
+              active ? "text-gray-900" : "text-gray-600 hover:text-gray-900"
+            }`}
           >
             {link.label}
             <span
-              className={`pointer-events-none absolute left-3 right-3 -bottom-[2px] h-[2px] rounded-full transition-all duration-300
-                ${active ? "bg-gray-900 opacity-100" : "bg-gray-900/60 opacity-0 group-hover:opacity-100"}`}
+              className={`pointer-events-none absolute left-3 right-3 -bottom-[2px] h-[2px] rounded-full transition-all duration-300 ${
+                active
+                  ? "bg-gray-900 opacity-100"
+                  : "bg-gray-900/60 opacity-0 group-hover:opacity-100"
+              }`}
               aria-hidden="true"
             />
           </Link>
@@ -97,11 +102,8 @@ function DesktopNav({ pathname }: { pathname: string }) {
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Header
-// ──────────────────────────────────────────────────────────────────────────────
 export default function Header() {
-  // Prevent context menu (per your original code)
+  // prevent context menu if you want
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     document.addEventListener("contextmenu", handleContextMenu);
@@ -109,7 +111,7 @@ export default function Header() {
   }, []);
 
   const pathname = usePathname();
-  const { user, loading, isLoggedIn } = useUser();
+  const { user, loading, isLoggedIn, logout } = useUser();
   const { cart } = useCart();
   const { favorites } = useFavorites();
 
@@ -117,7 +119,8 @@ export default function Header() {
   const [isModalOpen, setModalOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
-  const likeCount = (favorites as any)?.size ?? (Array.isArray(favorites) ? favorites.length : 0);
+  const likeCount = favorites.size;
+
   const cartCount = Array.isArray(cart) ? cart.length : 0;
 
   useEffect(() => {
@@ -126,10 +129,6 @@ export default function Header() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-// inside Header component
-const handleSignInFromDrawer = () => {
-  setModalOpen(true); // opens <UniversalModal><AuthenticationForm/></UniversalModal>
-};
 
   const openAuth = useCallback(() => setModalOpen(true), []);
   const closeAuth = useCallback(() => setModalOpen(false), []);
@@ -145,12 +144,15 @@ const handleSignInFromDrawer = () => {
     >
       {/* Auth Modal */}
       <UniversalModal isOpen={isModalOpen} onClose={closeAuth}>
-        <AuthenticationForm onSuccess={()=>setModalOpen(false)} />
+        <AuthenticationForm
+          onSuccess={() => setModalOpen(false)}
+          callbackUrl={pathname || "/profile"}
+        />
       </UniversalModal>
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          {/* Left: Logo */}
+          {/* Left: Logo + burger */}
           <div className="flex items-center gap-3">
             <button
               className="md:hidden p-2 rounded-lg hover:bg-gray-50 active:scale-95"
@@ -186,7 +188,8 @@ const handleSignInFromDrawer = () => {
 
             {isLoggedIn ? (
               <UserMenu
-                userName={user?.name || "User"}
+                userName={user?.name || user?.email || "User"}
+                // userName={user?.name || "User"}
                 userImage="/placeholder.png"
                 userEmail={user?.email || ""}
                 userRole="Pro User"
@@ -195,7 +198,7 @@ const handleSignInFromDrawer = () => {
                   { label: "Settings", href: "/settings", disable: true },
                   { label: "Earnings", href: "/earnings", disable: true },
                 ]}
-                onSignOut={() => signOut({ callbackUrl: "/" })}
+                onSignOut={() => logout()}
               />
             ) : (
               <button
@@ -211,17 +214,15 @@ const handleSignInFromDrawer = () => {
       </div>
 
       {/* Mobile drawer */}
-
-<MobileDrawer
-  open={mobileOpen}
-  onClose={() => setMobileOpen(false)}
-  items={navLinks}
-  isLoggedIn={isLoggedIn}
-  userName={user?.name || "User"}
-  onSignIn={handleSignInFromDrawer}
-  onSignOut={() => signOut({ callbackUrl: "/" })}
-/>
-
+      <MobileDrawer
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        items={navLinks}
+        isLoggedIn={isLoggedIn}
+        userName={user?.name || "User"}
+        onSignIn={openAuth}
+        onSignOut={() => logout()}
+      />
     </header>
   );
 }

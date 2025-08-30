@@ -561,7 +561,7 @@ function EditableCanvasInner({ productId }: { productId: string }) {
           } sm:block md:sticky md:top-4 md:h-fit`}
         >
           <Palette />
-          <AppearanceControls />
+          <AppearanceControls  />
           <ExportSizeControls
             mode={exportMode}
             setMode={setExportMode}

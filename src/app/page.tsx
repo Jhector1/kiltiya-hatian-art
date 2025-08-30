@@ -5,6 +5,7 @@ import AboutComponent from "@/components/AboutComponent";
 // import PngEditor from "@/components/PNGEditor";
 import SEO from "@/components/SEO";
 import VeveDrawFromSvg from "@/components/animation/VeveDrawFromSvg";
+import DigitalCardWrapper from "@/components/digitalCard/DigitalCardWrapper";
 // import SvgEditor from "@/components/SvgEditor";
 // import DigitalCard from "@/components/digitalCard/DigitalCard";
 // import dynamic from "next/dynamic";

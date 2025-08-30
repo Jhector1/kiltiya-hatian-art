@@ -10,10 +10,13 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const productId = url.pathname.split("/").pop()!;
 
+  // Identify the caller (prefer logged-in user over guest if both exist)
+  const { userId, guestId } = await getCustomerIdFromRequest(req);
+
   const product = await db.product.findUnique({
     where: { id: productId },
     include: {
-      category: { select: { name: true } }, // 👈 join category
+      category: { select: { name: true } },
       reviews: true,
       variants: true,
     },
@@ -23,13 +26,36 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // cart lookup unchanged...
-  let cartVariantIds: string[] = [];
-  const { userId, guestId } = await getCustomerIdFromRequest(req);
+  // --- Fetch the caller's design for this product (if any) ---
+  // Prefer userId; otherwise use guestId. (Both are unique per product via schema constraints.)
+  const userDesign = userId
+    ? await db.userDesign.findUnique({
+        where: { userId_productId: { userId, productId } },
+        select: {
+          id: true,
+          previewUrl: true,
+          previewPublicId: true,
+          previewUpdatedAt: true,
+        },
+      })
+    : guestId
+    ? await db.userDesign.findUnique({
+        where: { guestId_productId: { guestId, productId } },
+        select: {
+          id: true,
+          previewUrl: true,
+          previewPublicId: true,
+          previewUpdatedAt: true,
+        },
+      })
+    : null;
+
+  // --- Cart lookup (safe single-branch match; avoid OR with undefined) ---
+  const cartWhere =
+    userId ? { userId } : guestId ? { guestId } : { id: "__nope__" };
+
   const cart = await db.cart.findFirst({
-    where: {
-      OR: [{ userId: userId ?? undefined }, { guestId: guestId ?? undefined }],
-    },
+    where: cartWhere,
     include: {
       items: {
         where: { productId },
@@ -37,6 +63,8 @@ export async function GET(req: NextRequest) {
       },
     },
   });
+
+  let cartVariantIds: string[] = [];
   if (cart) {
     cartVariantIds = cart.items.flatMap((item) => {
       const ids: string[] = [];
@@ -45,16 +73,17 @@ export async function GET(req: NextRequest) {
       return ids;
     });
   }
-
+const mergedThumbs = product.thumbnails.length
+  ? [userDesign?.previewUrl ?? product.thumbnails[0], ...product.thumbnails.slice(1)]
+  : (userDesign?.previewUrl ? [userDesign.previewUrl] : []);
   const result = {
     id: product.id,
-    category: product.category?.name ?? null, // 👈 name instead of id
-    // If you want to keep the old field temporarily: categoryId: product.categoryId,
+    category: product.category?.name ?? null,
     title: product.title,
     description: product.description,
     price: product.price,
-    imageUrl: product.thumbnails[0] ?? "/placeholder.png",
-    thumbnails: product.thumbnails,
+    imageUrl:  userDesign?.previewUrl ?? product.thumbnails[0] ?? "/placeholder.png",
+thumbnails: mergedThumbs ,
     formats: product.formats,
     svgPreview: product.svgPreview,
     variants: product.variants.map((v) => ({
@@ -67,8 +96,19 @@ export async function GET(req: NextRequest) {
     saleStartsAt: product.saleStartsAt,
     saleEndsAt: product.saleEndsAt,
     sizes: product.sizes,
+
+    // 👇 New fields: current user's/guest's design info for this product
+    userDesign: userDesign
+      ? {
+          id: userDesign.id,
+          previewUrl: userDesign.previewUrl,
+          previewPublicId: userDesign.previewPublicId,
+          previewUpdatedAt: userDesign.previewUpdatedAt,
+        }
+      : null,
+    // (optional convenience alias if you just need the URL)
+    userDesignPreviewUrl: userDesign?.previewUrl ?? null,
   };
-  // console.log(99999999,result)
 
   return NextResponse.json(result);
 }

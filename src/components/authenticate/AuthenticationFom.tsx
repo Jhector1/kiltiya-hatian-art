@@ -2,22 +2,27 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GlobeAltIcon, DevicePhoneMobileIcon, CubeIcon } from "@heroicons/react/24/outline";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import {
+  GlobeAltIcon,
+  DevicePhoneMobileIcon,
+  CubeIcon,
+} from "@heroicons/react/24/outline";
+import { usePathname } from "next/navigation";
+import { useUser } from "@/contexts/UserContext";
 
 interface AuthenticationFormProps {
   onSuccess?: () => Promise<void> | void;
   handlerAction?: () => void;
   isGuest?: boolean;
-  callbackUrl?: string; // should be relative (startsWith("/"))
+  callbackUrl?: string; // relative path preferred (starts with "/")
 }
 
 const ERROR_MAP: Record<string, string> = {
   CredentialsSignin: "Invalid email or password.",
   OAuthSignin: "Could not sign in with the provider.",
   OAuthCallback: "The provider did not authorize this login.",
-  OAuthAccountNotLinked: "Account already exists with a different sign-in method.",
+  OAuthAccountNotLinked:
+    "Account already exists with a different sign-in method.",
   default: "Login failed. Please try again.",
 };
 
@@ -27,32 +32,33 @@ export default function AuthenticationForm({
   isGuest = false,
   callbackUrl,
 }: AuthenticationFormProps) {
-  const router = useRouter();
+  const pathname = usePathname();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { loginWithCredentials, loginWithProvider, isAuthBusy } = useUser();
 
-  // Extra defense: ensure we only ever use a RELATIVE path as callback
   const safeCb = useMemo(() => {
-    if (!callbackUrl) return "/profile";
+    if (!callbackUrl) return pathname || "/profile";
     try {
-      // If someone passed a full URL by mistake, force it to a relative path
       const u = new URL(callbackUrl, "http://dummy");
       return u.pathname + u.search + u.hash;
     } catch {
-      return callbackUrl.startsWith("/") ? callbackUrl : "/profile";
+      return callbackUrl.startsWith("/") ? callbackUrl : pathname || "/profile";
     }
-  }, [callbackUrl]);
+  }, [callbackUrl, pathname]);
 
   const handleGuestLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const match = document.cookie.match(/guest_id=([^;]+)/);
     if (!match) {
       const guestId = crypto.randomUUID();
-      document.cookie = `guest_id=${guestId}; max-age=${60 * 60 * 24 * 30}; path=/; SameSite=Lax`;
+      document.cookie = `guest_id=${guestId}; max-age=${
+        60 * 60 * 24 * 30
+      }; path=/; SameSite=Lax`;
     }
     handlerAction?.();
   };
@@ -76,24 +82,18 @@ export default function AuthenticationForm({
         }
       }
 
-      const result = await signIn("credentials", {
-        redirect: false,       // stay on the page; handle success manually
+      const result = await loginWithCredentials({
         email,
         password,
-        callbackUrl: safeCb,   // relative path; NextAuth resolves it
+        callbackUrl: safeCb,
       });
 
-      if (!result) {
-        throw new Error("Login failed");
-      }
-      if (result.error) {
-        // NextAuth returns short codes like "CredentialsSignin"
+      if (!result.ok) {
         setError(ERROR_MAP[result.error] ?? ERROR_MAP.default);
         return;
       }
 
-      await onSuccess?.();
-      router.push(safeCb);
+      await onSuccess?.(); // close modal
     } catch (err: any) {
       setError(err?.message ?? "Something went wrong");
     } finally {
@@ -108,9 +108,12 @@ export default function AuthenticationForm({
   const formVariants = {
     hidden: { x: mode === "login" ? -50 : 50, opacity: 0 },
     show: { x: 0, opacity: 1, transition: { duration: 0.5 } },
-    exit: { x: mode === "login" ? 50 : -50, opacity: 0, transition: { duration: 0.3 } },
+    exit: {
+      x: mode === "login" ? 50 : -50,
+      opacity: 0,
+      transition: { duration: 0.3 },
+    },
   };
-  
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 bg-white rounded-2xl shadow-xl">
@@ -125,10 +128,12 @@ export default function AuthenticationForm({
             key={m}
             onClick={() => {
               setMode(m);
-              setError(null); // clear errors when toggling
+              setError(null);
             }}
             className={`px-6 py-2 rounded-full font-medium transition-all focus:outline-none ${
-              mode === m ? "bg-white shadow-lg" : "text-gray-500 hover:text-gray-700"
+              mode === m
+                ? "bg-white shadow-lg"
+                : "text-gray-500 hover:text-gray-700"
             }`}
           >
             {m === "login" ? "Login" : "Sign Up"}
@@ -178,20 +183,23 @@ export default function AuthenticationForm({
             placeholder="Password"
             className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-indigo-400"
             required
-            // minLength={}
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
           />
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || isAuthBusy}
             className={`w-full py-2 rounded-md transition ${
               mode === "login"
                 ? "bg-indigo-500 hover:bg-indigo-600 text-white"
                 : "bg-pink-500 hover:bg-pink-600 text-white"
             }`}
           >
-            {loading ? "Please wait..." : mode === "login" ? "Log In" : "Sign Up"}
+            {loading || isAuthBusy
+              ? "Please wait..."
+              : mode === "login"
+              ? "Log In"
+              : "Sign Up"}
           </button>
         </motion.form>
       </AnimatePresence>
@@ -209,20 +217,21 @@ export default function AuthenticationForm({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { delay: 0.6 } }}
       >
-        {/* Google auth must redirect */}
         <button
           className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition"
           type="button"
-          onClick={() => signIn("google", { callbackUrl: safeCb })}
+          onClick={() =>
+            loginWithProvider({ provider: "google", callbackUrl: safeCb })
+          }
           aria-label="Sign in with Google"
         >
           <GlobeAltIcon className="h-6 w-6 text-gray-600" />
         </button>
 
-        <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition" type="button">
+        <button className="p-2 bg-gray-100 rounded-full" type="button" disabled>
           <DevicePhoneMobileIcon className="h-6 w-6 text-gray-600" />
         </button>
-        <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition" type="button">
+        <button className="p-2 bg-gray-100 rounded-full" type="button" disabled>
           <CubeIcon className="h-6 w-6 text-gray-600" />
         </button>
 

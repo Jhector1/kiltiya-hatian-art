@@ -54,45 +54,52 @@ export default function Gallery({
   };
 
   // ⬇️ Small helper to compute effective gallery price per product card
-function derivePricing(p: ProductListItem | ProductListAndOrderCount | CartSelectedItem) {
-  const anyP = p as any;
-  const base = typeof anyP.price === "number" ? anyP.price : 0;
+  function derivePricing(
+    p: ProductListItem | ProductListAndOrderCount | CartSelectedItem
+  ) {
+    const anyP = p as any;
+    const base = typeof anyP.price === "number" ? anyP.price : 0;
 
-  const starts = anyP.saleStartsAt ? new Date(anyP.saleStartsAt) : null;
-  const ends   = anyP.saleEndsAt   ? new Date(anyP.saleEndsAt)   : null;
+    const starts = anyP.saleStartsAt ? new Date(anyP.saleStartsAt) : null;
+    const ends = anyP.saleEndsAt ? new Date(anyP.saleEndsAt) : null;
 
-  const saleRes = getEffectiveSale({
-    price: base,
-    salePrice: anyP.salePrice ?? null,
-    salePercent: anyP.salePercent ?? null,
-    saleStartsAt: starts,
-    saleEndsAt: ends,
-  });
+    const saleRes = getEffectiveSale({
+      price: base,
+      salePrice: anyP.salePrice ?? null,
+      salePercent: anyP.salePercent ?? null,
+      saleStartsAt: starts,
+      saleEndsAt: ends,
+    });
 
-  // Bundle is computed off the base; UI and API both choose the cheaper of sale vs bundle.
-  const priceWithBundle = applyBundleIfBoth(base, (p as any).digital, (p as any).print);
-  const priceWithSale   = saleRes.price;
-  const finalUnitPrice  = roundMoney(Math.min(priceWithSale, priceWithBundle));
+    // Bundle is computed off the base; UI and API both choose the cheaper of sale vs bundle.
+    const priceWithBundle = applyBundleIfBoth(
+      base,
+      (p as any).digital,
+      (p as any).print
+    );
+    const priceWithSale = saleRes.price;
+    const finalUnitPrice = roundMoney(Math.min(priceWithSale, priceWithBundle));
 
-  const hasBundle  = Boolean((p as any).digital && (p as any).print);
-  const bundleWins = hasBundle && priceWithBundle < priceWithSale;
+    const hasBundle = Boolean((p as any).digital && (p as any).print);
+    const bundleWins = hasBundle && priceWithBundle < priceWithSale;
 
-  const baseRounded       = roundMoney(base);
-  const compareAtForUI    = bundleWins ? baseRounded : (saleRes.compareAt ?? baseRounded);
-  const pricing = {
-    price: finalUnitPrice,
-    compareAt: bundleWins ? compareAtForUI : (saleRes.compareAt ?? null),
-    onSale: bundleWins ? true : saleRes.onSale,
-    endsAt: bundleWins ? null : saleRes.endsAt,
-  } as const;
+    const baseRounded = roundMoney(base);
+    const compareAtForUI = bundleWins
+      ? baseRounded
+      : saleRes.compareAt ?? baseRounded;
+    const pricing = {
+      price: finalUnitPrice,
+      compareAt: bundleWins ? compareAtForUI : saleRes.compareAt ?? null,
+      onSale: bundleWins ? true : saleRes.onSale,
+      endsAt: bundleWins ? null : saleRes.endsAt,
+    } as const;
 
-  const pctOff = pricing.compareAt
-    ? Math.max(0, Math.round(100 * (1 - pricing.price / pricing.compareAt)))
-    : 0;
+    const pctOff = pricing.compareAt
+      ? Math.max(0, Math.round(100 * (1 - pricing.price / pricing.compareAt)))
+      : 0;
 
-  return { ...pricing, pctOff };
-}
-
+    return { ...pricing, pctOff };
+  }
 
   return (
     <>
@@ -117,10 +124,14 @@ function derivePricing(p: ProductListItem | ProductListAndOrderCount | CartSelec
 
           // ⬇️ Compute pricing for this tile
           const pricing = derivePricing(p);
-// current and compare values for display
-const current  = isCartItem ? (p as CartSelectedItem).price : pricing.price;
-const compare  = isCartItem ? (p as CartSelectedItem).originalPrice : pricing.compareAt ?? null;
-const discounted = compare != null && current < compare;
+          // current and compare values for display
+          const current = isCartItem
+            ? (p as CartSelectedItem).price
+            : pricing.price;
+          const compare = isCartItem
+            ? (p as CartSelectedItem).originalPrice
+            : pricing.compareAt ?? null;
+          const discounted = compare != null && current < compare;
           return (
             <motion.div
               key={`${p.id}-${
@@ -150,57 +161,57 @@ const discounted = compare != null && current < compare;
                       visible: { opacity: 1, y: 0 },
                     }}
                   > */}
-                    {showLikeButton && (
-                      <button
-                        onClick={() => handleLikeClick(p.id)}
-                        className="absolute top-2 right-2 z-10 bg-white p-1 rounded-full shadow"
-                        aria-label="Toggle favorite"
-                      >
-                        {liked ? (
-                          <HeartSolid className="w-5 h-5 text-red-500" />
-                        ) : (
-                          <HeartOutline className="w-5 h-5 text-gray-400 hover:text-red-400 transition" />
-                        )}
-                      </button>
-                    )}
-
-                    {/* Customized badge (optional) */}
-                    {isCartItem && (p as CartSelectedItem).isUserDesign && (
-                      <span className="absolute left-2 top-2 z-10 rounded-md bg-emerald-600/90 px-2 py-0.5 text-[10px] font-medium text-white">
-                        Customized
-                      </span>
-                    )}
-
-                    {/* 🔻 Sale badge */}
-                    {pricing.onSale && pricing.pctOff > 0 && (
-                      <span className="absolute left-2 top-2 z-10 rounded-full bg-red-600/90 px-2 py-0.5 text-[10px] font-semibold text-white">
-                        -{pricing.pctOff}%
-                      </span>
-                    )}
-
-                    {/* Image */}
-                    <div
-                      className="w-full relative bg-gray-100  overflow-hidden cursor-pointer"
-                      style={{ paddingBottom: "75%" }}
-                      onClick={() => router.push(`/store/${p.id}`)}
+                  {showLikeButton && (
+                    <button
+                      onClick={() => handleLikeClick(p.id)}
+                      className="absolute top-2 right-2 z-10 bg-white p-1 rounded-full shadow"
+                      aria-label="Toggle favorite"
                     >
-                      <Image
-                        key={imgSrc}
-                        src={imgSrc}
-                        alt={(p as any).title}
-                        fill
-                        className="object-contain transition-transform duration-300 group-hover:scale-105"
-                        onLoadingComplete={() =>
-                          setLoaded((prev) => ({ ...prev, [p.id]: true }))
-                        }
-                        style={{ opacity: loaded[p.id] ? 1 : 0 }}
-                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                        unoptimized
-                      />
-                      {!loaded[p.id] && (
-                        <div className="absolute inset-0 bg-gray-300 animate-pulse" />
+                      {liked ? (
+                        <HeartSolid className="w-5 h-5 text-yellow-600" />
+                      ) : (
+                        <HeartOutline className="w-5 h-5 text-gray-400 hover:text-yellow-500 transition" />
                       )}
-                    </div>
+                    </button>
+                  )}
+
+                  {/* Customized badge (optional) */}
+                  {isCartItem && (p as CartSelectedItem).isUserDesign && (
+                    <span className="absolute left-2 top-2 z-10 rounded-md bg-emerald-600/90 px-2 py-0.5 text-[10px] font-medium text-white">
+                      Customized
+                    </span>
+                  )}
+
+                  {/* 🔻 Sale badge */}
+                  {pricing.onSale && pricing.pctOff > 0 && (
+                    <span className="absolute left-2 top-2 z-10 rounded-full bg-red-600/90 px-2 py-0.5 text-[10px] font-semibold text-white">
+                      -{pricing.pctOff}%
+                    </span>
+                  )}
+
+                  {/* Image */}
+                  <div
+                    className="w-full relative bg-gray-100  overflow-hidden cursor-pointer"
+                    style={{ paddingBottom: "75%" }}
+                    onClick={() => router.push(`/store/${p.id}`)}
+                  >
+                    <Image
+                      key={imgSrc}
+                      src={imgSrc}
+                      alt={(p as any).title}
+                      fill
+                      className="object-contain transition-transform duration-300 group-hover:scale-105"
+                      onLoadingComplete={() =>
+                        setLoaded((prev) => ({ ...prev, [p.id]: true }))
+                      }
+                      style={{ opacity: loaded[p.id] ? 1 : 0 }}
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                      unoptimized
+                    />
+                    {!loaded[p.id] && (
+                      <div className="absolute inset-0 bg-gray-300 animate-pulse" />
+                    )}
+                  </div>
                   {/* </motion.div> */}
 
                   {/* Optional frame tile (when cart item has a frame) */}
@@ -253,19 +264,18 @@ const discounted = compare != null && current < compare;
                     )}
 
                     {/* 💰 Price block (sale-aware) */}
-                 <p className="text-sm font-bold text-gray-900">
-  {discounted ? (
-    <>
-      <span>${current.toFixed(2)}</span>
-      <span className="ml-2 line-through text-gray-400">
-        ${compare!.toFixed(2)}
-      </span>
-    </>
-  ) : (
-    <span>${current.toFixed(2)}</span>
-  )}
-</p>
-
+                    <p className="text-sm font-bold text-gray-900">
+                      {discounted ? (
+                        <>
+                          <span>${current.toFixed(2)}</span>
+                          <span className="ml-2 line-through text-gray-400">
+                            ${compare!.toFixed(2)}
+                          </span>
+                        </>
+                      ) : (
+                        <span>${current.toFixed(2)}</span>
+                      )}
+                    </p>
 
                     {/* Variant summary when this is a cart item */}
                     {isCartItem && (
@@ -323,16 +333,15 @@ function getPrimaryImage(
 ): string {
   const anyP = p as any;
 
-  if (anyP.previewUrl) return anyP.previewUrl;  
-   if (anyP.thumbnails[0]) return anyP.thumbnails[0];              // ← user design (cart/API)
-  if (anyP.imageUrl)   return anyP.imageUrl;
+  if (anyP.previewUrl) return anyP.previewUrl;
+  if (anyP.thumbnails[0]) return anyP.thumbnails[0]; // ← user design (cart/API)
+  if (anyP.imageUrl) return anyP.imageUrl;
   if (anyP.svgPreview) return anyP.svgPreview;
   if (Array.isArray(anyP.thumbnails) && anyP.thumbnails.length)
     return anyP.thumbnails[0];
 
   return "/placeholder.png";
 }
-
 
 /** Narrowing guard that works for both digital-only and print-only cart lines */
 function isCartSelectedItem(

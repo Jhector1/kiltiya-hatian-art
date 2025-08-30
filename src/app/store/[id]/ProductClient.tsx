@@ -111,7 +111,7 @@ export default function ProductDetail({
   //   ? Math.max(0, Math.round(100 * (1 - saleInfo.price / saleInfo.compareAt)))
   //   : 0;
  const handleClick = () => {
-    if (!isLoggedIn) return setModalOpen(true);
+    // if (!isLoggedIn) return setModalOpen(true);
     if (!productId) return; // guard
     router.push(`${encodeURIComponent(String(productId))}/studio`);
   };

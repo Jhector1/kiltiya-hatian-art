@@ -6,22 +6,42 @@ import { compare } from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+const firstNonEmpty = (...vals: Array<string | null | undefined>) => {
+  for (const v of vals) {
+    if (v != null && String(v).trim() !== "") return String(v);
+  }
+  return undefined;
+};
+
 export const authOptions: NextAuthOptions = {
-  // trustHost: true, // important if behind proxy/CDN
+  session: { strategy: "jwt" },
   providers: [
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email:    { label: "Email", type: "text" },
+        email: { label: "Email", type: "text" },
         password: { label: "Password", type: "password" },
       },
       async authorize(creds) {
         if (!creds?.email || !creds?.password) return null;
-        const user = await prisma.user.findUnique({ where: { email: creds.email } });
+
+        const user = await prisma.user.findUnique({
+          where: { email: creds.email },
+          select: { id: true, email: true, password: true, name: true },
+        });
         if (!user) return null;
+
         const ok = await compare(creds.password, user.password);
         if (!ok) return null;
-        return { id: user.id, email: user.email, name: user.name ?? null };
+
+        // No mixing of ?? and || — use helper
+        const fallbackName = firstNonEmpty(
+          user.name,
+          user.email?.split("@")[0],
+          "User"
+        )!;
+
+        return { id: String(user.id), email: user.email, name: fallbackName };
       },
     }),
     GoogleProvider({
@@ -29,21 +49,68 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     }),
   ],
-  session: { strategy: "jwt" },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
-        token.id = (user as any).id;
-        token.email = user.email;
-        token.name = user.name;
+        token.id = String((user as any).id ?? token.sub ?? "");
+        token.email = user.email ?? token.email;
+
+        const nameFromEmail = token.email
+          ? String(token.email).split("@")[0]
+          : undefined;
+
+        token.name = firstNonEmpty(
+          user.name,
+          token.name as string | undefined,
+          nameFromEmail,
+          "User"
+        );
+        return token;
       }
+
+      if (trigger === "update" && session?.user) {
+        const nameFromEmail = token.email
+          ? String(token.email).split("@")[0]
+          : undefined;
+        token.name = firstNonEmpty(
+          session.user.name,
+          token.name as string | undefined,
+          nameFromEmail,
+          "User"
+        );
+        return token;
+      }
+
+      if (!token.name) {
+        const nameFromEmail = token.email
+          ? String(token.email).split("@")[0]
+          : undefined;
+        token.name = firstNonEmpty(
+          token.name as string | undefined,
+          nameFromEmail,
+          "User"
+        );
+      }
+
       return token;
     },
+
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.id as string;
-        session.user.email = token.email as string;
-        session.user.name = (token.name as string) ?? null;
+        (session.user as any).id = String(token.id ?? token.sub ?? "");
+        session.user.email =
+          (token.email as string) ?? session.user.email ?? "";
+
+        const sessNameFromEmail = session.user.email
+          ? session.user.email.split("@")[0]
+          : undefined;
+
+        session.user.name = firstNonEmpty(
+          token.name as string | undefined,
+          session.user.name,
+          sessNameFromEmail,
+          "User"
+        ) as string;
       }
       return session;
     },

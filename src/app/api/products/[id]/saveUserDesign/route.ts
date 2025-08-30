@@ -172,14 +172,13 @@ export async function POST(
           })
           .webp({ quality: q })
           .toBuffer();
-
-        const publicId = `products-customize-${
-          process.env.NEXT_ENV || "dev"
-        }/designs/previews/design_${design.id}`;
+          const folder = `products-customize-${process.env.NEXT_ENV || "dev"}/designs/previews`;  // ✅ no trailing "design_"
+        const publicId = `design_${design.id}`; 
         const uploaded = await new Promise<any>((resolve, reject) => {
           cloudinary.uploader
             .upload_stream(
               {
+                folder,
                 public_id: publicId,
                 resource_type: "image",
                 type: "upload",

@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 
 export default function PromoBanner() {
   return (
@@ -16,12 +17,12 @@ export default function PromoBanner() {
       <span className="text-sm md:text-base">
         Limited prints now available!
       </span>
-      <a 
+      <Link 
         href="/store" 
         className="bg-yellow-600 text-white px-3 py-1 rounded-lg shadow hover:bg-yellow-700 transition"
       >
         Shop Now
-      </a>
+      </Link>
     </motion.div>
   );
 }

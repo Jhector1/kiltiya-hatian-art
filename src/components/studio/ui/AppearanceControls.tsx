@@ -11,7 +11,8 @@ import { safeColorValue } from "../utils/svg";
 export default function AppearanceControls() {
   const { style, handleStyleChange } = useDesignContext();
   return (
-    <>
+    < div   id="controls-panel"
+>
       <h2 className="mb-3 text-sm font-semibold text-black/70">Appearance</h2>
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1 text-xs">
@@ -51,6 +52,6 @@ export default function AppearanceControls() {
           <span className="w-12 text-right tabular-nums">{(style.backgroundOpacity ?? 1).toFixed(2)}</span>
         </label>
       </div>
-    </>
+    </div>
   );
 }

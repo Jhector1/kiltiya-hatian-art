@@ -1,81 +1,101 @@
-'use client';
+"use client";
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useUser } from './UserContext';
-import { MyProduct } from '@/types';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { useUser } from "@/contexts/UserContext";
 
-interface FavoriteContextProps {
+type FavoriteContextProps = {
   favorites: Set<string>;
   isFavorite: (productId: string) => boolean;
   toggleFavorite: (productId: string) => void;
   addFavorite: (productId: string) => void;
   removeFavorite: (productId: string) => void;
   refreshFavorites: () => void;
-}
+};
 
-const FavoriteContext = createContext<FavoriteContextProps | undefined>(undefined);
+const FavoriteContext = createContext<FavoriteContextProps | undefined>(
+  undefined
+);
 
-export const FavoriteProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isLoggedIn } = useUser();
+export const useFavorites = (): FavoriteContextProps => {
+  const ctx = useContext(FavoriteContext);
+  if (!ctx) throw new Error("useFavorites must be used within a FavoriteProvider");
+  return ctx;
+};
+
+export const FavoriteProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const { isLoggedIn, authAction, sessionPulse } = useUser();
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
   const refreshFavorites = async () => {
-    if (!isLoggedIn || !user?.id) return;
-
+    if (!isLoggedIn) return; // don’t clear on transient flips
     try {
-      const res = await fetch(`/api/favorite?userId=${user.id}`);
+      const res = await fetch(`/api/favorite`, {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+        headers: { "Cache-Control": "no-store" },
+      });
+      if (!res.ok) return;
       const data = await res.json();
-      const ids = new Set(data.map((product: MyProduct) => product.id));
-      setFavorites(ids as Set<string>);
+      // robust id extraction
+      const ids = new Set<string>(
+        (Array.isArray(data) ? data : []).map((p: any) =>
+          String(p?.id ?? p?.productId ?? p?.product?.id ?? p?.product_id)
+        )
+      );
+      setFavorites(ids);
     } catch (err) {
       console.error("Failed to refresh favorites:", err);
     }
   };
 
+  // refresh when auth flips & on pulses
   useEffect(() => {
-    refreshFavorites();
-  }, [user?.id, isLoggedIn]);
+    void refreshFavorites();
+  }, [isLoggedIn, sessionPulse]);
+
+  // clear only on confirmed logout
+  useEffect(() => {
+    if (!isLoggedIn && authAction === "logout") {
+      setFavorites(new Set());
+    }
+  }, [isLoggedIn, authAction]);
 
   const isFavorite = (productId: string) => favorites.has(productId);
 
   const addFavorite = async (productId: string) => {
-    if (!user?.id) return;
-
-    const res = await fetch('/api/favorite', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id, productId }),
+    if (!isLoggedIn) return;
+    const res = await fetch("/api/favorite", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId }),
     });
-
-    if (res.ok) {
-      setFavorites((prev) => new Set(prev).add(productId));
-    }
+    if (res.ok) setFavorites((prev) => new Set(prev).add(productId));
   };
 
   const removeFavorite = async (productId: string) => {
-    if (!user?.id) return;
-
-    const res = await fetch('/api/favorite', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id, productId }),
+    if (!isLoggedIn) return;
+    const res = await fetch("/api/favorite", {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId }),
     });
-
     if (res.ok) {
       setFavorites((prev) => {
-        const updated = new Set(prev);
-        updated.delete(productId);
-        return updated;
+        const next = new Set(prev);
+        next.delete(productId);
+        return next;
       });
     }
   };
 
   const toggleFavorite = (productId: string) => {
-    if (isFavorite(productId)) {
-      removeFavorite(productId);
-    } else {
-      addFavorite(productId);
-    }
+    if (isFavorite(productId)) removeFavorite(productId);
+    else addFavorite(productId);
   };
 
   return (
@@ -86,18 +106,10 @@ export const FavoriteProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         toggleFavorite,
         addFavorite,
         removeFavorite,
-        refreshFavorites, // ✅ now available to consumers
+        refreshFavorites,
       }}
     >
       {children}
     </FavoriteContext.Provider>
   );
-};
-
-export const useFavorites = (): FavoriteContextProps => {
-  const context = useContext(FavoriteContext);
-  if (!context) {
-    throw new Error('useFavorites must be used within a FavoriteProvider');
-  }
-  return context;
 };
