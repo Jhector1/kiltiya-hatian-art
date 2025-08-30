@@ -116,48 +116,56 @@ function UserContextInner({ children }: { children: React.ReactNode }) {
         : "/";
     signIn(undefined, { callbackUrl: cb });
   };
-
-  const loginWithCredentials: UserContextType["loginWithCredentials"] = async ({
-    email,
-    password,
-    callbackUrl = "/profile",
-  }) =>
-    runAuth("login", async () => {
-      const result = await signIn("credentials", {
-        redirect: false,
-        email,
-        password,
-        callbackUrl,
-      });
-
-      if (!result) return { ok: false, error: "Login failed" };
-      if (result.error) return { ok: false, error: result.error };
-
-      // Instant flip in the UI + temporary optimistic user
-      setOptimisticLogin(true);
-      setOptimisticUser({
-        id: "optimistic",
-        email,
-        name: email.split("@")[0],
-      });
-      setSessionPulse((n) => n + 1);
-
-      // Hydrate session in memory
-      await fetch("/api/auth/session", {
-        cache: "no-store",
-        credentials: "include",
-      });
-      await update();
-      await getSession();
-      setSessionPulse((n) => n + 1);
-
-      const dest = result.url ?? callbackUrl;
-      startTransition(() => {
-        router.replace(dest);
-        router.refresh();
-      });
-      return { ok: true };
+// in UserContextInner > loginWithCredentials
+const loginWithCredentials: UserContextType["loginWithCredentials"] = async ({
+  email,
+  password,
+  callbackUrl = "/profile",
+}) =>
+  runAuth("login", async () => {
+    const result = await signIn("credentials", {
+      redirect: false,
+      email,
+      password,
+      callbackUrl,
     });
+
+    if (!result) return { ok: false, error: "Login failed" };
+    if (result.error) return { ok: false, error: result.error };
+
+    setOptimisticLogin(true);
+    setOptimisticUser({ id: "optimistic", email, name: email.split("@")[0] });
+    setSessionPulse((n) => n + 1);
+
+    await fetch("/api/auth/session", { cache: "no-store", credentials: "include" });
+    await update();
+    await getSession();
+    setSessionPulse((n) => n + 1);
+
+    // 🔒 Normalize to internal path
+    const toInternal = (u: string) => {
+      try {
+        if (u.startsWith("/")) return u;                       // already relative
+        const parsed = new URL(u);
+        if (parsed.origin === window.location.origin) {
+          return parsed.pathname + parsed.search + parsed.hash; // same-origin absolute -> make relative
+        }
+      } catch {}
+      // fallback to provided callbackUrl or home
+      return callbackUrl.startsWith("/") ? callbackUrl : "/";
+    };
+
+    const dest = toInternal(result.url ?? callbackUrl);
+
+    // Use client router once it's definitely internal
+    startTransition(() => {
+      router.replace(dest);
+      router.refresh();
+    });
+
+    return { ok: true };
+  });
+
 
   // Also pulse whenever derived state flips
   useEffect(() => {

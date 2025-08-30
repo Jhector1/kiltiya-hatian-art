@@ -22,5 +22,7 @@ export { default } from "next-auth/middleware";
 // }
 
 export const config = {
-  matcher: ["/profile/:path*", "/store/:path*/studio/:path*", "/favorites/:path*"],
+  matcher: ["/profile/:path*", "/store/:path*/studio/:path*", "/favorites/:path*",  "/orders/:path*",
+    "/favorites",          // 👈 exact
+]   // 👈 children],
 };
