@@ -1,56 +1,175 @@
+// src/components/editor/contexts/DesignContext.tsx
 "use client";
 
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-} from "react";
+import React from "react";
 import type { StyleState } from "../types";
 
-export type DefsMap = Record<string, string>;
+type DefsMap = Record<string, string>;
+type Snapshot = { style: StyleState; defsMap: DefsMap; label?: string };
 
-interface DesignContextValue {
+type Hist = { items: Snapshot[]; i: number };
+
+type DesignContextValue = {
   style: StyleState;
-  setStyle: React.Dispatch<React.SetStateAction<StyleState>>;
   defsMap: DefsMap;
-  setDefsMap: React.Dispatch<React.SetStateAction<DefsMap>>;
-  handleStyleChange: <K extends keyof StyleState>(
-    field: K,
-    value: StyleState[K]
-  ) => void;
-}
 
-const DesignContext = createContext<DesignContextValue | null>(null);
-export function useDesignContext() {
-  const ctx = useContext(DesignContext);
-  if (!ctx) throw new Error("useDesignContext must be used within <DesignProvider>");
-  return ctx;
+  setStyle: React.Dispatch<React.SetStateAction<StyleState>>;
+  setDefsMap: React.Dispatch<React.SetStateAction<DefsMap>>;
+
+  handleStyleChange: <K extends keyof StyleState>(key: K, value: StyleState[K]) => void;
+
+  beginHistory: (label?: string) => void;
+  commitHistory: (label?: string) => void;
+  cancelHistory: () => void;
+
+  setDefsMapWithHistory: (next: DefsMap, label?: string) => void;
+
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+};
+
+const DesignContext = React.createContext<DesignContextValue | null>(null);
+const MAX_STEPS = 100;
+
+function cloneSnap(s: Snapshot): Snapshot {
+  return { style: { ...s.style }, defsMap: { ...s.defsMap }, label: s.label };
 }
 
 export function DesignProvider({
-  children,
   initialStyle,
+  initialDefsMap = {},
+  children,
 }: {
-  children: React.ReactNode;
   initialStyle: StyleState;
+  initialDefsMap?: DefsMap;
+  children: React.ReactNode;
 }) {
-  const [style, setStyle] = useState<StyleState>(initialStyle);
-  const [defsMap, setDefsMap] = useState<DefsMap>({});
+  const [style, setStyle] = React.useState<StyleState>(initialStyle);
+  const [defsMap, setDefsMap] = React.useState<DefsMap>(initialDefsMap);
 
-  // PURE: only updates local state. No preview calls here.
-  const handleStyleChange = useCallback(
-    <K extends keyof StyleState>(field: K, value: StyleState[K]) => {
-      setStyle((prev) => ({ ...prev, [field]: value }));
+  // Timeline + pointer in one state
+  const [hist, setHist] = React.useState<Hist>({
+    items: [{ style: initialStyle, defsMap: { ...initialDefsMap } }],
+    i: 0,
+  });
+
+  // Batch marker (pre-change snapshot) & pending commit label
+  const preSnapRef = React.useRef<Snapshot | null>(null);
+  const pendingCommitLabelRef = React.useRef<string | undefined>(undefined);
+
+  const applySnapshot = React.useCallback((s: Snapshot) => {
+    setStyle(s.style);
+    setDefsMap(s.defsMap);
+  }, []);
+
+  // Push a snapshot of *current* state into history (forks after undo)
+  const pushCurrent = React.useCallback((label?: string) => {
+    setHist((prev) => {
+      const base = prev.items.slice(0, prev.i + 1);
+      const snap: Snapshot = { style: { ...style }, defsMap: { ...defsMap }, label };
+      let items = [...base, snap];
+      let i = items.length - 1;
+      if (items.length > MAX_STEPS) {
+        items = items.slice(items.length - MAX_STEPS);
+        i = items.length - 1;
+      }
+      return { items, i };
+    });
+  }, [style, defsMap]);
+
+  // When style/defsMap change and a commit is pending, push the NEW state
+  React.useEffect(() => {
+    if (!pendingCommitLabelRef.current) return;
+    const label = pendingCommitLabelRef.current;
+    pendingCommitLabelRef.current = undefined;
+    pushCurrent(label);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [style, defsMap]);
+
+  // Public history API
+  const beginHistory = React.useCallback((label?: string) => {
+    preSnapRef.current = { style: { ...style }, defsMap: { ...defsMap }, label };
+  }, [style, defsMap]);
+
+  const cancelHistory = React.useCallback(() => {
+    if (!preSnapRef.current) return;
+    pendingCommitLabelRef.current = undefined;
+    applySnapshot(cloneSnap(preSnapRef.current));
+    preSnapRef.current = null;
+  }, [applySnapshot]);
+
+  const commitHistory = React.useCallback((label?: string) => {
+    // Defer commit until after React applies the state updates
+    pendingCommitLabelRef.current = label ?? preSnapRef.current?.label;
+    preSnapRef.current = null;
+  }, []);
+
+  const undo = React.useCallback(() => {
+    setHist((prev) => {
+      if (prev.i <= 0) return prev;
+      const i = prev.i - 1;
+      applySnapshot(cloneSnap(prev.items[i]));
+      return { ...prev, i };
+    });
+  }, [applySnapshot]);
+
+  const redo = React.useCallback(() => {
+    setHist((prev) => {
+      if (prev.i >= prev.items.length - 1) return prev;
+      const i = prev.i + 1;
+      applySnapshot(cloneSnap(prev.items[i]));
+      return { ...prev, i };
+    });
+  }, [applySnapshot]);
+
+  const canUndo = hist.i > 0;
+  const canRedo = hist.i < hist.items.length - 1;
+
+  // Core updates
+  const handleStyleChange = React.useCallback(
+    <K extends keyof StyleState>(key: K, value: StyleState[K]) => {
+      setStyle((prev) => ({ ...prev, [key]: value }));
     },
     []
   );
 
-  const value = useMemo(
-    () => ({ style, setStyle, defsMap, setDefsMap, handleStyleChange }),
-    [style, defsMap, handleStyleChange]
+  // One-shot helper that creates a single step for defs changes
+  const setDefsMapWithHistory = React.useCallback(
+    (next: DefsMap, label?: string) => {
+      beginHistory(label ?? "Update defs");
+      setDefsMap(next);
+      commitHistory(label ?? "Update defs");
+    },
+    [beginHistory, commitHistory]
   );
 
+  const value: DesignContextValue = {
+    style,
+    defsMap,
+
+    setStyle,
+    setDefsMap,
+
+    handleStyleChange,
+
+    beginHistory,
+    commitHistory,
+    cancelHistory,
+    setDefsMapWithHistory,
+
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  };
+
   return <DesignContext.Provider value={value}>{children}</DesignContext.Provider>;
+}
+
+export function useDesignContext() {
+  const ctx = React.useContext(DesignContext);
+  if (!ctx) throw new Error("useDesignContext must be used inside DesignProvider");
+  return ctx;
 }

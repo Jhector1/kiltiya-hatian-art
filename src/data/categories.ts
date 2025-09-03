@@ -14,7 +14,7 @@ const categories: HomeCategory[] = [
     gradient: 'from-yellow-400 via-orange-400 to-red-400',
   },
   {
-    title: 'Comtemporary',
+    title: 'Contemporary',
     slug: 'contemporary',
     image: '/icons/dantor.webp',
     gradient: 'from-blue-500 via-sky-400 to-teal-300',

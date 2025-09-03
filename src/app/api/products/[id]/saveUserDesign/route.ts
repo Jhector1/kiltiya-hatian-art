@@ -1,4 +1,4 @@
-// src/app/api/products/[id]/save/route.ts
+// src/app/api/products/[id]/saveUserDesign/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import sharp from "sharp";

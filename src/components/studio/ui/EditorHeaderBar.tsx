@@ -6,6 +6,8 @@
 import React from "react";
 import type { ExportFormat } from "../types";
 import ExportFormatBar from "./ExportFormatBar";
+import { useDesignContext } from "../contexts/DesignContext"; // ⬅️ NEW
+import { RedoIcon, UndoIcon } from "lucide-react";
 
 interface Props {
   loading: boolean;
@@ -19,8 +21,7 @@ interface Props {
   onQuickPng: () => void;
   onExport: (fmt: ExportFormat) => void;
   showControls: boolean;
-  onPurchaseClick: () => void; // NEW
-
+  onPurchaseClick: () => void;
   setShowControls: (f: (prev: boolean) => boolean) => void;
   onPurchaseArtClick: () => void;
 }
@@ -41,19 +42,58 @@ export default function EditorHeaderBar({
   onPurchaseClick,
   onPurchaseArtClick,
 }: Props) {
-  // alert(purchasedDigital)
+  // ⬅️ NEW: history controls
+  const { undo, redo, canUndo, canRedo } = useDesignContext();
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-amber-50 p-3 md:p-4 ring-1 ring-black/5">
       <div className="min-w-0">
-        <h1 className="text-[clamp(1.125rem,2.5vw,1.5rem)] font-semibold">
-          Zile Studio
-        </h1>
-        <p className="text-sm text-black/60">
-          Edit colors & stroke, then export in PNG/JPG/WebP/TIFF/SVG.
-        </p>
+        <h1 className="text-[clamp(1.125rem,2.5vw,1.5rem)] font-semibold">Zile Studio</h1>
+        <p className="text-sm text-black/60">Edit colors & stroke, then export in PNG/JPG/WebP/TIFF/SVG.</p>
       </div>
 
       <div className="w-full sm:w-auto flex flex-wrap items-center gap-2">
+        {/* ⬅️ NEW: Undo / Redo icon buttons */}
+        <div className="inline-flex items-center gap-1">
+          <button
+            type="button"
+            onClick={undo}
+            disabled={!canUndo || loading || saving}
+            title="Undo (Ctrl/⌘+Z)"
+            aria-label="Undo"
+            className={[
+              "inline-flex h-9 w-9 items-center justify-center rounded-xl ring-1 ring-black/10 bg-white",
+              "hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed",
+            ].join(" ")}
+          >
+            <UndoIcon/>
+            {/* Undo icon (left arrow) */}
+            {/* <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 14l-4-4 4-4" />
+              <path d="M20 20a8 8 0 00-8-8H5" />
+            </svg> */}
+          </button>
+
+          <button
+            type="button"
+            onClick={redo}
+            disabled={!canRedo || loading || saving}
+            title="Redo (Shift+Ctrl/⌘+Z or Ctrl+Y)"
+            aria-label="Redo"
+            className={[
+              "inline-flex h-9 w-9 items-center justify-center rounded-xl ring-1 ring-black/10 bg-white",
+              "hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed",
+            ].join(" ")}
+          >
+            <RedoIcon/>
+            {/* Redo icon (right arrow) */}
+            {/* <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 6l4 4-4 4" />
+              <path d="M4 20a8 8 0 018-8h7" />
+            </svg> */}
+          </button>
+        </div>
+
         <button
           onClick={onSave}
           disabled={saving || loading}
@@ -67,34 +107,15 @@ export default function EditorHeaderBar({
         >
           {saving ? (
             <>
-              {/* tiny spinner */}
-              <svg
-                className="h-4 w-4 animate-spin"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden="true"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v4A4 4 0 008 12H4z"
-                />
+              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4A4 4 0 008 12H4z" />
               </svg>
               <span>Saving…</span>
             </>
           ) : (
             <>
-              <span role="img" aria-label="save">
-                💾
-              </span>
+              <span role="img" aria-label="save">💾</span>
               <span>Save</span>
             </>
           )}
@@ -108,19 +129,17 @@ export default function EditorHeaderBar({
         >
           Quick PNG
         </button>
+
         <span
           className={[
             "inline-flex items-center rounded-xl px-2 py-1 text-xs font-medium ring-1",
-            exportsLeft <= 3
-              ? "text-amber-900 bg-amber-50 ring-amber-200"
-              : "text-black/70 bg-white ring-black/10",
+            exportsLeft <= 3 ? "text-amber-900 bg-amber-50 ring-amber-200" : "text-black/70 bg-white ring-black/10",
           ].join(" ")}
           title="Exports remaining"
         >
           {exportsLeft} left
         </span>
 
-        {/* Buy exports */}
         <button
           onClick={onPurchaseClick}
           className={[
@@ -133,18 +152,18 @@ export default function EditorHeaderBar({
         >
           Buy exports
         </button>
-        {/* <div className="mt-2 mb-[-6px] flex justify-end"> */}
-        {(!purchased || !purchasedDigital) && (
+
+        {!purchased || !purchasedDigital ? (
           <button
             onClick={onPurchaseArtClick}
             className="inline-flex items-center rounded-xl px-3 py-2 text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 ring-1 ring-indigo-600/20"
           >
             Purchase Now
           </button>
-        )}
-        {/* </div> */}
+        ) : null}
+
         <ExportFormatBar
-        purchasedDigital={purchasedDigital}
+          purchasedDigital={purchasedDigital}
           purchased={purchased}
           formats={["png", "jpg", "webp", "tiff", "svg"]}
           canExport={canExport}
@@ -154,35 +173,30 @@ export default function EditorHeaderBar({
           onExport={onExport}
         />
 
-       <button
-  className="sm:hidden inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium ring-1 ring-black/10 bg-white hover:bg-emerald-50"
-  onClick={() =>
-    setShowControls(prev => {
-      const next = !prev;
-
-      // If we’re about to SHOW the controls, wait for the next paint
-      // (twice) then smooth-scroll the target into view.
-      if (!prev) {
-        const scroll = () => {
-          const el = document.getElementById("controls-panel");
-          if (el) {
-            // optional: ensure it can receive focus for a11y jump
-            el.setAttribute("tabindex", "-1");
-            el.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
-            el.focus({ preventScroll: true });
+        <button
+          className="sm:hidden inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium ring-1 ring-black/10 bg-white hover:bg-emerald-50"
+          onClick={() =>
+            setShowControls((prev) => {
+              const next = !prev;
+              if (!prev) {
+                const scroll = () => {
+                  const el = document.getElementById("controls-panel");
+                  if (el) {
+                    el.setAttribute("tabindex", "-1");
+                    el.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+                    el.focus({ preventScroll: true });
+                  }
+                };
+                requestAnimationFrame(() => requestAnimationFrame(scroll));
+              }
+              return next;
+            })
           }
-        };
-        requestAnimationFrame(() => requestAnimationFrame(scroll));
-      }
-
-      return next;
-    })
-  }
-  aria-expanded={showControls}
-  aria-controls="controls-panel"
->
-  {showControls ? "Hide Controls" : "Show Controls"}
-</button>
+          aria-expanded={showControls}
+          aria-controls="controls-panel"
+        >
+          {showControls ? "Hide Controls" : "Show Controls"}
+        </button>
       </div>
     </div>
   );

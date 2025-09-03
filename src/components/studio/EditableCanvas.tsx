@@ -16,7 +16,7 @@ import Palette from "./ui/Palette";
 import AppearanceControls from "./ui/AppearanceControls";
 import ExportSizeControls from "./ui/ExportSizeControls";
 
-import type { ExportMode, ExportUnit } from "./types";
+import type { ExportMode, ExportUnit, StyleState } from "./types";
 import { DEFAULT_STYLE } from "./utils/constants";
 import { usePurchaseExports } from "./hooks/usePurchaseExports";
 import PurchaseExportsModal from "./ui/PurchaseExportsModal";
@@ -259,6 +259,44 @@ function EditableCanvasInner({ productId }: { productId: string }) {
     dirtyRef.current = isDirty;
   }, [isDirty]);
 
+
+
+
+
+
+
+// inside EditableCanvasInner component
+const { undo, redo } = useDesignContext();
+
+React.useEffect(() => {
+  const onKey = (e: KeyboardEvent) => {
+    const mod = e.metaKey || e.ctrlKey;
+    if (!mod) return;
+    const shift = e.shiftKey;
+
+    // Undo: Cmd/Ctrl + Z
+    if (e.key.toLowerCase() === "z" && !shift) {
+      e.preventDefault();
+      undo();
+    }
+    // Redo: Shift + Cmd/Ctrl + Z  (and also Ctrl+Y)
+    if ((e.key.toLowerCase() === "z" && shift) || e.key.toLowerCase() === "y") {
+      e.preventDefault();
+      redo();
+    }
+  };
+  window.addEventListener("keydown", onKey);
+  return () => window.removeEventListener("keydown", onKey);
+}, [undo, redo]);
+
+
+
+
+
+
+
+
+
   // Warn on refresh/close if dirty
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -317,17 +355,20 @@ function EditableCanvasInner({ productId }: { productId: string }) {
         if (s.ok) {
           const j = await s.json();
           if (!cancelled && j?.found) {
-            const savedStyle = { ...DEFAULT_STYLE, ...(j.style || {}) };
+            // AFTER (no DEFAULT_STYLE merge; use API as source of truth)
+            const savedStyle = (j.style || {}) as StyleState;
             const savedDefs: string = j.defs || "";
             setStyle(savedStyle);
             setDefsMap(savedDefs ? { __persisted: savedDefs } : {});
             await updatePreview(savedStyle, savedDefs);
-            // mark current state as "saved" baseline
+
+            // snapshot exactly what we just applied
             lastSavedRef.current = JSON.stringify({
-              style: { ...style },
-              defs: defsString,
+              style: savedStyle,
+              defs: savedDefs,
             });
             setIsDirty(false);
+
             setBooting(false);
             return;
           }
@@ -545,7 +586,11 @@ function EditableCanvasInner({ productId }: { productId: string }) {
 
       <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px] gap-4">
         <div>
-          {isDirty && <i className="bg-white p-2 text-red-500 text-xs">Don't forget to save your changes</i>}
+          {isDirty && (
+            <i className="bg-white p-2 text-red-500 text-xs">
+              Don't forget to save your changes
+            </i>
+          )}
           <CanvasStage
             zoom={zoom}
             setZoom={setZoom}
@@ -561,7 +606,7 @@ function EditableCanvasInner({ productId }: { productId: string }) {
           } sm:block md:sticky md:top-4 md:h-fit`}
         >
           <Palette />
-          <AppearanceControls  />
+          <AppearanceControls />
           <ExportSizeControls
             mode={exportMode}
             setMode={setExportMode}
@@ -599,9 +644,45 @@ function EditableCanvasInner({ productId }: { productId: string }) {
   );
 }
 
+// at top: import the type
+// import type { StyleState } from "./types";
+
 export default function EditableCanvas({ productId }: { productId: string }) {
+  const [initialStyle, setInitialStyle] = React.useState<StyleState | null>(
+    null
+  );
+  const [initialDefs, setInitialDefs] = React.useState<string>("");
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/products/${productId}/saveUserDesign`, {
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const j = await res.json();
+          if (!cancelled && j?.found) {
+            setInitialStyle((j.style || {}) as StyleState);
+            setInitialDefs(j.defs || "");
+            return;
+          }
+        }
+      } catch {}
+      // Fallback: empty style/defs (server/live-preview will still render)
+      setInitialStyle({} as StyleState);
+      setInitialDefs("");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [productId]);
+
+  // Show your nice skeleton until style arrives
+  if (!initialStyle) return <BootLayoutSkeleton />;
+
   return (
-    <DesignProvider initialStyle={DEFAULT_STYLE}>
+    <DesignProvider initialStyle={initialStyle}>
       <EditableCanvasInner productId={productId} />
     </DesignProvider>
   );

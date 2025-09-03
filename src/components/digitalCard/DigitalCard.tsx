@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import html2canvas from "html2canvas";
-import RealisticGreetingCard from "./FoldingCard";
+import RealisticGreetingCard from "./RealisticGreetingCard";
 
 export default function DigitalCard() {
   const [exporting, setExporting] = useState(false);

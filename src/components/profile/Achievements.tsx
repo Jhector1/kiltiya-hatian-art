@@ -1,43 +1,68 @@
-import React from 'react';
 
-interface Achievement {
-  label: string;
-  threshold: number;
-}
+// ============================================================
+// File: src/components/profile/Achievements.tsx
+// Badge-based achievements with progress indicator
+// ============================================================
+"use client";
 
-interface AchievementsProps {
-  ordersPlaced: number;
-}
+import { TrophyIcon, LockClosedIcon } from "@heroicons/react/24/outline";
+
+interface Achievement { label: string; threshold: number }
+interface AchievementsProps { ordersPlaced: number }
 
 const ACHIEVEMENTS: Achievement[] = [
-  { label: 'First Purchase', threshold: 1 },
-  { label: 'Supporter of Haitian Artists', threshold: 10 },
-  { label: 'Top Collector', threshold: 20 },
+  { label: "First Purchase", threshold: 1 },
+  { label: "Supporter of Haitian Artists", threshold: 10 },
+  { label: "Top Collector", threshold: 20 },
 ];
 
 export default function Achievements({ ordersPlaced }: AchievementsProps) {
+  const max = ACHIEVEMENTS[ACHIEVEMENTS.length - 1].threshold;
+  const next = ACHIEVEMENTS.find(a => ordersPlaced < a.threshold);
+  const pct = Math.min(100, Math.round((ordersPlaced / max) * 100));
+
   return (
-    <div>
-      <h3 className="text-xl font-semibold text-gray-800 mb-4">Achievements</h3>
-      <div className="flex flex-wrap gap-4">
-        {ACHIEVEMENTS.map((ach, i) => {
-          const unlocked = ordersPlaced >= ach.threshold;
-          // alert(unlocked)
-          return (
-            <div
-              key={i}
-              className={
-                `px-4 py-2 rounded-full font-medium shadow transition-opacity ` +
-                (unlocked
-                  ? 'bg-yellow-100 text-yellow-800'
-                  : 'bg-gray-100 text-gray-400 opacity-50 cursor-not-allowed')
-              }
-            >
-              🏆 {ach.label}
-            </div>
-          );
-        })}
+    <section className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-xl font-semibold text-gray-900">Achievements</h3>
+        <span className="text-sm text-gray-600">Orders: <span className="font-semibold text-gray-900">{ordersPlaced}</span></span>
       </div>
-    </div>
+
+      <div className="bg-white/80 backdrop-blur rounded-2xl border border-gray-200 shadow-sm p-6">
+        {/* Progress bar */}
+        <div>
+          <div className="flex justify-between text-xs text-gray-600">
+            <span>0</span>
+            <span>{max}</span>
+          </div>
+          <div className="mt-1 h-2.5 w-full rounded-full bg-gray-100 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+          </div>
+          <p className="mt-2 text-sm text-gray-600">
+            {next ? (
+              <>You're <span className="font-semibold text-gray-900">{next.threshold - ordersPlaced}</span> orders away from <span className="font-semibold">{next.label}</span>.</>
+            ) : (
+              <><span className="font-semibold">All achievements unlocked!</span> Thank you for supporting Haitian artists.</>
+            )}
+          </p>
+        </div>
+
+        {/* Badges */}
+        <ul className="mt-5 flex flex-wrap gap-3">
+          {ACHIEVEMENTS.map((a) => {
+            const unlocked = ordersPlaced >= a.threshold;
+            return (
+              <li key={a.threshold} className={`px-3 py-2 rounded-full text-sm font-medium shadow-sm ring-1 transition ${unlocked ? "bg-amber-50 text-amber-800 ring-amber-200" : "bg-gray-50 text-gray-400 ring-gray-200"}`}>
+                <span className="inline-flex items-center gap-1.5">
+                  {unlocked ? <TrophyIcon className="h-4 w-4" /> : <LockClosedIcon className="h-4 w-4" />}
+                  {a.label}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </section>
   );
 }
+

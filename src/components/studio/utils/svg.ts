@@ -38,4 +38,26 @@ export const gradientPreview = (g: GradientDef) => {
   return `linear-gradient(${g.angle ?? 0}deg, ${g.from}, ${g.to})`;
 };
 
-export const safeColorValue = (v: string) => (v.startsWith("url(") ? "#000000" : v);
+// src/components/studio/utils/svg.ts
+// src/components/studio/utils/svg.ts
+// (accept quoted url('#id') and normalize; keep external url(...) blocked)
+// Accept quoted url('#id') and normalize; keep external url(...) blocked
+export const safeColorValue = (v?: string | null): string | undefined => {
+  if (!v) return undefined;
+  const s = v.trim();
+
+  // accept url('#id') / url("#id") / url(#id) → normalize to url(#id)
+  const m = s.match(/^url\(\s*(['"]?)#([-\w:.]+)\1\s*\)$/i);
+  if (m) return `url(#${m[2]})`;
+
+  // drop external url(..)
+  if (/^url\(/i.test(s)) return undefined;
+
+  if (/^(none|transparent|currentColor)$/i.test(s)) return s;
+  if (/^#([0-9a-f]{3,8})$/i.test(s)) return s;
+  if (/^rgba?\([^)]+\)$/i.test(s)) return s;
+  if (/^hsla?\([^)]+\)$/i.test(s)) return s;
+
+  return undefined;
+};
+
