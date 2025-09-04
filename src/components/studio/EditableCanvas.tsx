@@ -152,8 +152,9 @@ function BootLayoutSkeleton() {
 function EditableCanvasInner({ productId }: { productId: string }) {
   const { isLoggedIn } = useUser();
   const { style, setStyle, defsMap, setDefsMap } = useDesignContext();
+const [reloadTick, setReloadTick] = useState(0);
 
-  const { previewUrl, loading, updatePreview, baseW, baseH, onImageLoad } =
+  const { previewUrl, loading,handleReset, updatePreview, baseW, baseH, onImageLoad } =
     useLivePreview(productId);
   const { canvasRef, zoom, setZoom, drawUrl } = useCanvasRender();
   const { saveDesign, saving } = useSaveDesign(productId);
@@ -343,8 +344,8 @@ React.useEffect(() => {
   // };
 
   // ——— initial boot: export status, load saved design, render fallback
-  useEffect(() => {
-    let cancelled = false;
+  function reloadStatus(){
+let cancelled = false;
     (async () => {
       await fetchInitialExportStatus();
 
@@ -396,6 +397,9 @@ React.useEffect(() => {
     return () => {
       cancelled = true;
     };
+  }
+  useEffect(() => {
+    reloadStatus();
   }, [
     productId,
     setStyle,
@@ -403,6 +407,8 @@ React.useEffect(() => {
     fetchInitialExportStatus,
     drawUrl,
     // defsString, style
+      reloadTick,           // ⬅️ add this
+
     updatePreview,
   ]);
 
@@ -499,6 +505,11 @@ React.useEffect(() => {
       ) : (
         // </div>
         <EditorHeaderBar
+        // productId={productId}
+        resetting={loading}
+        
+        handleReset={() =>{  handleReset(()=>reloadStatus())}}
+
           purchased={purchased}
           purchasedDigital={purchasedDigital}
           loading={loading}

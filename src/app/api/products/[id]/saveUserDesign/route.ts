@@ -363,3 +363,97 @@ async function syncDesignToCartItems(
     });
   }
 }
+// -------------------- DELETE: remove saved design --------------------
+export async function DELETE(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: productId } = await ctx.params;
+
+    // Accept signed-in or guest (same auth pattern as POST)
+    let userId: string | null = null;
+    let guestId: string | null = null;
+    try {
+      const u = await requireUser();
+      userId = u.id;
+    } catch {
+      const ids = await getCustomerIdFromRequest(req);
+      guestId = ids.guestId ?? null;
+    }
+
+    if (!userId && !guestId) {
+      return NextResponse.json({ error: "Please sign in" }, { status: 401 });
+    }
+
+    // Find the design for this (user|guest, product)
+    const design = await prisma.userDesign.findFirst({
+      where: {
+        productId,
+        OR: [
+          ...(userId ? [{ userId }] : []),
+          ...(guestId ? [{ guestId }] : []),
+        ],
+      },
+      select: { id: true, previewPublicId: true },
+    });
+
+    // Idempotent: nothing to delete -> ok:false? keep ok:true but deleted:false
+    if (!design) {
+      return NextResponse.json({ ok: true, deleted: false });
+    }
+
+    // Clear cart item references to avoid FK issues
+    const cart = await prisma.cart.findFirst({
+      where: {
+        OR: [
+          ...(userId ? [{ userId }] : []),
+          ...(guestId ? [{ guestId }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (cart) {
+      await prisma.cartItem.updateMany({
+        where: {
+          cartId: cart.id,
+          productId,
+          designId: design.id,
+        },
+        data: {
+          designId: null,
+          // optional: also clear snapshots if you want a visual reset
+          // styleSnapshot: Prisma.JsonNull,
+          // previewUrlSnapshot: null,
+        },
+      });
+    }
+
+    // Remove Cloudinary preview asset if stored
+    if (HAS_CLOUDINARY && design.previewPublicId) {
+      try {
+        await new Promise((resolve, reject) => {
+          cloudinary.uploader.destroy(
+            design.previewPublicId!,
+            { resource_type: "image", invalidate: true },
+            (err, res) => (err ? reject(err) : resolve(res))
+          );
+        });
+      } catch (e) {
+        console.warn("Cloudinary destroy failed:", (e as Error).message);
+      }
+    }
+
+    // Finally delete the design row
+    await prisma.userDesign.delete({ where: { id: design.id } });
+
+    return NextResponse.json({ ok: true, deleted: true });
+  } catch (e: any) {
+    if (e?.message === "UNAUTHENTICATED") {
+      return NextResponse.json({ error: "Please sign in" }, { status: 401 });
+    }
+    console.error("DELETE_DESIGN_ERROR", e);
+    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
+  }
+}

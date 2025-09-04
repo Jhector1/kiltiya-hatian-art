@@ -10,6 +10,43 @@ export function useLivePreview(productId: string) {
   const [baseH, setBaseH] = useState(0);
   const objectUrlRef = useRef<string | null>(null);
 
+
+
+
+  // ⬇️ NEW
+  // const [resetting, setResetting] = useState(false);
+  const handleReset = async (onAfterReset: ()=>void) => {
+    if (!productId || loading) return;
+    const ok = window.confirm(
+      "Reset this design?\n\nThis will delete your saved colors/preview for this product. This cannot be undone."
+    );
+    if (!ok) return;
+
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/products/${productId}/saveUserDesign`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        // try to surface server error message
+        let msg = "Delete failed";
+        try {
+          const j = await res.json();
+          msg = j?.error || msg;
+        } catch {}
+        throw new Error(msg);
+      }
+      // Let parent wipe local state (style, preview, selections, etc.)
+      onAfterReset?.();
+    } catch (e: any) {
+      alert(e?.message || "Could not reset the design. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  
+
   const updatePreview = useCallback(
     async (style: StyleState, defs: string) => {
       setLoading(true);
@@ -43,5 +80,11 @@ export function useLivePreview(productId: string) {
     setBaseH(h);
   }, []);
 
-  return { previewUrl, loading, updatePreview, baseW, baseH, onImageLoad };
+
+  return { previewUrl, loading, handleReset, updatePreview, baseW, baseH, onImageLoad };
 }
+
+
+
+
+
