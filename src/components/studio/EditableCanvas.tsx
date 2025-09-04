@@ -17,7 +17,7 @@ import AppearanceControls from "./ui/AppearanceControls";
 import ExportSizeControls from "./ui/ExportSizeControls";
 
 import type { ExportMode, ExportUnit, StyleState } from "./types";
-import { DEFAULT_STYLE } from "./utils/constants";
+// import { DEFAULT_STYLE } from "./utils/constants";
 import { usePurchaseExports } from "./hooks/usePurchaseExports";
 import PurchaseExportsModal from "./ui/PurchaseExportsModal";
 import PurchaseArtModal from "./ui/PurchaseArtModal";
@@ -152,7 +152,7 @@ function BootLayoutSkeleton() {
 function EditableCanvasInner({ productId }: { productId: string }) {
   const { isLoggedIn } = useUser();
   const { style, setStyle, defsMap, setDefsMap } = useDesignContext();
-const [reloadTick, setReloadTick] = useState(0);
+// const [reloadTick, setReloadTick] = useState(0);
 
   const { previewUrl, loading,handleReset, updatePreview, baseW, baseH, onImageLoad } =
     useLivePreview(productId);
@@ -409,7 +409,7 @@ let cancelled = false;
     fetchInitialExportStatus,
     drawUrl,
     // defsString, style
-      reloadTick,           // ⬅️ add this
+      // reloadTick,           // ⬅️ add this
 
     updatePreview,
   ]);

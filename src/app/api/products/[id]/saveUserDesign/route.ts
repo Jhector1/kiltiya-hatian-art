@@ -415,19 +415,19 @@ export async function DELETE(
     });
 
     if (cart) {
-      await prisma.cartItem.updateMany({
-        where: {
-          cartId: cart.id,
-          productId,
-          designId: design.id,
-        },
-        data: {
-          designId: null,
-          // optional: also clear snapshots if you want a visual reset
-          // styleSnapshot: Prisma.JsonNull,
-          // previewUrlSnapshot: null,
-        },
-      });
+    await prisma.cartItem.updateMany({
+  where: {
+    productId,
+    designId: design.id,
+    cart: { OR: [{ userId }, { guestId }] },
+  },
+  data: {
+    designId: null,
+    styleSnapshot: Prisma.JsonNull,
+    previewUrlSnapshot: null,
+  },
+});
+
     }
 
     // Remove Cloudinary preview asset if stored

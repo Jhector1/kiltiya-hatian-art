@@ -23,6 +23,10 @@ cloudinary.config({
    GET /api/cart
    Returns cart lines with server-computed prices and sale metadata
    ──────────────────────────────────────────────────────────────────── */
+/* ────────────────────────────────────────────────────────────────────
+   GET /api/cart
+   Returns cart lines with server-computed prices and sale metadata
+   ──────────────────────────────────────────────────────────────────── */
 export async function GET(req: NextRequest) {
   const { userId, guestId } = await getCustomerIdFromRequest(req);
   const url = new URL(req.url);
@@ -42,7 +46,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Fast probe
+  // Fast probe: “is this exact variant in the cart?”
   if (productId && (digitalVariantId || printVariantId)) {
     const where: Record<string, string> = { cartId: cart.id, productId };
     if (digitalVariantId) where.digitalVariantId = digitalVariantId;
@@ -55,12 +59,12 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Pull cart lines
+  // Pull cart lines (note we keep productId and any linked design relation)
   const items = await prisma.cartItem.findMany({
     where: { cartId: cart.id },
     select: {
       id: true,
-      productId: true, // <-- ensure we have productId per line
+      productId: true,
       price: true,
       originalPrice: true,
       quantity: true,
@@ -82,10 +86,16 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  // ---- NEW: find latest UserDesign per product for this user/guest ----
-  const productIds = Array.from(new Set(items.map((i) => i.productId)));
-  const latestDesigns = productIds.length
-    ? await prisma.userDesign.findMany({
+  // Optional only: when live=1, fetch latest per-product UserDesign to use
+  // *only* if a cart line has no linked design (designId is null).
+  let newestByProduct:
+    | Map<string, { url: string | null; ver: number | null }>
+    | null = null;
+
+  if (items.length && live) {
+    const productIds = Array.from(new Set(items.map((i) => i.productId)));
+    if (productIds.length) {
+      const latestDesigns = await prisma.userDesign.findMany({
         where: {
           productId: { in: productIds },
           ...(userId ? { userId } : { guestId: guestId! }),
@@ -96,52 +106,46 @@ export async function GET(req: NextRequest) {
           previewUpdatedAt: true,
           updatedAt: true,
         },
-        orderBy: { updatedAt: "desc" },
-      })
-    : [];
-
-  // Keep only the newest per productId
-  const newestByProduct = new Map<
-    string,
-    { url: string | null; ver: number | null }
-  >();
-  for (const d of latestDesigns) {
-    if (!newestByProduct.has(d.productId)) {
-      newestByProduct.set(d.productId, {
-        url: d.previewUrl ?? null,
-        ver: d.previewUpdatedAt ? d.previewUpdatedAt.getTime() : null,
+        orderBy: [{ productId: "asc" }, { updatedAt: "desc" }],
       });
+
+      newestByProduct = new Map();
+      for (const d of latestDesigns) {
+        if (!newestByProduct.has(d.productId)) {
+          newestByProduct.set(d.productId, {
+            url: d.previewUrl ?? null,
+            ver: d.previewUpdatedAt ? d.previewUpdatedAt.getTime() : null,
+          });
+        }
+      }
     }
   }
 
-  // Build response lines with **UserDesign precedence**
+  // Build response lines — strict precedence:
+  // 1) linked cart design (only if designId is set)
+  // 2) frozen snapshot (previewUrlSnapshot)
+  // 3) product thumbnail
+  // 4) (optional) live=1: latest product-level design if no linked design
   const products: CartSelectedItem[] = items.map((ci) => {
-    // global (latest) design for this product (takes precedence)
-    const global = newestByProduct.get(ci.productId);
-    const globalDesignUrl = global?.url
-      ? global.ver
-        ? `${global.url}?v=${global.ver}`
-        : global.url
-      : null;
-
-    // cart-linked design (may be older or different)
+    // Linked cart design (trusted because it’s tied to cartItem.designId)
     const linkedDesignUrl = ci.design?.previewUrl
       ? ci.design.previewUpdatedAt
         ? `${ci.design.previewUrl}?v=${ci.design.previewUpdatedAt.getTime()}`
         : ci.design.previewUrl
       : null;
 
-    // Choose the best design URL (global takes precedence)
-    const bestDesignUrl = globalDesignUrl ?? linkedDesignUrl;
+    // Optional live override only when there is no linked design
+    let liveGlobalUrl: string | null = null;
+    if (!linkedDesignUrl && newestByProduct) {
+      const g = newestByProduct.get(ci.productId);
+      liveGlobalUrl = g?.url ? (g.ver ? `${g.url}?v=${g.ver}` : g.url) : null;
+    }
 
-    // Now compute preview with precedence:
-    // 1) bestDesignUrl (latest user design for the product)
-    // 2) snapshot (frozen preview at add time)
-    // 3) product thumbnail
     const previewUrl =
-      bestDesignUrl ??
+      linkedDesignUrl ??
       ci.previewUrlSnapshot ??
       ci.product.thumbnails?.[0] ??
+      liveGlobalUrl ??
       null;
 
     return {
@@ -153,8 +157,8 @@ export async function GET(req: NextRequest) {
       ...ci.product,
       price: ci.price,
       originalPrice: ci.originalPrice ?? ci.price,
-      previewUrl, // <-- user design preview has precedence
-      isUserDesign: !!(bestDesignUrl || ci.designId),
+      previewUrl,
+      isUserDesign: Boolean(ci.designId), // reflect true customization only
       saleStartsAt: ci.product.saleStartsAt,
       saleEndsAt: ci.product.saleEndsAt,
       salePercent: ci.product.salePercent,
