@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     }
 
     const safeCategory = slugify(categoryName, { lower: true, strict: true });
-    const myUUID = crypto.randomUUID();
+    const myUUID = `${title}-${crypto.randomUUID()}`;
 
     // 1) MAIN (watermarked preview)
     const mainUri = await fileToDataUri(mainFile);

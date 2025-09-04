@@ -1,7 +1,7 @@
 // src/components/editor/contexts/DesignContext.tsx
 "use client";
 
-import React from "react";
+import React, { useCallback } from "react";
 import type { StyleState } from "../types";
 
 type DefsMap = Record<string, string>;
@@ -128,12 +128,15 @@ export function DesignProvider({
   const canRedo = hist.i < hist.items.length - 1;
 
   // Core updates
-  const handleStyleChange = React.useCallback(
-    <K extends keyof StyleState>(key: K, value: StyleState[K]) => {
-      setStyle((prev) => ({ ...prev, [key]: value }));
-    },
-    []
-  );
+// in DesignContext (pseudo)
+const handleStyleChange = useCallback(<K extends keyof StyleState>(key: K, val: StyleState[K]) => {
+  setStyle((prev) => {
+    // build from previous to avoid stale snapshots
+    const next = { ...prev, [key]: val };
+    return next;
+  });
+}, [setStyle]);
+
 
   // One-shot helper that creates a single step for defs changes
   const setDefsMapWithHistory = React.useCallback(

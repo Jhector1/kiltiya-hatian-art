@@ -346,8 +346,10 @@ React.useEffect(() => {
   // ——— initial boot: export status, load saved design, render fallback
   function reloadStatus(){
 let cancelled = false;
+
     (async () => {
       await fetchInitialExportStatus();
+
 
       try {
         const s = await fetch(`/api/products/${productId}/saveUserDesign`, {
@@ -508,7 +510,7 @@ let cancelled = false;
         // productId={productId}
         resetting={loading}
         
-        handleReset={() =>{  handleReset(()=>reloadStatus())}}
+        handleReset={() =>{  setStyle({} as StyleState); handleReset(()=>reloadStatus())}}
 
           purchased={purchased}
           purchasedDigital={purchasedDigital}
