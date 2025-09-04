@@ -132,26 +132,61 @@ export default function AppearanceControls() {
         </span>
       </label>
 
-      {/* ————— Opacities ————— */}
-      <label className="flex items-center gap-3 text-xs">
-        <span className="w-24 text-black/60">Fill Opacity</span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={style.fillOpacity ?? 1}
-          onPointerDown={start("Fill opacity")}
-          onChange={(e) =>
-            handleStyleChange("fillOpacity", parseFloat(e.target.value))
-          }
-          onPointerUp={commit("Fill opacity")}
-          className="w-full"
-        />
-        <span className="w-12 text-right tabular-nums">
-          {(style.fillOpacity ?? 1).toFixed(2)}
-        </span>
-      </label>
+   {/* ————— Opacities ————— */}
+<label className="flex items-center gap-3 text-xs">
+  <span className="w-24 text-black/60">Fill Opacity</span>
+  <input
+    type="range"
+    min={0}
+    max={1}
+    step={0.01}
+    value={style.fillOpacity ?? 1}
+    onPointerDown={start("Fill opacity")}
+    onChange={(e) => handleStyleChange("fillOpacity", parseFloat(e.target.value))}
+    onPointerUp={commit("Fill opacity")}
+    className="w-full"
+  />
+  <span className="w-12 text-right tabular-nums">
+    {(style.fillOpacity ?? 1).toFixed(2)}
+  </span>
+</label>
+
+<label className="flex items-center gap-3 text-xs">
+  <span className="w-24 text-black/60">Stroke Opacity</span>
+  <input
+    type="range"
+    min={0}
+    max={1}
+    step={0.01}
+    value={style.strokeOpacity ?? 1}
+    onPointerDown={start("Stroke opacity")}
+    onChange={(e) => handleStyleChange("strokeOpacity", parseFloat(e.target.value))}
+    onPointerUp={commit("Stroke opacity")}
+    className="w-full"
+  />
+  <span className="w-12 text-right tabular-nums">
+    {(style.strokeOpacity ?? 1).toFixed(2)}
+  </span>
+</label>
+
+<label className="flex items-center gap-3 text-xs">
+  <span className="w-24 text-black/60">Background Opacity</span>
+  <input
+    type="range"
+    min={0}
+    max={1}
+    step={0.01}
+    value={style.backgroundOpacity ?? 1}    
+    onPointerDown={start("Background opacity")}
+    onChange={(e) => handleStyleChange("backgroundOpacity", parseFloat(e.target.value))}
+    onPointerUp={commit("Background opacity")}
+    className="w-full"
+  />
+  <span className="w-12 text-right tabular-nums">
+    {(style.backgroundOpacity ?? 1).toFixed(2)}
+  </span>
+</label>
+
 
       {/* Add similar sliders for strokeOpacity, backgroundOpacity if needed */}
     </div>
