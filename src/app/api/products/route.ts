@@ -1,13 +1,17 @@
 // File: src/app/api/products/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma, productListSelect } from "@/types";
 import { getCustomerIdFromRequest } from "@/utils/guest"; // ✅ your helper
 
 export const runtime = "nodejs";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   // 1. get current user or guest ID
   const { userId, guestId } = await getCustomerIdFromRequest(req);
+  const orConditions: any[] = [];
+if (userId) orConditions.push({ userId });
+if (guestId) orConditions.push({ guestId });
+
 
   // 2. fetch products and also pull in designs for this user/guest
   const products = await prisma.product.findMany({
@@ -21,10 +25,8 @@ export async function GET(req: Request) {
           guestId: true,
         },
         where: {
-          OR: [
-            userId ? { userId } : undefined,
-            guestId ? { guestId } : undefined,
-          ].filter(Boolean),
+          OR: orConditions,
+
         },
         take: 1, // at most one design per user+product
       },
