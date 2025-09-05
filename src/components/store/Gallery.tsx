@@ -176,19 +176,25 @@ export default function Gallery({
                   )}
 
                {/* Customized badge with spark */}
-{("isUserDesignApplied" in p && p.isUserDesignApplied || (p as CartSelectedItem).isUserDesign) && (
-  <span className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md bg-emerald-600/90 px-2 py-0.5 text-[10px] font-medium text-white">
+{/* Spark badge only */}
+{(("isUserDesignApplied" in p && p.isUserDesignApplied) || (p as CartSelectedItem).isUserDesign) && (
+  <motion.span
+    className="absolute left-2 top-2 z-10 flex items-center justify-center rounded-full bg-emerald-600/90 p-1"
+    initial={{ scale: 1 }}
+    animate={{ scale: [1, 1.3, 1] }}
+    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+  >
     <Image
-      src="/icons/sparkle.png" // ✅ put your spark gif in /public/spark.gif
-      alt="Customized"
-      width={12}
-      height={12}
+      src="/icons/sparkle.png" // put your sparkle PNG/GIF in public/icons/
+      alt="Spark"
+      width={14}
+      height={14}
       className="inline-block"
       unoptimized
     />
-    Customized
-  </span>
+  </motion.span>
 )}
+
 
 
                   {/* 🔻 Sale badge */}
