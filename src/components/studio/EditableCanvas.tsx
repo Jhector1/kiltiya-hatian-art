@@ -500,7 +500,7 @@ let cancelled = false;
   if (booting) return <BootLayoutSkeleton />;
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
+    <div className="mx-auto w-full max-w-7xl  py-4 md:py-6">
       {headerBooting ? (
         // <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
         <HeaderSkeleton />
