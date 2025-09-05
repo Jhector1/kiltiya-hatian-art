@@ -52,7 +52,7 @@ function HeaderSkeleton() {
 
 function BootLayoutSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-4 md:py-6">
+    <div className="mx-auto w-full max-w-7xl py-4 md:py-6">
       <HeaderSkeleton />
 
       <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px] gap-4">
@@ -69,7 +69,7 @@ function BootLayoutSkeleton() {
           </div>
         </div>
 
-        <aside className="rounded-2xl bg-white p-4 ring-1 ring-black/5 md:sticky md:top-4 md:h-fit">
+        <aside className="rounded-2xl bg-white py-4 ring-1 ring-black/5 md:sticky md:top-4 md:h-fit">
           <div className="mb-4 rounded-2xl border border-black/10 p-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <Skeleton className="h-4 w-24" />

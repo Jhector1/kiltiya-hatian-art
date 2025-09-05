@@ -10,7 +10,7 @@ const CheckoutSuccessPage = dynamic(() => import("@/components/store/checkout/Ch
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="p-10 text-center">Loading page…</div>}>
+    <Suspense fallback={<div className="py-10 text-center">Loading page…</div>}>
       <CheckoutSuccessPage />
     </Suspense>
   );

@@ -105,7 +105,7 @@ export default function CartPage() {
         title="Your Cart"
         description="Review and manage items in your cart before checkout."
       />
-      <div className="max-w-7xl mx-auto px-4 py-10">
+      <div className="max-w-7xl mx-auto  py-10">
         <h1 className="text-3xl font-bold text-green-700 mb-4">Your Cart</h1>
         {cart.length === 0 ? (
           <p className="text-gray-600">Your cart is empty.</p>

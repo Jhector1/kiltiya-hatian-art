@@ -36,7 +36,7 @@ export default function ContactPage() {
   return (
     <>
       <SEO title="Haitian Digital Art Gallery" description="Buy and explore uniquely crafted Haitian vector artworks." />
-      <main className="min-h-screen flex items-center justify-center px-4 py-12">
+      <main className="min-h-screen flex items-center justify-center  py-12">
         <div className="max-w-6xl w-full bg-white shadow-2xl rounded-3xl p-8 md:p-12 grid md:grid-cols-2 gap-10">
           {/* Left */}
           <div className="space-y-6">
