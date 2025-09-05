@@ -216,17 +216,17 @@ export interface HomeCategory {
 // --- Types ----------------------------------------------------------------
 export type VariantType = "DIGITAL" | "PRINT" | "ALL";
 
-export type CollectionItem = {
-  id: string;
-  type: VariantType;
-  product: {
-    title: string;
-    thumbnails: string[];
-  };
-  digitalVariant?: { url: string } | null;
-  printVariant?: { url: string } | null;
-  order: { placedAt: string; stripeSessionId: string };
-};
+// export type CollectionItem = {
+//   id: string;
+//   type: VariantType;
+//   product: {
+//     title: string;
+//     thumbnails: string[];
+//   };
+//   digitalVariant?: { url: string } | null;
+//   printVariant?: { url: string } | null;
+//   order: { placedAt: string; stripeSessionId: string };
+// };
 
 export type ProductListAndOrderCount = ProductListItem & {
   purchaseCount: number;
@@ -275,3 +275,45 @@ export type AddToCartBody = {
   design?: DesignPayload; // 👈 new
   snapshot?: boolean; // default true (store styleSnapshot)
 };
+
+
+export   type CollectionDigitalAsset = {
+    tokenId: string;
+    url: string;
+    ext: string | null;
+    width?: number | null;
+    height?: number | null;
+    dpi?: number | null;
+    sizeBytes?: number | null;
+    colorProfile?: string | null;
+    isVector?: boolean | null;
+    hasAlpha?: boolean | null;
+  };
+
+  export type CollectionItem = {
+    id: string;
+    type: "DIGITAL" | "PRINT";
+    price: number;
+    quantity: number;
+    order: {
+      isUserDesign: boolean
+      placedAt: string;
+      stripeSessionId?: string | null;
+      status?: string | null;
+    };
+    product: { id: string; title: string; thumbnails: string[] };
+    previewUrl: string | null;
+    digital?: {
+      variantId?: string | null;
+      format?: string | null;
+      license?: string | null;
+      size?: string | null;
+      tokens: CollectionDigitalAsset[];
+    };
+    print?: {
+      variantId?: string | null;
+      size?: string | null;
+      material?: string | null;
+      frame?: string | null;
+    };
+  };

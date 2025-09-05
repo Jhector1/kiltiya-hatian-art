@@ -1,6 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Script from "next/script";
+
 import { UserProvider } from "@/contexts/UserContext";
 import { CartProvider } from "@/contexts/CartContext";
 import Header from "@/components/header/Header";
@@ -20,35 +22,95 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.NEXTAUTH_URL ||
+  "https://ziledigital.com";
+
+export const viewport: Viewport = {
+  themeColor: "#0f0f1a",
+};
+
 export const metadata: Metadata = {
-  title: "ZileDigital",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "ZileDigital — Haitian Veve & Afro-Caribbean Wall Art",
+    template: "%s | ZileDigital",
+  },
   description:
-    "Discover unique Haitian-inspired digital and print artworks. Explore veve symbols, cultural icons, and tropical visuals. Customize frames, formats, and support local artists.",
+    "Shop Haitian veve and Afro-Caribbean wall art as instant digital downloads or premium prints. Customizable colors, frames, and sizes. High-resolution PNG/JPG/SVG/PDF. Support Haitian artists.",
   keywords: [
-    "Haitian art",
-    "digital art",
-    "printable wall art",
-    "veve symbols",
-    "Haitian culture",
-    "Afro-Caribbean art",
-    "art marketplace",
-    "buy digital downloads",
-    "custom art prints",
+    // Core brand & marketplace
     "ZileDigital",
+    "Zile Digital",
+    "Haitian art marketplace",
+    "buy Haitian art online",
+    "Haiti art shop",
+    // Category & format
+    "Haitian art",
+    "Haitian wall art",
+    "Afro-Caribbean art",
+    "Caribbean wall art",
+    "digital art download",
+    "instant download art",
+    "printable wall art",
+    "SVG vector art",
+    "veve SVG",
+    "PNG JPG PDF",
+    "canvas prints",
+    "fine art prints",
+    "frame-ready prints",
+    "gallery wall",
+    // Veve & Vodou long-tail
+    "veve symbols",
+    "Vodou veve",
+    "Vodou art",
+    "Erzulie veve",
+    "Papa Legba veve",
+    "Ogou veve",
+    "Damballa veve",
+    "Baron Samedi veve",
+    "Marassa veve",
+    "Gede veve",
+    "minimalist veve art",
+    "line art veve",
+    "sacred symbols art",
+    // Use cases & intents
+    "Haiti home decor",
+    "Caribbean home decor",
+    "Haitian culture gifts",
+    "boho wall art",
+    "black art prints",
+    "diaspora art",
+    "tropical art prints",
+    "Haitian flag art",
+    // Product attributes & features
+    "high resolution printable",
+    "customizable art",
+    "custom art prints",
+    "color customizable art",
+    "downloadable wall art",
+    "vector cut files veve",
+    // Geo & artist tags (long-tail)
+    "Port-au-Prince artists",
+    "Cap-Haïtien art",
   ],
   authors: [{ name: "ZileDigital" }],
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
-    title: "ZileDigital | Haitian Art Marketplace",
+    title: "ZileDigital — Haitian Veve & Afro-Caribbean Wall Art",
     description:
-      "A curated digital gallery inspired by Haiti. Browse digital downloads and custom prints with framing options. Bring culture to your walls.",
-    url: process.env.NEXTAUTH_URL, // replace with your actual domain
+      "Explore Haitian veve symbols and Afro-Caribbean artwork as digital downloads or premium prints. Customize colors, frames, and sizes.",
+    url: "/",
     siteName: "ZileDigital",
     images: [
       {
-        url: `${process.env.NEXTAUTH_URL}/images/why-haitian-art.png`, // Replace with actual Open Graph image
+        url: "/images/why-haitian-art.png",
         width: 1200,
         height: 630,
-        alt: "ZileDigital - Haitian Art Marketplace",
+        alt: "ZileDigital — Haitian Veve & Afro-Caribbean Wall Art",
       },
     ],
     locale: "en_US",
@@ -56,13 +118,33 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "ZileDigital | Haitian Art Marketplace",
+    site: "@ziledigital", // keep if you own it; otherwise remove
+    creator: "@ziledigital", // keep if you own it; otherwise remove
+    title: "ZileDigital — Haitian Veve & Afro-Caribbean Wall Art",
     description:
-      "Shop digital and print Haitian art. Unique pieces. Instant downloads. Frame-ready prints.",
-    images: [`${process.env.NEXTAUTH_URL}/images/why-haitian-art.png`], // Replace with actual image
-    creator: "@ziledigital", // Replace with your Twitter handle if you have one
+      "Instant digital downloads & premium prints. Custom colors, frames, and sizes. Support Haitian artists.",
+    images: ["/images/why-haitian-art.png"],
   },
-  metadataBase: new URL(process.env.NEXTAUTH_URL || ""), // replace with actual domain
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      // maxSnippet: -1,
+      // maxImagePreview: "large",
+      // maxVideoPreview: -1,
+    },
+  },
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  verification: {
+    // fill these if/when you verify your site:
+    google: process.env.GOOGLE_SITE_VERIFICATION_TOKEN,
+    // bing: "BING_SITE_VERIFICATION_TOKEN",
+  },
 };
 
 export default function RootLayout({
@@ -82,26 +164,64 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {/* <UserProvider> */}
-          <UserProvider>
-            <CartProvider>
-              <FavoriteProvider>
-                <div className="bg-[#0f0f1a] bg-dot-grid bg-[length:var(--tw-background-size-dot-grid)] min-h-screen bg-gradient-to-r from-amber-100 via-white to-slate-100 text-gray-900">
-                  <Header />
-                  <Toaster position="top-right" />
+        <UserProvider>
+          <CartProvider>
+            <FavoriteProvider>
+              <div className="bg-[#0f0f1a] bg-dot-grid bg-[length:var(--tw-background-size-dot-grid)] min-h-screen bg-gradient-to-r from-amber-100 via-white to-slate-100 text-gray-900">
+                <Header />
+                <Toaster position="top-right" />
 
-                  {/* <GuestInit/> */}
+                {/* <GuestInit/> */}
 
-                  <main className="px-4 md:px-10 lg:px-20">{children}</main>
-                  <CheckoutHost />
+                <main className="px-4 md:px-10 lg:px-20">{children}</main>
+                <CheckoutHost />
 
-                  <footer className="text-center text-sm py-6">
-                    &copy; 2024 ZileDigital Market
-                  </footer>
-                </div>
-              </FavoriteProvider>
-            </CartProvider>
-          </UserProvider>
+                <footer className="text-center text-sm py-6">
+                  &copy; 2024 ZileDigital Market
+                </footer>
+              </div>
+            </FavoriteProvider>
+          </CartProvider>
+        </UserProvider>
         {/* </UserProvider> */}
+
+        {/* // ...inside RootLayout return(), just before </body>: */}
+
+        <Script
+          id="ld-website"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "ZileDigital",
+              url: SITE_URL,
+              potentialAction: {
+                "@type": "SearchAction",
+                target: `${SITE_URL}/search?q={search_term_string}`,
+                "query-input": "required name=search_term_string",
+              },
+            }),
+          }}
+        />
+
+        <Script
+          id="ld-org"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "ZileDigital",
+              url: SITE_URL,
+              logo: `${SITE_URL}/images/why-haitian-art.png`,
+              sameAs: [
+                "https://instagram.com/ziledigital",
+                "https://x.com/ziledigital",
+              ],
+            }),
+          }}
+        />
       </body>
     </html>
   );

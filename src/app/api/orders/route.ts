@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { getCustomerIdFromRequest } from "@/utils/guest";
+import { CollectionDigitalAsset, CollectionItem } from "@/types";
 
 const prisma = new PrismaClient();
 
@@ -61,45 +62,6 @@ export async function GET(req: NextRequest) {
     orderBy: { order: { placedAt: "desc" } },
   });
 
-  type CollectionDigitalAsset = {
-    tokenId: string;
-    url: string;
-    ext: string | null;
-    width?: number | null;
-    height?: number | null;
-    dpi?: number | null;
-    sizeBytes?: number | null;
-    colorProfile?: string | null;
-    isVector?: boolean | null;
-    hasAlpha?: boolean | null;
-  };
-
-  type CollectionItem = {
-    id: string;
-    type: "DIGITAL" | "PRINT";
-    price: number;
-    quantity: number;
-    order: {
-      placedAt: string;
-      stripeSessionId?: string | null;
-      status?: string | null;
-    };
-    product: { id: string; title: string; thumbnails: string[] };
-    previewUrl: string | null;
-    digital?: {
-      variantId?: string | null;
-      format?: string | null;
-      license?: string | null;
-      size?: string | null;
-      tokens: CollectionDigitalAsset[];
-    };
-    print?: {
-      variantId?: string | null;
-      size?: string | null;
-      material?: string | null;
-      frame?: string | null;
-    };
-  };
 
   const shaped: Record<string, CollectionItem[]> = {};
 
@@ -132,6 +94,7 @@ export async function GET(req: NextRequest) {
       price: it.price,
       quantity: it.quantity,
       order: {
+        isUserDesign: it.purchasedDesign?true: false,
         placedAt: it.order.placedAt.toISOString(),
         stripeSessionId: it.order.stripeSessionId,
         status: it.order.status,
