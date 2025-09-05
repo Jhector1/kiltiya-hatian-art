@@ -132,9 +132,9 @@ export async function GET(
 
     let withWm = base;
     try {
-      withWm = await addStaticWatermarkFullWidth(base, {
+      withWm = await addStaticWatermarkFullWidth(base, {fit: "stretch",
         position: "bottom",
-        margin: 24,
+        // margin: 24,
         opacity: 0.12,
       });
     } catch {}
@@ -294,9 +294,9 @@ $svg
     // watermark + finalize
     let finalSvg = $.xml();
     try {
-      finalSvg = await addStaticWatermarkFullWidth(finalSvg, {
+      finalSvg = await addStaticWatermarkFullWidth(finalSvg, {fit: "stretch",
         position: "bottom",
-        margin: 24,
+        // margin: 24,
         opacity: 0.12,
       });
     } catch {}

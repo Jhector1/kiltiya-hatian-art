@@ -160,15 +160,25 @@ async function fetchWatermark() {
 }
 
 /* -------------------- public API: add full-width watermark -------------------- */
+// add: fit = "width" | "stretch" | "cover"
+//  - "width"   (default): your current behavior (scale to full width)
+//  - "stretch": non-uniform scaleX/scaleY to fill both W & H exactly (no gaps)
+//  - "cover":   uniform scale to cover the canvas (may overflow/crop)
 export async function addStaticWatermarkFullWidth(
   baseSvg: string,
-  opts: { position?: "top" | "center" | "bottom"; margin?: number; opacity?: number } = {}
+  opts: {
+    position?: "top" | "center" | "bottom";
+    margin?: number;
+    opacity?: number;
+    fit?: "width" | "stretch" | "cover";
+  } = {}
 ) {
   const position = opts.position ?? "bottom";
   const margin = Math.max(0, opts.margin ?? 24);
   const opacity = Math.max(0, Math.min(1, opts.opacity ?? 0.12));
+  const fit = opts.fit ?? "width";
 
-  const { inner, defs, style, ww, hh } = await fetchWatermark();
+  const { inner, defs, style, ww, hh } = await fetchWatermark(); // ww/hh = watermark's native size
 
   const $ = load(baseSvg, { xmlMode: true });
   const $svg = $("svg").first();
@@ -185,19 +195,43 @@ export async function addStaticWatermarkFullWidth(
   // base dims
   const { w: BW, h: BH } = getBaseDims($.xml());
 
-  // scale to full width minus margins
-  const availableW = Math.max(1, BW - 2 * margin);
-  const scale = availableW / ww;
+  // remove any existing watermark layer to avoid stacking
+  $svg.find('[data-watermark="true"]').remove();
 
-  const x = margin;
+  const availableW = Math.max(1, BW - 2 * margin);
+  const availableH = Math.max(1, BH - 2 * margin);
+
+  let x = margin;
   let y = margin;
-  if (position === "center") y = (BH - hh * scale) / 2;
-  if (position === "bottom") y = BH - hh * scale - margin;
+  let transform = "";
+
+  if (fit === "stretch") {
+    // Non-uniform: fill entire canvas area exactly
+    const sx = availableW / Math.max(1, ww);
+    const sy = availableH / Math.max(1, hh);
+    transform = `translate(${x} ${y}) scale(${sx} ${sy})`;
+  } else if (fit === "cover") {
+    // Uniform scale that *covers* both dimensions (may overflow & crop)
+    const s = Math.max(availableW / Math.max(1, ww), availableH / Math.max(1, hh));
+    const contentW = ww * s;
+    const contentH = hh * s;
+    // center inside the available box
+    x = margin + (availableW - contentW) / 2;
+    y = margin + (availableH - contentH) / 2;
+    transform = `translate(${x} ${y}) scale(${s})`;
+  } else {
+    // "width" (original behavior): scale to full width; position by 'position'
+    const s = availableW / Math.max(1, ww);
+    x = margin;
+    if (position === "center") y = margin + (availableH - hh * s) / 2;
+    if (position === "bottom") y = margin + availableH - hh * s;
+    transform = `translate(${x} ${y}) scale(${s})`;
+  }
 
   $svg.append(`
     <g data-watermark="true"
        opacity="${opacity}"
-       transform="translate(${x} ${y}) scale(${scale})"
+       transform="${transform}"
        pointer-events="none">
       ${inner}
     </g>
