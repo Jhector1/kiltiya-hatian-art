@@ -173,7 +173,7 @@ export default function RootLayout({
 
                 {/* <GuestInit/> */}
 
-                <main className="px-2 md:px-8 lg:px-20">{children}</main>
+                <main className="px-4 md:px-10 lg:px-20">{children}</main>
                 <CheckoutHost />
 
                 <footer className="text-center text-sm py-6">
