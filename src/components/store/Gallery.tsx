@@ -175,12 +175,21 @@ export default function Gallery({
                     </button>
                   )}
 
-                  {/* Customized badge (optional) */}
-                  {isCartItem && (p as CartSelectedItem).isUserDesign && (
-                    <span className="absolute left-2 top-2 z-10 rounded-md bg-emerald-600/90 px-2 py-0.5 text-[10px] font-medium text-white">
-                      Customized
-                    </span>
-                  )}
+               {/* Customized badge with spark */}
+{("isUserDesignApplied" in p && p.isUserDesignApplied || (p as CartSelectedItem).isUserDesign) && (
+  <span className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md bg-emerald-600/90 px-2 py-0.5 text-[10px] font-medium text-white">
+    <Image
+      src="/icons/sparkle.png" // ✅ put your spark gif in /public/spark.gif
+      alt="Customized"
+      width={12}
+      height={12}
+      className="inline-block"
+      unoptimized
+    />
+    Customized
+  </span>
+)}
+
 
                   {/* 🔻 Sale badge */}
                   {pricing.onSale && pricing.pctOff > 0 && (

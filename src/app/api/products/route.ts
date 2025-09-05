@@ -1,25 +1,55 @@
-// src/app/api/products/route.ts
+// File: src/app/api/products/route.ts
 import { NextResponse } from "next/server";
 import { prisma, productListSelect } from "@/types";
+import { getCustomerIdFromRequest } from "@/utils/guest"; // ✅ your helper
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  // 1. pull in your normal product fields…
-  // 2. …and ask Prisma to count related orderItems
+export async function GET(req: Request) {
+  // 1. get current user or guest ID
+  const { userId, guestId } = await getCustomerIdFromRequest(req);
+
+  // 2. fetch products and also pull in designs for this user/guest
   const products = await prisma.product.findMany({
     select: {
       ...productListSelect,
       _count: { select: { orderItems: true } },
+      designs: {
+        select: {
+          previewUrl: true,
+          userId: true,
+          guestId: true,
+        },
+        where: {
+          OR: [
+            userId ? { userId } : undefined,
+            guestId ? { guestId } : undefined,
+          ].filter(Boolean),
+        },
+        take: 1, // at most one design per user+product
+      },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  // rename for frontend convenience
-  const payload = products.map(p => ({
-    ...p,
-    purchaseCount: p._count.orderItems,
-  }));
+  // 3. map + replace thumbnail if design exists
+  const payload = products.map((p) => {
+    let isUserDesignApplied = false;
+    const thumbnails = [...p.thumbnails];
+
+    if (p.designs.length > 0 && p.designs[0].previewUrl) {
+      isUserDesignApplied = true;
+      // replace first thumbnail
+      thumbnails[0] = p.designs[0].previewUrl!;
+    }
+
+    return {
+      ...p,
+      thumbnails,
+      purchaseCount: p._count.orderItems,
+      isUserDesignApplied,
+    };
+  });
 
   return NextResponse.json(payload);
 }

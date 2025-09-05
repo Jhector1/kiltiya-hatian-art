@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ZileDigital | Haitian Art Marketplace",
+  title: "ZileDigital",
   description:
     "Discover unique Haitian-inspired digital and print artworks. Explore veve symbols, cultural icons, and tropical visuals. Customize frames, formats, and support local artists.",
   keywords: [
