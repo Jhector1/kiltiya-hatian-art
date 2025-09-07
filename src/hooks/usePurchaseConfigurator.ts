@@ -10,7 +10,7 @@ import type {
   CartUpdates,
   AddOptions,
 } from "@/types";
-import type { SizeOption } from "@/components/shared/core/SizeSelectorCore";
+import type { SizeOption } from "@/components/product/shared/core/SizeSelectorCore";
 import type { PriceOptionsProps } from "@/hooks/usePriceCalculator";
 
 export function usePurchaseConfigurator(args: {

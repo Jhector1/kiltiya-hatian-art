@@ -3,10 +3,10 @@
 import React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
-import PurchaseOptionsCore from "@/components/shared/core/PurchaseOptionsCore";
-import LicenseSelectorCore from "@/components/shared/core/LicenseSelectorCore";
-import SizeSelectorCore from "@/components/shared/core/SizeSelectorCore";
-import PrintCustomizerCore from "@/components/shared/core/PrintCustomizerCore";
+import PurchaseOptionsCore from "@/components/product/shared/core/PurchaseOptionsCore";
+import LicenseSelectorCore from "@/components/product/shared/core/LicenseSelectorCore";
+import SizeSelectorCore from "@/components/product/shared/core/SizeSelectorCore";
+import PrintCustomizerCore from "@/components/product/shared/core/PrintCustomizerCore";
 import FormatSelector from "../FormatSelector";
 
 import type {
@@ -18,12 +18,14 @@ import type {
   CartUpdates,
   CartSelectedItem,
 } from "@/types";
-import type { SizeOption } from "@/components/shared/core/SizeSelectorCore";
+import type { SizeOption } from "@/components/product/shared/core/SizeSelectorCore";
 import type { PriceOptionsProps } from "@/hooks/usePriceCalculator";
 import { useCart } from "@/contexts/CartContext";
 import { usePurchaseConfigurator } from "@/hooks/usePurchaseConfigurator";
-import { SaleAndCountdown } from "@/components/shared/core/SalePriceAndCountDown";
+import { SaleAndCountdown } from "@/components/product/shared/core/SalePriceAndCountDown";
 import { applyBundleIfBoth, getEffectiveSale, roundMoney } from "@/lib/pricing";
+import {  cleanSizes } from "@/utils/helpers";
+import { DescriptionCard } from "../shared/core/DescriptionCard";
 
 interface SelectionModel {
   wantDigital: boolean;
@@ -103,46 +105,25 @@ export default function ProductConfigurator({
     finalPrice,
   } = props;
   // Robust "WxH" parser: "8x10", "8 × 10", `8" x 10"`, "8in x 10in", etc.
-  const parseWh = (s: string): [number, number] | null => {
-    if (!s) return null;
-    const cleaned = s.trim().toLowerCase().replace(/[×✕]/g, "x");
-    const m = cleaned.match(
-      /(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?\s*x\s*(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?/
-    );
-    if (!m) return null;
-    const w = parseFloat(m[1]);
-    const h = parseFloat(m[2]);
-    return Number.isFinite(w) && Number.isFinite(h) ? [w, h] : null;
-  };
+  // const parseWh = (s: string): [number, number] | null => {
+  //   if (!s) return null;
+  //   const cleaned = s.trim().toLowerCase().replace(/[×✕]/g, "x");
+  //   const m = cleaned.match(
+  //     /(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?\s*x\s*(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?/
+  //   );
+  //   if (!m) return null;
+  //   const w = parseFloat(m[1]);
+  //   const h = parseFloat(m[2]);
+  //   return Number.isFinite(w) && Number.isFinite(h) ? [w, h] : null;
+  // };
 
-  // Build multipliers: area-based if all sizes parse; otherwise simple stepped.
-  const STEP = 0.25;
-  const BASE = 1;
+  // // Build multipliers: area-based if all sizes parse; otherwise simple stepped.
+  // const STEP = 0.25;
+  // const BASE = 1;
 
-  const availableSizes = (() => {
-    const parsed = product.sizes.map((s: string) => parseWh(s));
+  const availableSizes =cleanSizes(product.sizes);
 
-    const allParsed = parsed.every((p) => Array.isArray(p));
-    if (allParsed) {
-      const areas = parsed.map(([w, h]) => w * h) as number[];
-      const minArea = Math.min(...areas);
-      return product.sizes.map((size: string, i: number) => {
-        const [w, h] = parsed[i] as [number, number];
-        return {
-          label: size,
-          multiplier: +((w * h) / minArea).toFixed(2),
-        };
-      });
-    }
-
-    // Fallback: simple step by index so you never crash
-    return product.sizes.map((size: string, i: number) => ({
-      label: size,
-      multiplier: +(BASE + STEP * i).toFixed(2),
-    }));
-  })();
-
-  // alert(availableSizes)
+  // alert(JSON.stringify(availableSizes))
 
   const ctrl = usePurchaseConfigurator({
     product,
@@ -234,13 +215,14 @@ export default function ProductConfigurator({
   } as const;
   return (
     <>
-      <SaleAndCountdown {...pricing} />
+   <DescriptionCard text={product.description} />
+   <SaleAndCountdown {...pricing} />
       {bundleWins && (
         <div className="mt-1 text-[11px] sm:text-xs text-emerald-700 font-medium">
           Bundle applied: Digital + Print
         </div>
       )}
-
+   
       <PurchaseOptionsCore
         digitalChecked={selection.wantDigital}
         printChecked={selection.wantPrint}

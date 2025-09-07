@@ -10,7 +10,7 @@ import ProductConfigurator from "@/components/product/detail/ProductConfigurator
 import { allFrames, allLicenses, allMaterials, allSizes } from "@/data/helpers";
 
 import type { LicenseOption, MaterialOption, FrameOption } from "@/types";
-import type { SizeOption } from "@/components/shared/core/SizeSelectorCore";
+import type { SizeOption } from "@/components/product/shared/core/SizeSelectorCore";
 
 import { useProductData } from "@/components/studio/hooks/useProductData";
 // import { useExportArtwork } from "../hooks/useExportArtwork";
@@ -74,7 +74,7 @@ export default function PurchaseArtModal({
   open,
   onClose,
   busy = false,
-  onCheckout,
+  // onCheckout,
   setHeaderBooting,
 
   productId,
@@ -85,7 +85,7 @@ export default function PurchaseArtModal({
   materials = allMaterials,
   frames: framesProp = allFrames,
 
-  defaultVariant = "digital",
+  // defaultVariant = "digital",
   digital = { format: "png", license: "personal" },
   print = { format: "jpg" },
 
@@ -93,7 +93,7 @@ export default function PurchaseArtModal({
   getPreviewDataUrl,
 
   snapshotCartItem = true,
-  showFormat = false, // modal usually doesn’t need to change format
+  // showFormat = false, // modal usually doesn’t need to change format
 }: Props) {
   const portalEl = useRef<HTMLElement | null>(null);
   const firstFocusRef = useRef<HTMLButtonElement | null>(null);
@@ -152,11 +152,11 @@ export default function PurchaseArtModal({
   // inside PurchaseArtModal
   const buyStartedRef = useRef(false);
 
-  const handleClose = () => {
-    // Only clear booting if user closes the modal BEFORE starting checkout
-    if (!buyStartedRef.current) setHeaderBooting(false);
-    onClose();
-  };
+  // const handleClose = () => {
+  //   // Only clear booting if user closes the modal BEFORE starting checkout
+  //   if (!buyStartedRef.current) setHeaderBooting(false);
+  //   onClose();
+  // };
 
   // Portals & a11y
   useEffect(() => {
@@ -469,15 +469,15 @@ export default function PurchaseArtModal({
                         exportHref: "/account/orders",
                       });
 
-                      if (result.status === "error") {
+                      if (result?.status === "error") {
                         buyStartedRef.current = false; // reset since checkout didn’t start
                         setHeaderBooting(false);
                         setErr(
-                          result.message || "Checkout failed. Please try again."
+                          result?.message || "Checkout failed. Please try again."
                         );
                         return;
                       }
-                      if (result.status === "auth_required") {
+                      if (result?.status === "auth_required") {
                         // show login if you want
                         buyStartedRef.current = false; // reset since checkout didn’t start
                         setHeaderBooting(false);
@@ -487,7 +487,7 @@ export default function PurchaseArtModal({
                       onClose();
                       await new Promise((r) => requestAnimationFrame(r));
 
-                      if (result.flow === "embedded") {
+                      if (result?.flow === "embedded") {
                         window.dispatchEvent(
                           new CustomEvent("open-checkout", {
                             detail: {
@@ -499,9 +499,9 @@ export default function PurchaseArtModal({
                             },
                           })
                         );
-                      } else if (result.flow === "redirect") {
+                      } else if (result?.flow === "redirect") {
                         window.location.href = result.url;
-                      } else if (result.flow === "sessionId") {
+                      } else if (result?.flow === "sessionId") {
                         // buyStartedRef.current = false;  // reset since checkout didn’t start
                         setHeaderBooting(false);
                         const stripe = await import("@stripe/stripe-js").then(

@@ -2,7 +2,7 @@
 "use client";
 import React from "react";
 
-export type SizeOption = { label: string; multiplier: number };
+export type SizeOption = { label: string; multiplier?: number };
 
 export default function SizeSelectorCore({
   options,
@@ -33,7 +33,7 @@ export default function SizeSelectorCore({
               name="size"
               className="sr-only peer"
               value={opt.label}
-              checked={selected.label === opt.label}
+              checked={selected?.label === opt.label}
               onChange={() => onSelect(opt)}
               disabled={disabled}
             />

@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import type { LicenseOption, MaterialOption, FrameOption } from "@/types";
-import type { SizeOption } from "@/components/shared/core/SizeSelectorCore";
+import type { SizeOption } from "@/components/product/shared/core/SizeSelectorCore";
 import { usePurchaseState } from "@/hooks/usePurchaseState";
 
 /** Fallback pricing if you don't pass a pricingStrategy */
@@ -158,12 +158,12 @@ export function useUnifiedPurchaseFlow(opts: {
   const baseVariantFields = useMemo(
     () => ({
       format: defaultFormat,
-      size: wantPrint ? size.label : null,
+      size: wantPrint ? size?.label : null,
       material: wantPrint ? material.label : null,
       frame: wantPrint ? (frame?.label ?? null) : null,
       license: license.type, // snapshot
     }),
-    [defaultFormat, wantPrint, size.label, material.label, frame, license.type]
+    [defaultFormat, wantPrint, size?.label, material.label, frame, license.type]
   );
 
   /** Payload builders */
@@ -213,7 +213,7 @@ export function useUnifiedPurchaseFlow(opts: {
       finalPrice,
       defaultFormat,
       license.type,
-      size.label,
+      size?.label,
       material.label,
       frame,
     ]

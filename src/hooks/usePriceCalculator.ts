@@ -36,7 +36,7 @@ export function usePriceCalculator(
     /*─────────────── 0. Baseline values ───────────────*/
     const base      = product?.price ?? 0;
 
-    let sizeMult    = size.multiplier;
+    let sizeMult    = size?.multiplier;
     let matMult     = material?.multiplier ?? 1;
     let frameMult   = frame?.multiplier   ?? 1;
     let licPrice    = license.price;

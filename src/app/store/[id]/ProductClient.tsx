@@ -19,6 +19,7 @@ import { useProductData } from "@/components/studio/hooks/useProductData";
 import { getEffectiveSale } from "@/lib/pricing";
 import ReviewsSection from "@/components/product/review/ReviewSection";
 import { useRouter } from "next/navigation";
+import { cleanSizes } from "@/utils/helpers";
 // import { SaleAndCountdown, SaleCountdown } from "@/components/shared/core/SalePriceAndCountDown";
 
 interface ProductDetailProps {
@@ -275,10 +276,10 @@ export default function ProductDetail({
                     openUI: false,
                     exportHref: "/account/orders",
                   });
-                  if (result.status !== "ok") return;
+                  if (result?.status !== "ok") return;
 
                   await new Promise((r) => requestAnimationFrame(r));
-                  if (result.flow === "embedded") {
+                  if (result?.flow === "embedded") {
                     window.dispatchEvent(
                       new CustomEvent("open-checkout", {
                         detail: {

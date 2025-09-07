@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LicenseOption, MaterialOption, FrameOption } from "@/types";
-import type { SizeOption } from "@/components/shared/core/SizeSelectorCore";
+import type { SizeOption } from "@/components/product/shared/core/SizeSelectorCore";
 import { loadPurchaseState, savePurchaseState } from "@/utils/persistence";
 import { computeDigitalPrice, computePrintPrice } from "@/utils/pricing";
 
@@ -122,13 +122,13 @@ export function usePurchaseState(opts: {
 
   const [license, setLicense] = useState<LicenseOption>(initialLicense);
   const [size, setSize] = useState<SizeOption>(initialSize);
-  const [isCustom, setIsCustom] = useState((initialSize.label || "").toLowerCase() === "custom");
+  const [isCustom, setIsCustom] = useState((initialSize?.label || "").toLowerCase() === "custom");
   const [customSize, setCustomSize] = useState<{ width: string; height: string }>({ width: "", height: "" });
   const [material, setMaterial] = useState<MaterialOption>(initialMaterial);
   const [frame, setFrame] = useState<FrameOption | null>(initialFrame);
 
   const didHydrate = useRef(false);
-
+// alert(JSON.stringify(initialSize))
   // Rehydrate from cart (once) then override with persisted (if any)
   useEffect(() => {
     if (!enabled || didHydrate.current) return;
@@ -146,6 +146,7 @@ export function usePurchaseState(opts: {
       }
       if (initialFromCart.print?.size) {
         const sz = byLabel(sizes, initialFromCart.print.size) ?? initialSize;
+        
         setSize(sz);
         setIsCustom(sz.label.toLowerCase() === "custom");
       }
@@ -207,7 +208,7 @@ export function usePurchaseState(opts: {
     enabled,
     productId, designId,
     wantDigital, wantPrint, qty,
-    license.type, size.label, isCustom, customSize, material.label, frame
+    license.type, size?.label, isCustom, customSize, material.label, frame
   ]);
 
   const digitalPrice = useMemo(
@@ -226,11 +227,11 @@ export function usePurchaseState(opts: {
 
   const baseVariantFields = useMemo(() => ({
     format: defaultFormat,
-    size: wantPrint ? size.label : null,
+    size: wantPrint ? size?.label : null,
     material: wantPrint ? material.label : null,
     frame: wantPrint ? (frame?.label ?? null) : null,
     license: wantDigital ? license.type : license.type, // snapshot
-  }), [defaultFormat, wantPrint, size.label, material.label, frame, wantDigital, license.type]);
+  }), [defaultFormat, wantPrint, size?.label, material.label, frame, wantDigital, license.type]);
 
   const resetToDefaults = () => {
     setWantDigital(digitalSupported && defaultVariant !== "print");

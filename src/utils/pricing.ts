@@ -1,6 +1,6 @@
 // src/components/shared/purchase/pricing.ts
 import type { LicenseOption, MaterialOption, FrameOption } from "@/types";
-import type { SizeOption } from "@/components/shared/core/SizeSelectorCore";
+import type { SizeOption } from "@/components/product/shared/core/SizeSelectorCore";
 
 export function computeDigitalPrice(baseDigitalPrice: number, lic: LicenseOption) {
   const base = Number(baseDigitalPrice) || 0;

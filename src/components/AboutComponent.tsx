@@ -12,7 +12,7 @@ import Link from 'next/link';
 export default function AboutComponent() {
   return (
     <div className="py-16">
-      <div className="max-w-5xl mx-auto text-center px-4">
+      <div className="max-w-5xl mx-auto text-center ">
         <h1 className="text-5xl font-extrabold text-gray-800 mb-6">
           Celebrating Haiti’s Spirit Through Digital Art
         </h1>

@@ -9,8 +9,8 @@ import {
   CartSelectedItem,
 } from "@/types";
 import { getEffectiveSale } from "@/lib/pricing";
+import { SizeOption } from "@/components/product/shared/core/SizeSelectorCore";
 
-type SizeOption = { label: string; multiplier: number };
 
 type CheckoutApiPayload = {
   flow?: "embedded" | "redirect";
@@ -49,7 +49,7 @@ export interface CheckoutProps {
   product: ProductDetailResult;
   options: AddOptions;
   format: string;
-  size: SizeOption;
+  size: SizeOption | null;
   material: MaterialOption;
   frame: FrameOption | null;
   license: LicenseOption;
@@ -105,7 +105,7 @@ export async function handleCheckout({
       Number(finalPrice),
         Number(finalPrice),
       format,
-      size.label,
+      size?.label||'',
       material?.label || "",
       frame?.label || "",
       license?.type || (license as any)?.id || "Standard",
@@ -142,7 +142,7 @@ export async function handleCheckout({
         ? {
             id: options.printVariantId || created?.result?.printVariantId,
             format,
-            size: size.label,
+            size: size?.label,
             material: material.label,
             frame: frame?.label || "",
           }
