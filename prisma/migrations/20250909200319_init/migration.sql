@@ -40,7 +40,7 @@ CREATE TABLE "public"."Cart" (
     CONSTRAINT "Cart_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- // CreateTable
 CREATE TABLE "public"."CartItem" (
     "id" TEXT NOT NULL,
     "cartId" TEXT NOT NULL,
