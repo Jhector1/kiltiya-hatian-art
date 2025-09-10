@@ -9,6 +9,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { usePathname } from "next/navigation";
 import { useUser } from "@/contexts/UserContext";
+import Image from "next/image";
 
 interface AuthenticationFormProps {
   onSuccess?: () => Promise<void> | void;
@@ -210,7 +211,7 @@ export default function AuthenticationForm({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { delay: 0.4 } }}
       >
-        Or continue with
+        Or
       </motion.div>
 
       <motion.div
@@ -218,23 +219,19 @@ export default function AuthenticationForm({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { delay: 0.6 } }}
       >
-        <button
-          className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition"
-          type="button"
-          onClick={() =>
-            loginWithProvider({ provider: "google", callbackUrl: safeCb })
-          }
-          aria-label="Sign in with Google"
-        >
-          <GlobeAltIcon className="h-6 w-6 text-gray-600" />
-        </button>
+    <GoogleContinueButton
+    loading={isAuthBusy}
+    onClick={() =>
+      loginWithProvider({ provider: "google", callbackUrl: safeCb })
+    }
+  />
 
-        <button className="p-2 bg-gray-100 rounded-full" type="button" disabled>
+        {/* <button className="p-2 bg-gray-100 rounded-full" type="button" disabled>
           <DevicePhoneMobileIcon className="h-6 w-6 text-gray-600" />
         </button>
         <button className="p-2 bg-gray-100 rounded-full" type="button" disabled>
           <CubeIcon className="h-6 w-6 text-gray-600" />
-        </button>
+        </button> */}
 
         {isGuest && (
           <button
@@ -265,5 +262,73 @@ export default function AuthenticationForm({
         </button>
       </motion.div>
     </div>
+  );
+}
+
+
+
+
+
+
+type Props = {
+  onClick: () => Promise<void> | void;
+  loading?: boolean;
+  className?: string;
+  label?: string;
+};
+
+ function GoogleContinueButton({
+  onClick,
+  loading = false,
+  className = "",
+  label = "Continue with Google",
+}: Props) {
+  const [pressed, setPressed] = useState(false);
+
+  return (
+    <motion.button
+      type="button"
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
+      whileTap={{ scale: 0.98 }}
+      onClick={() => {
+        if (!loading) onClick();
+      }}
+      aria-label={label}
+      aria-busy={loading}
+      disabled={loading}
+      className={[
+        "group relative w-full inline-flex items-center justify-center gap-3",
+        "rounded-xl border border-gray-300/80 bg-white px-4 py-3",
+        "shadow-sm transition-all",
+        "hover:shadow-md hover:border-gray-300",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500",
+        "disabled:opacity-60 disabled:cursor-not-allowed",
+        pressed ? "shadow-none" : "",
+        className,
+      ].join(" ")}
+    >
+      {/* Google icon */}
+      <Image
+        src="/google-icon.png"
+        alt="Google logo"
+        width={20}
+        height={20}
+        className="shrink-0"
+      />
+
+      <span className="text-sm font-medium text-gray-800">
+        {loading ? "Connecting to Google…" : label}
+      </span>
+
+      {/* Chevron on hover */}
+      <span
+        className="absolute right-3 opacity-0 translate-x-0.5 transition-all group-hover:opacity-100 group-hover:translate-x-0"
+        aria-hidden="true"
+      >
+        →
+      </span>
+    </motion.button>
   );
 }
