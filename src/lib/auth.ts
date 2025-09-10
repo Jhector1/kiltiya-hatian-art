@@ -2,19 +2,21 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaClient } from "@prisma/client";
-import { compare } from "bcryptjs";
+import { compare, hash } from "bcryptjs";
+import crypto from "crypto";
 
 const prisma = new PrismaClient();
 
 const firstNonEmpty = (...vals: Array<string | null | undefined>) => {
-  for (const v of vals) {
-    if (v != null && String(v).trim() !== "") return String(v);
-  }
+  for (const v of vals) if (v != null && String(v).trim() !== "") return String(v);
   return undefined;
 };
+const nonEmpty = (s?: string | null) => (s && s.trim() !== "" ? s : undefined);
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
+  // Optional, prevents duplicate accounts when the same verified email uses Google + Credentials
+  // allowDangerousEmailAccountLinking: true,
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -27,21 +29,30 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: { email: creds.email },
-          select: { id: true, email: true, password: true, name: true },
+          select: {
+            id: true,
+            email: true,
+            password: true,
+            name: true,
+            avatarUrl: true,
+            updatedAt: true,
+          },
         });
         if (!user) return null;
 
         const ok = await compare(creds.password, user.password);
         if (!ok) return null;
 
-        // No mixing of ?? and || — use helper
-        const fallbackName = firstNonEmpty(
-          user.name,
-          user.email?.split("@")[0],
-          "User"
-        )!;
+        const fallbackName = firstNonEmpty(user.name, user.email?.split("@")[0], "User")!;
 
-        return { id: String(user.id), email: user.email, name: fallbackName };
+        // Pass avatar into `user` -> becomes available in jwt({ user })
+        return {
+          id: String(user.id),
+          email: user.email,
+          name: fallbackName,
+          image: user.avatarUrl ?? null,                 // ← use DB avatar
+          avatarUpdatedAt: user.updatedAt?.toISOString() // optional: for cache-busting
+        } as any;
       },
     }),
     GoogleProvider({
@@ -49,72 +60,74 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     }),
   ],
-  callbacks: {
-    async jwt({ token, user, trigger, session }) {
-      if (user) {
-        token.id = String((user as any).id ?? token.sub ?? "");
-        token.email = user.email ?? token.email;
+callbacks: {
+  async jwt({ token, user, account, profile }) {
+    // carry over from Credentials authorize()
+    if (user) {
+      token.id = String((user as any).id ?? token.sub ?? "");
+      token.email = user.email ?? token.email;
+      if ((user as any).image) token.picture = (user as any).image; // avatarUrl from DB
+    }
 
-        const nameFromEmail = token.email
-          ? String(token.email).split("@")[0]
-          : undefined;
+    if (account?.provider === "google") {
+      const email = (token.email as string | undefined) || (profile as any)?.email;
+      const googlePic = nonEmpty((profile as any)?.picture as string | undefined);
 
-        token.name = firstNonEmpty(
-          user.name,
-          token.name as string | undefined,
-          nameFromEmail,
-          "User"
-        );
-        return token;
+      if (email) {
+        // read current DB user (need avatarUrl to decide precedence)
+        let dbUser = await prisma.user.findUnique({
+          where: { email },
+          select: { id: true, name: true, avatarUrl: true, updatedAt: true },
+        });
+
+        if (!dbUser) {
+          // first time: seed avatarUrl with Google picture (ok as default)
+          dbUser = await prisma.user.create({
+            data: {
+              email,
+              name: (profile as any)?.name ?? email.split("@")[0],
+              password: await hash(`oauth:${crypto.randomUUID()}`, 10),
+              avatarUrl: googlePic ?? null,
+            },
+            select: { id: true, name: true, avatarUrl: true, updatedAt: true },
+          });
+        } else {
+          // existing user: never overwrite a non-null avatarUrl with Google
+          // (but if avatarUrl is null and we have a Google pic, set it once)
+          if (!nonEmpty(dbUser.avatarUrl) && googlePic) {
+            dbUser = await prisma.user.update({
+              where: { email },
+              data: { avatarUrl: googlePic },
+              select: { id: true, name: true, avatarUrl: true, updatedAt: true },
+            });
+          }
+        }
+
+        token.id = dbUser.id;
+        // PRECEDENCE: DB avatarUrl > Google picture > existing token.picture
+        token.picture = nonEmpty(dbUser.avatarUrl) ?? googlePic ?? (token as any).picture ?? null;
+        (token as any).avatarTs = dbUser.updatedAt ? Date.parse(String(dbUser.updatedAt)) : undefined;
       }
+    }
 
-      if (trigger === "update" && session?.user) {
-        const nameFromEmail = token.email
-          ? String(token.email).split("@")[0]
-          : undefined;
-        token.name = firstNonEmpty(
-          session.user.name,
-          token.name as string | undefined,
-          nameFromEmail,
-          "User"
-        );
-        return token;
-      }
-
-      if (!token.name) {
-        const nameFromEmail = token.email
-          ? String(token.email).split("@")[0]
-          : undefined;
-        token.name = firstNonEmpty(
-          token.name as string | undefined,
-          nameFromEmail,
-          "User"
-        );
-      }
-
-      return token;
-    },
-
-    async session({ session, token }) {
-      if (session.user) {
-        (session.user as any).id = String(token.id ?? token.sub ?? "");
-        session.user.email =
-          (token.email as string) ?? session.user.email ?? "";
-
-        const sessNameFromEmail = session.user.email
-          ? session.user.email.split("@")[0]
-          : undefined;
-
-        session.user.name = firstNonEmpty(
-          token.name as string | undefined,
-          session.user.name,
-          sessNameFromEmail,
-          "User"
-        ) as string;
-      }
-      return session;
-    },
+    return token;
   },
+
+  async session({ session, token }) {
+    if (session.user) {
+      (session.user as any).id = String(token.id ?? token.sub ?? "");
+      session.user.email = (token.email as string) ?? session.user.email ?? "";
+
+      // expose the **single source** to the client:
+      // DB avatarUrl if present, else Google picture stored in token.picture
+      session.user.image = (token as any).picture ?? null;
+
+      // optional: timestamp for cache-busting
+      (session.user as any).avatarTs = (token as any).avatarTs ?? null;
+    }
+    return session;
+  },
+},
   pages: { signIn: "/authenticate" },
   secret: process.env.NEXTAUTH_SECRET,
 };

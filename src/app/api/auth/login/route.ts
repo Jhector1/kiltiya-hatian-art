@@ -18,6 +18,12 @@ export async function POST(req: NextRequest) {
 
   // 2) Lookup & verify
   const user = await prisma.user.findUnique({ where: { email } });
+  if (!user?.password) {
+    return NextResponse.json(
+      { error: "This account doesn't have a password set. Use the 'Set Password' flow first." },
+      { status: 400 }
+    );
+  }
 
   if (!user || !await bcrypt.compare(password, user.password)) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });

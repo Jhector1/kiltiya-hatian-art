@@ -13,7 +13,7 @@ import {
 import { useUser } from "@/contexts/UserContext";
 import { useCart } from "@/contexts/CartContext";
 import { useFavorites } from "@/contexts/FavoriteContext";
-import UserMenu from "../UserMenu";
+import UserMenu from "./UserMenu";
 import UniversalModal from "../modal/UniversalModal";
 import AuthenticationForm from "../authenticate/AuthenticationFom";
 import { navLinks } from "@/data/helpers";
@@ -191,7 +191,7 @@ export default function Header() {
               <UserMenu
                 userName={user?.name || user?.email || "User"}
                 // userName={user?.name || "User"}
-                userImage="/placeholder.png"
+                userImage={user?.image?? "/placeholder.png"}
                 userEmail={user?.email || ""}
                 userRole="Pro User"
                 menuItems={[

@@ -23,6 +23,7 @@ export type User = {
   name?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  image?: string;
 };
 
 type LoginCredsArgs = { email: string; password: string; callbackUrl?: string };

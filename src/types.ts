@@ -317,3 +317,17 @@ export   type CollectionDigitalAsset = {
       frame?: string | null;
     };
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+  

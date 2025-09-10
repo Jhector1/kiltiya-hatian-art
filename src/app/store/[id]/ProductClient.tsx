@@ -19,7 +19,7 @@ import { useProductData } from "@/components/studio/hooks/useProductData";
 import { getEffectiveSale } from "@/lib/pricing";
 import ReviewsSection from "@/components/product/review/ReviewSection";
 import { useRouter } from "next/navigation";
-import { cleanSizes } from "@/utils/helpers";
+// import { cleanSizes } from "@/utils/helpers";
 // import { SaleAndCountdown, SaleCountdown } from "@/components/shared/core/SalePriceAndCountDown";
 
 interface ProductDetailProps {

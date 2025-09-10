@@ -4,13 +4,17 @@ const nextConfig: NextConfig = {
   /* config options here */
   images: {
     remotePatterns: [
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "https", hostname: "lh4.googleusercontent.com" },
+      { protocol: "https", hostname: "lh5.googleusercontent.com" },
+      { protocol: "https", hostname: "lh6.googleusercontent.com" },
       {
-        protocol: 'https',
-        hostname: 'res.cloudinary.com',
+        protocol: "https",
+        hostname: "res.cloudinary.com",
       },
     ],
   },
-    eslint: {
+  eslint: {
     ignoreDuringBuilds: true, // disables ESLint check during `next build`
   },
   //   webpack: (config, { isServer }) => {

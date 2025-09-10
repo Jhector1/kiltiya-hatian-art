@@ -152,7 +152,7 @@ const CanvasStage = forwardRef<HTMLCanvasElement, Props>(({ zoom, setZoom, loadi
       >
         <canvas
           ref={ref}
-          className="max-w-full h-auto shadow-sm ring-1 ring-black/5 will-change-transform"
+          className="max-w-full h-auto xl:h-70vh shadow-sm ring-1 ring-black/5 will-change-transform"
           style={{
             transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
             transformOrigin: "center center",

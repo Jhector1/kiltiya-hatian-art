@@ -26,7 +26,7 @@ const parseWh = (s: string): [number, number] | null => {
 };
 
 // Build multipliers: area-based if all sizes parse; otherwise simple stepped.
-const STEP = 0.25;
+const STEP = 0.05;
 const BASE = 1;
 
 export const cleanSizes = (sizes:string[]) => {
