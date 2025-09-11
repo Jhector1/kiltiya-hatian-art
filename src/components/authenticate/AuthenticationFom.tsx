@@ -2,14 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  GlobeAltIcon,
-  DevicePhoneMobileIcon,
-  CubeIcon,
-} from "@heroicons/react/24/outline";
 import { usePathname } from "next/navigation";
 import { useUser } from "@/contexts/UserContext";
 import Image from "next/image";
+
+// -------------------------------
+// Links to legal pages (adjust)
+// -------------------------------
+const TERMS_URL = "/terms-of-use";
+const PRIVACY_URL = "/privacy-policy";
 
 interface AuthenticationFormProps {
   onSuccess?: () => Promise<void> | void;
@@ -38,6 +39,7 @@ export default function AuthenticationForm({
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [acceptPolicy, setAcceptPolicy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { loginWithCredentials, loginWithProvider, isAuthBusy } = useUser();
@@ -60,7 +62,7 @@ export default function AuthenticationForm({
       document.cookie = `guest_id=${guestId}; max-age=${
         60 * 60 * 24 * 30
       }; path=/; SameSite=Lax`;
-      location.reload()
+      location.reload();
     }
     handlerAction?.();
   };
@@ -73,10 +75,20 @@ export default function AuthenticationForm({
 
     try {
       if (mode === "signup") {
+        // Enforce acceptance client-side (also validate server-side)
+        if (!acceptPolicy) {
+          throw new Error("You must agree to the Terms and Privacy Policy.");
+        }
+
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: fullName, email, password }),
+          body: JSON.stringify({
+            name: fullName,
+            email,
+            password,
+            acceptPolicy, // optional: validate server-side
+          }),
         });
         if (!res.ok) {
           const { error: msg } = await res.json().catch(() => ({ error: "" }));
@@ -118,9 +130,9 @@ export default function AuthenticationForm({
   };
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 bg-white rounded-2xl shadow-xl">
+    <div className="max-w-md mx-auto mt-20 p-6 bg-white rounded-2xl shadow-xl dark:bg-neutral-900">
       <motion.div
-        className="flex justify-center mb-6 bg-gray-100 rounded-full p-1"
+        className="flex justify-center mb-6 bg-gray-100 dark:bg-neutral-800 rounded-full p-1"
         variants={containerVariants}
         initial="hidden"
         animate="show"
@@ -134,8 +146,8 @@ export default function AuthenticationForm({
             }}
             className={`px-6 py-2 rounded-full font-medium transition-all focus:outline-none ${
               mode === m
-                ? "bg-white shadow-lg"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-white dark:bg-neutral-900 shadow-lg"
+                : "text-gray-500 hover:text-gray-700 dark:text-neutral-400 dark:hover:text-neutral-200"
             }`}
           >
             {m === "login" ? "Login" : "Sign Up"}
@@ -143,7 +155,11 @@ export default function AuthenticationForm({
         ))}
       </motion.div>
 
-      {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+      {error && (
+        <p className="text-red-500 text-center mb-4" role="alert">
+          {error}
+        </p>
+      )}
 
       <AnimatePresence mode="wait">
         <motion.form
@@ -161,7 +177,7 @@ export default function AuthenticationForm({
               onChange={(e) => setFullName(e.target.value)}
               type="text"
               placeholder="Full Name"
-              className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-indigo-400"
+              className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-indigo-400 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
               required
             />
           )}
@@ -171,7 +187,7 @@ export default function AuthenticationForm({
             onChange={(e) => setEmail(e.target.value)}
             type="email"
             placeholder="Email"
-            className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-indigo-400"
+            className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-indigo-400 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
             required
             autoComplete="email"
             autoCapitalize="none"
@@ -183,18 +199,56 @@ export default function AuthenticationForm({
             onChange={(e) => setPassword(e.target.value)}
             type="password"
             placeholder="Password"
-            className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-indigo-400"
+            className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-indigo-400 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
             required
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
           />
 
+          {mode === "signup" && (
+            <label className="flex items-start gap-3 text-sm text-gray-700 dark:text-neutral-200 select-none">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-neutral-600"
+                checked={acceptPolicy}
+                onChange={(e) => setAcceptPolicy(e.target.checked)}
+                aria-describedby="policy-help"
+                required
+              />
+              <span id="policy-help">
+                I have read and agree to the{" "}
+                <a
+                  href={TERMS_URL}
+                  className="text-indigo-600 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Terms of Service
+                </a>{" "}
+                and{" "}
+                <a
+                  href={PRIVACY_URL}
+                  className="text-indigo-600 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Privacy Policy
+                </a>
+                .
+              </span>
+            </label>
+          )}
+
           <button
             type="submit"
-            disabled={loading || isAuthBusy}
+            disabled={loading || isAuthBusy || (mode === "signup" && !acceptPolicy)}
             className={`w-full py-2 rounded-md transition ${
               mode === "login"
-                ? "bg-indigo-500 hover:bg-indigo-600 text-white"
-                : "bg-pink-500 hover:bg-pink-600 text-white"
+                ? "bg-indigo-500 hover:bg-indigo-600 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                : `bg-pink-500 text-white ${
+                    mode === "signup" && !acceptPolicy
+                      ? "opacity-60 cursor-not-allowed"
+                      : "hover:bg-pink-600"
+                  }`
             }`}
           >
             {loading || isAuthBusy
@@ -206,6 +260,29 @@ export default function AuthenticationForm({
         </motion.form>
       </AnimatePresence>
 
+      {/* Universal disclosure under email auth */}
+      <p className="mt-3 text-xs text-center text-gray-500 dark:text-neutral-400">
+        By continuing, you agree to our{" "}
+        <a
+          href={TERMS_URL}
+          className="text-indigo-600 hover:underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Terms of Service
+        </a>{" "}
+        and{" "}
+        <a
+          href={PRIVACY_URL}
+          className="text-indigo-600 hover:underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Privacy Policy
+        </a>
+        .
+      </p>
+
       <motion.div
         className="mt-6 text-center text-gray-500 text-sm"
         initial={{ opacity: 0 }}
@@ -215,33 +292,39 @@ export default function AuthenticationForm({
       </motion.div>
 
       <motion.div
-        className="flex justify-center space-x-4 mt-4"
+        className="mt-4"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { delay: 0.6 } }}
       >
-    <GoogleContinueButton
-    loading={isAuthBusy}
-    onClick={() =>
-      loginWithProvider({ provider: "google", callbackUrl: safeCb })
-    }
-  />
+        <GoogleContinueButton
+          loading={isAuthBusy}
+          onClick={() =>
+            loginWithProvider({ provider: "google", callbackUrl: safeCb })
+          }
+        />
 
-        {/* <button className="p-2 bg-gray-100 rounded-full" type="button" disabled>
-          <DevicePhoneMobileIcon className="h-6 w-6 text-gray-600" />
-        </button>
-        <button className="p-2 bg-gray-100 rounded-full" type="button" disabled>
-          <CubeIcon className="h-6 w-6 text-gray-600" />
-        </button> */}
-
-        {isGuest && (
-          <button
-            className="text-sm text-gray-500 hover:text-gray-700 hover:underline mt-4"
-            onClick={handleGuestLogin}
-            type="button"
+        {/* Disclosure for OAuth */}
+        <p className="mt-3 text-xs text-center text-gray-500 dark:text-neutral-400">
+          By continuing with Google, you agree to our{" "}
+          <a
+            href={TERMS_URL}
+            className="text-indigo-600 hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            Continue as Guest
-          </button>
-        )}
+            Terms of Service
+          </a>{" "}
+          and{" "}
+          <a
+            href={PRIVACY_URL}
+            className="text-indigo-600 hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Privacy Policy
+          </a>
+          .
+        </p>
       </motion.div>
 
       <motion.div
@@ -258,31 +341,30 @@ export default function AuthenticationForm({
           }}
           type="button"
         >
-          {mode === "login" ? "Sign Up" : "Log In"}
+        {mode === "login" ? "Sign Up" : "Log In"}
         </button>
       </motion.div>
     </div>
   );
 }
 
+/* ============================================================
+   GoogleContinueButton (inline for convenience)
+   ============================================================ */
 
-
-
-
-
-type Props = {
+type GoogleButtonProps = {
   onClick: () => Promise<void> | void;
   loading?: boolean;
   className?: string;
   label?: string;
 };
 
- function GoogleContinueButton({
+function GoogleContinueButton({
   onClick,
   loading = false,
   className = "",
   label = "Continue with Google",
-}: Props) {
+}: GoogleButtonProps) {
   const [pressed, setPressed] = useState(false);
 
   return (
@@ -305,6 +387,7 @@ type Props = {
         "hover:shadow-md hover:border-gray-300",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500",
         "disabled:opacity-60 disabled:cursor-not-allowed",
+        "dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100",
         pressed ? "shadow-none" : "",
         className,
       ].join(" ")}
@@ -318,7 +401,7 @@ type Props = {
         className="shrink-0"
       />
 
-      <span className="text-sm font-medium text-gray-800">
+      <span className="text-sm font-medium text-gray-800 dark:text-neutral-100">
         {loading ? "Connecting to Google…" : label}
       </span>
 
