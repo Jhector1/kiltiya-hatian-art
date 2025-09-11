@@ -24,31 +24,57 @@ const parseWh = (s: string): [number, number] | null => {
   const h = parseFloat(m[2]);
   return Number.isFinite(w) && Number.isFinite(h) ? [w, h] : null;
 };
-
-// Build multipliers: area-based if all sizes parse; otherwise simple stepped.
-
+// keeps your names/signature
 const clamp = (v: number, lo: number, hi: number) =>
   Math.max(lo, Math.min(hi, v));
 
 const roundTo = (v: number, step = 0.05) =>
   Math.round(v / step) * step;
+
 export type SizeMathOptions = {
   method?: "area" | "perimeter" | "max-dim";
-  exponent?: number;   // < 1.0 to tame growth (0.5–0.7 works well)
-  minMult?: number;    // floor for smallest size
-  maxMult?: number;    // cap for largest size
-  step?: number;       // rounding granularity for display math
+  exponent?: number;     // main growth (< 1.0)
+  minMult?: number;      // floor
+  maxMult?: number;      // set to Infinity for "no stop"
+  step?: number;         // rounding for UI
+  knee?: number;         // start of soft-knee in raw ratio (e.g. 6× the base metric)
+  slope?: number;        // 0..1 strength of log-tail beyond knee (smaller = gentler)
 };
+
+
+    const METHOD = "area";
+    const EXPONENT = 0.15;    // gentle sub-linear growth
+   const MIN_MULT = 1.0;
+    const MAX_MULT = Infinity; // 🔑 no hard stop by default
+    const STEP = 0.05;
+   const  KNEE = 6;           // begin soft knee ~6× base metric
+    const SLOPE = 0.18;       // tail strength; lower = slower
+
+
+// Soft-knee: after ratio > knee, add a tiny log-based tail so it never stops
+const withSoftKnee = (
+  ratio: number,
+  moderated: number,
+  knee = 6,
+  slope = 0.18
+) => {
+  if (!(ratio > knee)) return moderated;
+  const extra = Math.log(1 + (ratio - knee)); // smooth, slow growth
+  return moderated * (1 + slope * extra);
+};
+
 export const cleanSizes = (
   sizes: string[] | undefined,
   opts?: SizeMathOptions
 ) => {
   const {
-    method = "area",
-    exponent = 0.6,   // sqrt-ish moderation; try 0.5–0.7
-    minMult = 1.0,
-    maxMult = 3.5,    // keep even the largest <= 3.5x base
-    step = 0.05,
+    method = METHOD,
+    exponent =EXPONENT,     // gentle sub-linear growth
+    minMult = MIN_MULT,
+    maxMult = MAX_MULT, // 🔑 no hard stop by default
+    step = STEP,
+    knee = KNEE,           // begin soft knee ~6× base metric
+    slope = SLOPE,       // tail strength; lower = slower
   } = opts || {};
 
   if (!sizes?.length) return [];
@@ -58,17 +84,13 @@ export const cleanSizes = (
 
   if (allParsed) {
     const metric = (w: number, h: number) =>
-      method === "perimeter"
-        ? w + h
-        : method === "max-dim"
-        ? Math.max(w, h)
-        : w * h; // default: area
+      method === "perimeter" ? w + h :
+      method === "max-dim"  ? Math.max(w, h) :
+      w * h; // default: area
 
     const values = parsed.map(([w, h]) => metric(w, h));
     const minVal = Math.min(...values);
-
     if (!isFinite(minVal) || minVal <= 0) {
-      // fallback if something went weird
       return sizes.map((label, i) => ({
         label,
         multiplier: roundTo(1 + i * 0.05, step),
@@ -76,9 +98,10 @@ export const cleanSizes = (
     }
 
     return sizes.map((label, i) => {
-      const ratio = values[i] / minVal;
-      const moderated = Math.pow(ratio, exponent);
-      const bounded = clamp(moderated, minMult, maxMult);
+      const ratio = values[i] / minVal;                 // ≥ 1
+      const base = Math.pow(ratio, exponent);           // sub-linear
+      const tailed = withSoftKnee(ratio, base, knee, slope); // keep rising slowly
+      const bounded = clamp(tailed, minMult, maxMult);  // hi=Infinity → no hard stop
       return { label, multiplier: roundTo(bounded, step) };
     });
   }
@@ -91,8 +114,7 @@ export const cleanSizes = (
 };
 
 /**
- * Get a single multiplier for one size, given all available sizes.
- * Falls back to a default baseline (8x10) if full list not available.
+ * Single-size lookup (same soft-knee behavior).
  */
 export const getSizeMultiplier = (
   size: string | null | undefined,
@@ -107,26 +129,28 @@ export const getSizeMultiplier = (
   );
   if (hit) return hit.multiplier;
 
-  // Fallback baseline vs 8x10
+  // Fallback vs 8x10 baseline
   const wh = parseWh(size);
   if (!wh) return 1;
 
   const {
-    method = "area",
-    exponent = 0.6,
-    minMult = 1.0,
-    maxMult = 3.5,
+    method = METHOD,
+    exponent =EXPONENT,     // gentle sub-linear growth
+    minMult = MIN_MULT,
+    maxMult = MAX_MULT, // 🔑 no hard stop by default
+    step = STEP,
+    knee = KNEE,           // begin soft knee ~6× base metric
+    slope = SLOPE,       // tail strength; lower = slower
   } = opts || {};
 
   const metric = (w: number, h: number) =>
-    method === "perimeter"
-      ? w + h
-      : method === "max-dim"
-      ? Math.max(w, h)
-      : w * h;
+    method === "perimeter" ? w + h :
+    method === "max-dim"  ? Math.max(w, h) :
+    w * h;
 
-  const baseVal = metric(8, 10); // fallback baseline
-  const ratio = metric(wh[0], wh[1]) / baseVal;
-  const moderated = Math.pow(Math.max(ratio, 1), exponent);
-  return clamp(moderated, minMult, maxMult);
+  const baseVal = metric(8, 10);
+  const ratio = Math.max(metric(wh[0], wh[1]) / baseVal, 1);
+  const base = Math.pow(ratio, exponent);
+  const tailed = withSoftKnee(ratio, base, knee, slope);
+  return clamp(tailed, minMult, maxMult);
 };

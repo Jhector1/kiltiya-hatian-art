@@ -21,9 +21,9 @@ export const navLinks = [
   ];
 
   export const allFrames =[
-    { label: 'Black Wood',   border: '8px solid #111', multiplier: 1.25 },
+    { label: 'Black Wood',   border: '8px solid #111', multiplier: 1.5 },
     { label: 'Natural Wood', border: '8px solid #a35', multiplier: 1.5  },
-    { label: 'White',        border: '8px solid #fff', multiplier: 1.75 },
+    { label: 'White',        border: '8px solid #fff', multiplier: 1.5 },
   ];
 
   export const allSizes = [
