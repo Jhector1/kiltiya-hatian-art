@@ -18,7 +18,7 @@ export default function AboutComponent() {
         </h1>
         <p className="text-xl text-gray-700 mb-12">
           A curated digital art marketplace inspired by Haiti&apos;s vibrant culture,
-          mysticism, nature, and everyday life — created to celebrate
+          mysticism, and everyday life — created to celebrate
           and share the beauty of Haitian themes worldwide.
         </p>
 
@@ -31,8 +31,7 @@ export default function AboutComponent() {
             </h3>
             <p className="text-gray-600">
               We showcase digital artworks that echo Haiti’s rich traditions —
-              from Veve symbols and folklore to tropical fruits and everyday
-              street scenes.
+              from Veve symbols and folklore to scenes of daily life and community.
             </p>
           </div>
 
