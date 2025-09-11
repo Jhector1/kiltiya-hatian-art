@@ -6,6 +6,7 @@ import { v2 as cloudinary } from "cloudinary";
 import { AddToCartBody, CartSelectedItem, productListSelect } from "@/types";
 import { getCustomerIdFromRequest } from "@/utils/guest";
 import { applyBundleIfBoth, computeBaseUnit, getEffectiveSale, roundMoney } from "@/lib/pricing";
+// import { getSizeMultiplier } from "@/utils/helpers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -332,13 +333,15 @@ if (newest) {
       salePercent: true,
       saleStartsAt: true,
       saleEndsAt: true,
+          sizes: true, // ← add this
+
     },
   });
   if (!product) {
     return NextResponse.json({ error: "Product not found." }, { status: 404 });
   }
 
-  const baseUnit = computeBaseUnit({
+  const baseUnit= computeBaseUnit({
     productBase: product.price,
     format,
     size,
@@ -347,7 +350,15 @@ if (newest) {
     license,
     digital: digitalVariant,
     print: printVariant,
+      sizeList: product.sizes,     // ← NEW
+
   });
+// Apply moderated size multiplier (only if there's a print branch/size)
+// const sizeFactor =
+//   printVariant && size
+//     ? getSizeMultiplier(size, product.sizes ?? undefined)  // shared logic
+//     : 1;
+//     const baseUnit = roundMoney(baseUnitRaw * sizeFactor);
 
   const sale = getEffectiveSale({
     price: baseUnit,
@@ -616,6 +627,8 @@ export async function PATCH(req: NextRequest) {
           salePercent: true,
           saleStartsAt: true,
           saleEndsAt: true,
+              sizes: true, // ← add this
+
         },
       },
     },
@@ -646,7 +659,16 @@ export async function PATCH(req: NextRequest) {
     license: lic,
     digital: fresh.digitalVariant,
     print: fresh.printVariant,
+      sizeList: fresh.product.sizes,     // ← NEW
+
   });
+
+//   const sizeFactor =
+//   fresh.printVariant && sz
+//     ? getSizeMultiplier(String(sz), fresh.product.sizes ?? undefined)
+//     : 1;
+
+// const baseUnit = roundMoney(baseUnitRaw * sizeFactor);
 
   const sale = getEffectiveSale({
     price: baseUnit,

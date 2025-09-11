@@ -1,4 +1,5 @@
 import { allFrames, allLicenses, allMaterials, allSizes } from "@/data/helpers";
+import { getSizeMultiplier, SizeMathOptions } from "@/utils/helpers";
 import { number } from "zod";
 
 // lib/pricing.ts
@@ -68,6 +69,10 @@ export function computeBaseUnit(args: {
   license?: string | null;
   digital?: any; // truthy when a digital variant is selected
   print?: any;   // truthy when a print variant is selected
+
+  // NEW:
+  sizeList?: string[];              // e.g., product.sizes
+  sizeOptions?: SizeMathOptions; // tuning (exponent, caps, etc.)
 }): number {
   const {
     productBase,
@@ -78,20 +83,27 @@ export function computeBaseUnit(args: {
     license = null,
     digital = null,
     print = null,
+    sizeList,
+    sizeOptions,
   } = args;
 
   const isDigital = !!digital;
   const isPrint = !!print;
 
-  // fixed add-on for license (adjust to your business rules)
+  // License adder (unchanged)
   const licenseAdd = allLicenses.find((l) => l.type === license)?.price ?? 0;
 
-  // PRINT multipliers (fallbacks are neutral)
-  const sizeMult = allSizes.find((s) => s.label === size)?.multiplier ?? 1;
+  // ✅ SIZE multiplier now uses moderated math (sub-linear + caps).
+  // If sizeList is missing, it will fall back to a baseline (8x10) internally.
+  const sizeMult = isPrint ? getSizeMultiplier(size ?? null, sizeList, sizeOptions) : 1;
+
   const materialMult =
     allMaterials.find((m) => m.label === material)?.multiplier ?? 1;
-  const frameMult = allFrames.find((f) => f.label === frame)?.multiplier ?? 1;
-  const formatMult = 1; // plug in a real lookup if you price per format
+
+  const frameMult =
+    allFrames.find((f) => f.label === frame)?.multiplier ?? 1;
+
+  const formatMult = 1; // keep or replace with your own logic per format
 
   // Digital price (base + license add-on)
   let digitalPrice = 0;
@@ -99,11 +111,10 @@ export function computeBaseUnit(args: {
     digitalPrice = productBase + licenseAdd;
   }
 
-  // Print price (multiplicative model)
+  // Print price (multiplicative model, now with moderated sizeMult)
   let printPrice = 0;
   if (isPrint) {
-    printPrice =
-      productBase * sizeMult * materialMult * frameMult * formatMult;
+    printPrice = productBase * sizeMult * materialMult * frameMult * formatMult;
   }
 
   const total = digitalPrice + printPrice;

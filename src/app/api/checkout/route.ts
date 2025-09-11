@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import type { OrderList } from "@/types";
 import { getCustomerIdFromRequest } from "@/utils/guest";
 import { applyBundleIfBoth, computeBaseUnit, getEffectiveSale, roundMoney } from "@/lib/pricing";
+import { getSizeMultiplier } from "@/utils/helpers";
 
 /** Latest UserDesign for a given (user|guest)+productId */
 async function findDesign(productId: string, userId: string | null, guestId: string | null) {
@@ -70,6 +71,8 @@ export async function POST(req: NextRequest) {
                 salePercent: true,
                 saleStartsAt: true,
                 saleEndsAt: true,
+                    sizes: true, // ← ADD
+
               },
             },
             digitalVariant: true,
@@ -122,7 +125,18 @@ export async function POST(req: NextRequest) {
           license: digitalVariant?.license,
           digital: digitalVariant,
           print: printVariant,
+            sizeList: product.sizes,     // ← NEW
+
         });
+        // Use moderated size multiplier (same as cart)
+// const sizeFactor =
+//   printVariant?.size
+//     ? getSizeMultiplier(String(printVariant.size), product.sizes ?? undefined)
+//     : 1;
+
+// const baseUnit = roundMoney(baseUnitRaw * sizeFactor);
+
+
 
         const sale = getEffectiveSale({
           price: baseUnit,
@@ -211,6 +225,8 @@ export async function POST(req: NextRequest) {
           salePercent: true,
           saleStartsAt: true,
           saleEndsAt: true,
+              sizes: true, // ← ADD
+
         },
       });
       if (!product) continue;
@@ -240,7 +256,15 @@ export async function POST(req: NextRequest) {
         license: digitalVariant?.license,
         digital: digitalVariant as any,
         print: printVariant as any,
+          sizeList: product.sizes,     // ← NEW
+
       });
+// const sizeFactor =
+//   printVariant?.size
+//     ? getSizeMultiplier(String(printVariant.size), product.sizes ?? undefined)
+//     : 1;
+
+// const baseUnit = roundMoney(baseUnitRaw * sizeFactor);
 
       const sale = getEffectiveSale({
         price: baseUnit,

@@ -72,7 +72,7 @@ export default function EditorPromo({
   const defaultActions: EditorAction[] = [
     { label: ctaLabel, href: ctaHref, variant: "primary", ariaLabel: ctaLabel },
     { label: "How it works", href: "/how-it-works", variant: "ghost" },
-    { label: "See sample artworks", href: "/gallery?tag=customizable", variant: "link" },
+    { label: "See sample artworks", href: "/store", variant: "link" },
   ];
 
   const renderedActions = actions && actions.length > 0 ? actions : defaultActions;
