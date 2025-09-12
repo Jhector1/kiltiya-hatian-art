@@ -7,13 +7,13 @@ import {
   finalizeSvgNamespacesAndHrefs,
 } from "@/lib/getSvgDims";
 import * as cheerio from "cheerio";
+import type { AnyNode } from "domhandler";
+import type { Cheerio } from "cheerio";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-import type { AnyNode } from "domhandler"; // ⬅️ node types live here
-import type { Cheerio } from "cheerio";
 
-/** You said only YOU upload product SVGs → treat base art as trusted */
+/** Only YOU upload product SVGs → treat base art as trusted */
 const TRUSTED_SVG = true;
 
 type StylePayload = {
@@ -30,6 +30,7 @@ type StylePayload = {
 // ---------------- helpers ----------------
 const isDefined = (v: any) =>
   v !== undefined && v !== null && String(v).trim() !== "";
+
 // generic helper works for any selection of nodes
 const setAttrIf = <T extends AnyNode>(
   $el: Cheerio<T>,
@@ -72,6 +73,24 @@ function parseInlineStyle(styleStr?: string | null): Record<string, string> {
   return out;
 }
 
+/** Render SVG → PNG as ArrayBuffer (sidestep Uint8Array generic typing) */
+async function svgToPngArrayBuffer(svg: string): Promise<ArrayBuffer> {
+  const header = svg.trim().startsWith("<?xml")
+    ? ""
+    : '<?xml version="1.0" encoding="UTF-8"?>\n';
+  const svgString = header + svg;
+
+  const buf = await sharp(Buffer.from(svgString, "utf8"), { density: 96 })
+    .png({ quality: 80 })
+    .toBuffer();
+
+  // Convert Node Buffer view → real ArrayBuffer slice
+  return buf.buffer.slice(
+    buf.byteOffset,
+    buf.byteOffset + buf.byteLength
+  ) as ArrayBuffer;
+}
+
 function serializeInlineStyle(map: Record<string, string>): string {
   return Object.entries(map)
     .map(([k, v]) => `${k}:${v}`)
@@ -101,24 +120,28 @@ async function loadSvgContent(svgOrUrl: string): Promise<string> {
   return svgOrUrl;
 }
 
-async function svgToPngBuffer(svg: string): Promise<Buffer> {
+/** Render SVG → PNG bytes (Uint8Array) to avoid Buffer typing issues */
+async function svgToPngBytes(svg: string): Promise<Uint8Array> {
   const header = svg.trim().startsWith("<?xml")
     ? ""
     : '<?xml version="1.0" encoding="UTF-8"?>\n';
   const svgString = header + svg;
-  return await sharp(Buffer.from(svgString, "utf8"), { density: 96 })
+  const buf = await sharp(Buffer.from(svgString, "utf8"), { density: 96 })
     .png({ quality: 80 })
     .toBuffer();
+  // Return a Uint8Array view over the same memory (no copy)
+  return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
 }
+
+const isInDefs = <T extends AnyNode>($el: Cheerio<T>) =>
+  $el.parents("defs").length > 0;
 
 // ---------------- GET: initial preview (no overrides) ----------------
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
- 
-    const { id } = await params;
-
+  const { id } = await params;
   const product = await prisma.product.findUnique({
     where: { id },
     select: { svgFormat: true },
@@ -132,17 +155,21 @@ export async function GET(
 
     let withWm = base;
     try {
-      withWm = await addStaticWatermarkFullWidth(base, {fit: "stretch",
+      withWm = await addStaticWatermarkFullWidth(base, {
+        fit: "stretch",
         position: "bottom",
         // margin: 24,
         opacity: 0.12,
       });
-    } catch {}
+    } catch {
+      // watermark is best-effort; continue on failure
+    }
 
     const finalSvg = finalizeSvgNamespacesAndHrefs(withWm);
-    const buffer = await svgToPngBuffer(finalSvg);
+    // const bytes = await svgToPngBytes(finalSvg);
 
-    return new NextResponse(buffer, {
+    const ab = await svgToPngArrayBuffer(finalSvg);
+    return new Response(ab, {
       status: 200,
       headers: { "Content-Type": "image/png", "Cache-Control": "no-store" },
     });
@@ -157,9 +184,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-
-    const { id } = await params;
-
+  const { id } = await params;
   let payload = {} as StylePayload;
   try {
     payload = (await request.json()) as StylePayload;
@@ -182,8 +207,7 @@ export async function POST(
     const $svg = $("svg").first();
 
     // namespaces
-    if (!$svg.attr("xmlns"))
-      $svg.attr("xmlns", "http://www.w3.org/2000/svg");
+    if (!$svg.attr("xmlns")) $svg.attr("xmlns", "http://www.w3.org/2000/svg");
     if (!$svg.attr("xmlns:xlink"))
       $svg.attr("xmlns:xlink", "http://www.w3.org/1999/xlink");
 
@@ -235,75 +259,72 @@ export async function POST(
       }
     }
 
-    // Fills/strokes (skip bg rect) — set ATTRIBUTE + INLINE STYLE
-// app/api/products/[id]/live-preview/route.ts  (inside POST, after bg logic)
+    // Fills/strokes (skip bg rect and anything in <defs>)
+    $svg
+      .find("path, circle, ellipse, polygon, polyline, line, rect")
+      .each((_, el) => {
+        const $el = $(el);
 
-// helper: is this element defined inside <defs>?
-const isInDefs = <T extends AnyNode> ($el: cheerio.Cheerio<T>) => $el.parents("defs").length > 0;
+        // skip background rect
+        if ($el.is('rect[data-bg="true"]')) return;
 
-// Fills/strokes (skip bg rect, and skip anything inside <defs>)
-$svg
-  .find("path, circle, ellipse, polygon, polyline, line, rect")
-  .each((_, el) => {
-    const $el = $(el);
+        // do not touch paint servers or their children
+        if (isInDefs($el)) return;
 
-    // skip background rect
-    if ($el.is('rect[data-bg="true"]')) return;
+        const fillVal = safeColor(payload.fillColor);
+        const strokeVal = safeColor(payload.strokeColor);
+        const strokeWidthVal =
+          payload.strokeWidth !== undefined && payload.strokeWidth !== null
+            ? String(payload.strokeWidth)
+            : undefined;
 
-    // ⬅️ NEW: do not touch paint servers or their children
-    if (isInDefs($el)) return;
+        // attribute + inline style to beat existing CSS
+        setAttrIf($el, "fill", fillVal);
+        upsertStyleProp($el, "fill", fillVal);
 
-    const fillVal = safeColor(payload.fillColor);
-    const strokeVal = safeColor(payload.strokeColor);
-    const strokeWidthVal =
-      payload.strokeWidth !== undefined && payload.strokeWidth !== null
-        ? String(payload.strokeWidth)
-        : undefined;
+        setAttrIf($el, "stroke", strokeVal);
+        upsertStyleProp($el, "stroke", strokeVal);
 
-    // attribute + inline style to beat existing CSS
-    setAttrIf($el, "fill", fillVal);
-    upsertStyleProp($el, "fill", fillVal);
+        if (strokeWidthVal) {
+          $el.attr("stroke-width", strokeWidthVal);
+          upsertStyleProp($el, "stroke-width", strokeWidthVal);
+        }
 
-    setAttrIf($el, "stroke", strokeVal);
-    upsertStyleProp($el, "stroke", strokeVal);
+        if (payload.fillOpacity != null) {
+          const v = String(Math.max(0, Math.min(1, payload.fillOpacity)));
+          $el.attr("fill-opacity", v);
+          upsertStyleProp($el, "fill-opacity", v);
+        } else {
+          $el.removeAttr("fill-opacity");
+          upsertStyleProp($el, "fill-opacity", undefined);
+        }
 
-    if (strokeWidthVal) {
-      $el.attr("stroke-width", strokeWidthVal);
-      upsertStyleProp($el, "stroke-width", strokeWidthVal);
-    }
-
-    if (payload.fillOpacity != null) {
-      const v = String(Math.max(0, Math.min(1, payload.fillOpacity)));
-      $el.attr("fill-opacity", v);
-      upsertStyleProp($el, "fill-opacity", v);
-    } else {
-      $el.removeAttr("fill-opacity");
-      upsertStyleProp($el, "fill-opacity", undefined);
-    }
-
-    if (payload.strokeOpacity != null) {
-      const v = String(Math.max(0, Math.min(1, payload.strokeOpacity)));
-      $el.attr("stroke-opacity", v);
-      upsertStyleProp($el, "stroke-opacity", v);
-    } else {
-      $el.removeAttr("stroke-opacity");
-      upsertStyleProp($el, "stroke-opacity", undefined);
-    }
-  });
+        if (payload.strokeOpacity != null) {
+          const v = String(Math.max(0, Math.min(1, payload.strokeOpacity)));
+          $el.attr("stroke-opacity", v);
+          upsertStyleProp($el, "stroke-opacity", v);
+        } else {
+          $el.removeAttr("stroke-opacity");
+          upsertStyleProp($el, "stroke-opacity", undefined);
+        }
+      });
 
     // watermark + finalize
     let finalSvg = $.xml();
     try {
-      finalSvg = await addStaticWatermarkFullWidth(finalSvg, {fit: "stretch",
+      finalSvg = await addStaticWatermarkFullWidth(finalSvg, {
+        fit: "stretch",
         position: "bottom",
         // margin: 24,
         opacity: 0.12,
       });
-    } catch {}
+    } catch {
+      // best-effort
+    }
     finalSvg = finalizeSvgNamespacesAndHrefs(finalSvg);
 
-    const buffer = await svgToPngBuffer(finalSvg);
-    return new NextResponse(buffer, {
+    const ab = await svgToPngArrayBuffer(finalSvg);
+    return new Response(ab, {
       status: 200,
       headers: { "Content-Type": "image/png", "Cache-Control": "no-store" },
     });

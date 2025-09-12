@@ -23,7 +23,7 @@ async function fetchBlobWithProgress(url: string, onProgress?: ProgressCb) {
 
   const total = Number(res.headers.get("content-length") || 0);
   const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
+ const chunks: ArrayBuffer[] = []
   let received = 0;
 
   // ReadableStream reader loop
@@ -32,13 +32,16 @@ async function fetchBlobWithProgress(url: string, onProgress?: ProgressCb) {
     const { done, value } = await reader.read();
     if (done) break;
     if (value) {
-      chunks.push(value);
+          const ab = value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+    chunks.push(ab);
       received += value.length;
       if (onProgress && total > 0) onProgress(received / total);
     }
   }
 
-  const blob = new Blob(chunks, { type: res.headers.get("content-type") || "application/octet-stream" });
+const blob = new Blob(chunks, {
+  type: res.headers.get("content-type") || "application/octet-stream",
+});
   if (onProgress) onProgress(1);
   return blob;
 }

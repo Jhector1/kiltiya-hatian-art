@@ -1,8 +1,9 @@
 // File: src/app/api/favorite/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+// import { getToken } from "next-auth/jwt";
 import { PrismaClient } from "@prisma/client";
-import { productListSelect, ProductListItem } from "@/types";
+import { productListSelect } from "@/types";
+import { getCustomerIdFromRequest } from "@/utils/guest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,12 +11,12 @@ export const revalidate = 0;
 
 const prisma = new PrismaClient();
 
-async function requireUserId(req: NextRequest): Promise<string | NextResponse> {
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-  const userId = token?.sub ? String(token.sub) : undefined;
-  if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  return userId;
-}
+// async function requireUserId(req: NextRequest): Promise<string | NextResponse> {
+//   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+//   const userId = token?.sub ? String(token.sub) : undefined;
+//   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+//   return userId;
+// }
 
 // GET /api/favorite
 // File: src/app/api/favorite/route.ts
@@ -24,9 +25,12 @@ async function requireUserId(req: NextRequest): Promise<string | NextResponse> {
 // import { requireUserId } from "@/utils/auth"; // ✅ adjust if in different utils
 
 export async function GET(req: NextRequest) {
-  const uidOrResp = await requireUserId(req);
-  if (uidOrResp instanceof NextResponse) return uidOrResp;
-  const userId = uidOrResp;
+  const { userId } = await getCustomerIdFromRequest(req);
+  if(!userId)
+      return NextResponse.json({ error: "Missing UserId" }, { status: 400 });
+  // const uidOrResp = await requireUserId(req);
+  // if (uidOrResp instanceof NextResponse) return uidOrResp;
+  // const userId = uidOrResp;
 
   // fetch favorites + product + user-specific design
   const favorites = await prisma.favorite.findMany({
@@ -50,7 +54,7 @@ export async function GET(req: NextRequest) {
 
   const payload = products.map((p) => {
     let isUserDesignApplied = false;
-    let thumbnails = [...p.thumbnails];
+    const thumbnails = [...p.thumbnails];
 
     if (p.designs.length > 0 && p.designs[0].previewUrl) {
       isUserDesignApplied = true;
@@ -75,15 +79,17 @@ export async function GET(req: NextRequest) {
   });
 }
 
-
 // POST /api/favorite  Body: { productId: string }
 export async function POST(req: NextRequest) {
-  const uidOrResp = await requireUserId(req);
-  if (uidOrResp instanceof NextResponse) return uidOrResp;
-  const userId = uidOrResp;
-
+  // const uidOrResp = await requireUserId(req);
+  // if (uidOrResp instanceof NextResponse) return uidOrResp;
+  // const userId = uidOrResp;
+  const { userId } = await getCustomerIdFromRequest(req);
+  if(!userId)
+      return NextResponse.json({ error: "Missing UserId" }, { status: 400 });
   const { productId } = await req.json();
-  if (!productId) return NextResponse.json({ error: "Missing productId" }, { status: 400 });
+  if (!productId)
+    return NextResponse.json({ error: "Missing productId" }, { status: 400 });
 
   await prisma.favorite.upsert({
     where: { userId_productId: { userId, productId: String(productId) } },
@@ -96,16 +102,25 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/favorite  Body: { productId: string }
 export async function DELETE(req: NextRequest) {
-  const uidOrResp = await requireUserId(req);
-  if (uidOrResp instanceof NextResponse) return uidOrResp;
-  const userId = uidOrResp;
+  // const uidOrResp = await requireUserId(req);
+  // if (uidOrResp instanceof NextResponse) return uidOrResp;
+  // const userId = uidOrResp;
+  const { userId } = await getCustomerIdFromRequest(req);
+  if(!userId)
+      return NextResponse.json({ error: "Missing UserId" }, { status: 400 });
+
 
   const { productId } = await req.json();
-  if (!productId) return NextResponse.json({ error: "Missing productId" }, { status: 400 });
+  if (!productId)
+    return NextResponse.json({ error: "Missing productId" }, { status: 400 });
 
   await prisma.favorite
-    .delete({ where: { userId_productId: { userId, productId: String(productId) } } })
-    .catch(() => { /* idempotent */ });
+    .delete({
+      where: { userId_productId: { userId, productId: String(productId) } },
+    })
+    .catch(() => {
+      /* idempotent */
+    });
 
   return NextResponse.json({ ok: true }, { status: 200 });
 }

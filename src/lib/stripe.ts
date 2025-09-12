@@ -9,5 +9,5 @@ if (!key) {
 }
 
 export const stripe = new StripeSDK(key, {
-  apiVersion: "2025-07-30.basil",
+  apiVersion: "2025-08-27.basil",
 });

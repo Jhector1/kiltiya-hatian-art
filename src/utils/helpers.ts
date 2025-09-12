@@ -43,7 +43,7 @@ export type SizeMathOptions = {
 
 
     const METHOD = "area";
-    const EXPONENT = 0.15;    // gentle sub-linear growth
+    const EXPONENT = 0.5;    // gentle sub-linear growth
    const MIN_MULT = 1.0;
     const MAX_MULT = Infinity; // 🔑 no hard stop by default
     const STEP = 0.05;
