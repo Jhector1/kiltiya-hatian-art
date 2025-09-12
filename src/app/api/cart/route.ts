@@ -600,19 +600,31 @@ export async function PATCH(req: NextRequest) {
       await prisma.productVariant.delete({ where: { id } }).catch(() => {});
   }
 
-  // If both variants removed, delete the cart line
-  const finalState = await prisma.cartItem.findUnique({
-    where: { id: cartItem.id },
-    select: { digitalVariantId: true, printVariantId: true },
+ // If both variants removed, delete the cart line (idempotent)
+const finalState = await prisma.cartItem.findUnique({
+  where: { id: cartItem.id },
+  select: { id: true, digitalVariantId: true, printVariantId: true },
+});
+
+if (!finalState) {
+  // Already removed by another request or cascade; treat as success
+  return NextResponse.json({
+    message: "Cart item already removed.",
+    digitalVariantId: null,
+    printVariantId: null,
   });
-  if (!finalState?.digitalVariantId && !finalState?.printVariantId) {
-    await prisma.cartItem.delete({ where: { id: cartItem.id } });
-    return NextResponse.json({
-      message: "Cart item removed because both variants were removed.",
-      digitalVariantId: null,
-      printVariantId: null,
-    });
-  }
+}
+
+if (!finalState.digitalVariantId && !finalState.printVariantId) {
+  // Use deleteMany to avoid P2025 if a race deletes it first
+  await prisma.cartItem.deleteMany({ where: { id: finalState.id } });
+  return NextResponse.json({
+    message: "Cart item removed because both variants were removed.",
+    digitalVariantId: null,
+    printVariantId: null,
+  });
+}
+
 
   // Recompute price from *current* selection and product sale fields
   const fresh = await prisma.cartItem.findUnique({

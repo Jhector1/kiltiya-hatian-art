@@ -9,9 +9,9 @@ export const navLinks = [
 
 
   export const allMaterials = [
-    { label: 'Matte Paper', multiplier: 1, thumbnail: '/images/textures/matte.png' },
-    { label: 'Glossy Paper', multiplier: 1, thumbnail: '/images/textures/glossy.png' },
-    { label: 'Canvas', multiplier: 1.5, thumbnail: '/images/textures/canvas.png' },
+    { label: 'Matte Paper', multiplier: 1.5, thumbnail: '/images/textures/matte.png' },
+    { label: 'Glossy Paper', multiplier: 1.5, thumbnail: '/images/textures/glossy.png' },
+    { label: 'Canvas', multiplier: 2, thumbnail: '/images/textures/canvas.png' },
   ]
 
   export const allLicenses = [

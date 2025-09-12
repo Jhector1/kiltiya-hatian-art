@@ -31,7 +31,7 @@ const ERROR_MAP: Record<string, string> = {
 export default function AuthenticationForm({
   onSuccess,
   handlerAction = () => {},
-  isGuest = false,
+  isGuest = false, // ← default to showing guest
   callbackUrl,
 }: AuthenticationFormProps) {
   const pathname = usePathname();
@@ -54,17 +54,27 @@ export default function AuthenticationForm({
     }
   }, [callbackUrl, pathname]);
 
+  // ✅ Guest: issue a guest_id cookie (30d), reload only when creating new
   const handleGuestLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const match = document.cookie.match(/guest_id=([^;]+)/);
-    if (!match) {
-      const guestId = crypto.randomUUID();
-      document.cookie = `guest_id=${guestId}; max-age=${
-        60 * 60 * 24 * 30
-      }; path=/; SameSite=Lax`;
-      location.reload();
+    try {
+      const match = document.cookie.match(/(?:^|;\s*)guest_id=([^;]+)/);
+      if (!match) {
+        const uuid = crypto.randomUUID();
+        const secure = location.protocol === "https:" ? "; Secure" : "";
+        document.cookie =
+          `guest_id=${uuid}; Max-Age=${60 * 60 * 24 * 30}; Path=/; SameSite=Lax${secure}`;
+        // ensure server sees the cookie immediately
+        location.assign(safeCb || "/");
+        return; // stop here, page navigation will occur
+      }
+      // already have a guest, proceed without reload
+      handlerAction?.();
+      onSuccess?.();
+    } catch (err) {
+      // ignore; guest path is best-effort
+      handlerAction?.();
     }
-    handlerAction?.();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,7 +85,6 @@ export default function AuthenticationForm({
 
     try {
       if (mode === "signup") {
-        // Enforce acceptance client-side (also validate server-side)
         if (!acceptPolicy) {
           throw new Error("You must agree to the Terms and Privacy Policy.");
         }
@@ -87,7 +96,7 @@ export default function AuthenticationForm({
             name: fullName,
             email,
             password,
-            acceptPolicy, // optional: validate server-side
+            acceptPolicy,
           }),
         });
         if (!res.ok) {
@@ -107,7 +116,7 @@ export default function AuthenticationForm({
         return;
       }
 
-      await onSuccess?.(); // close modal
+      await onSuccess?.();
     } catch (err: any) {
       setError(err?.message ?? "Something went wrong");
     } finally {
@@ -292,7 +301,7 @@ export default function AuthenticationForm({
       </motion.div>
 
       <motion.div
-        className="mt-4"
+        className="mt-4 space-y-3"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { delay: 0.6 } }}
       >
@@ -302,9 +311,8 @@ export default function AuthenticationForm({
             loginWithProvider({ provider: "google", callbackUrl: safeCb })
           }
         />
-
         {/* Disclosure for OAuth */}
-        <p className="mt-3 text-xs text-center text-gray-500 dark:text-neutral-400">
+        <p className="text-xs text-center text-gray-500 dark:text-neutral-400">
           By continuing with Google, you agree to our{" "}
           <a
             href={TERMS_URL}
@@ -325,6 +333,20 @@ export default function AuthenticationForm({
           </a>
           .
         </p>
+
+        {/* ✅ Guest path */}
+        {isGuest && (
+          <>
+            <GuestContinueButton
+              loading={isAuthBusy}
+              onClick={(e) => handleGuestLogin(e as any)}
+            />
+            <p className="text-xs text-center text-gray-500 dark:text-neutral-400">
+              We’ll create a temporary guest profile on this device. You can
+              make an account later to sync purchases.
+            </p>
+          </>
+        )}
       </motion.div>
 
       <motion.div
@@ -341,7 +363,7 @@ export default function AuthenticationForm({
           }}
           type="button"
         >
-        {mode === "login" ? "Sign Up" : "Log In"}
+          {mode === "login" ? "Sign Up" : "Log In"}
         </button>
       </motion.div>
     </div>
@@ -392,7 +414,6 @@ function GoogleContinueButton({
         className,
       ].join(" ")}
     >
-      {/* Google icon */}
       <Image
         src="/google-icon.png"
         alt="Google logo"
@@ -400,12 +421,73 @@ function GoogleContinueButton({
         height={20}
         className="shrink-0"
       />
-
       <span className="text-sm font-medium text-gray-800 dark:text-neutral-100">
         {loading ? "Connecting to Google…" : label}
       </span>
+      <span
+        className="absolute right-3 opacity-0 translate-x-0.5 transition-all group-hover:opacity-100 group-hover:translate-x-0"
+        aria-hidden="true"
+      >
+        →
+      </span>
+    </motion.button>
+  );
+}
 
-      {/* Chevron on hover */}
+/* ============================================================
+   GuestContinueButton
+   ============================================================ */
+
+type GuestButtonProps = {
+  onClick: (e: React.FormEvent) => void;
+  loading?: boolean;
+  className?: string;
+  label?: string;
+};
+
+function GuestContinueButton({
+  onClick,
+  loading = false,
+  className = "",
+  label = "Continue as Guest",
+}: GuestButtonProps) {
+  const [pressed, setPressed] = useState(false);
+
+  return (
+    <motion.button
+      type="button"
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
+      whileTap={{ scale: 0.98 }}
+      onClick={(e) => {
+        if (!loading) onClick(e);
+      }}
+      aria-label={label}
+      aria-busy={loading}
+      disabled={loading}
+      className={[
+        "group relative w-full inline-flex items-center justify-center gap-3",
+        "rounded-xl border border-gray-300/80 bg-white px-4 py-3",
+        "shadow-sm transition-all",
+        "hover:shadow-md hover:border-gray-300",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500",
+        "disabled:opacity-60 disabled:cursor-not-allowed",
+        "dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100",
+        pressed ? "shadow-none" : "",
+        className,
+      ].join(" ")}
+    >
+      {/* simple user icon circle */}
+      <span
+        aria-hidden="true"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-xs"
+      >
+        G
+      </span>
+      <span className="text-sm font-medium text-gray-800 dark:text-neutral-100">
+        {loading ? "Preparing guest…" : label}
+      </span>
       <span
         className="absolute right-3 opacity-0 translate-x-0.5 transition-all group-hover:opacity-100 group-hover:translate-x-0"
         aria-hidden="true"

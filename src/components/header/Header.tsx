@@ -145,6 +145,7 @@ export default function Header() {
       {/* Auth Modal */}
       <UniversalModal isOpen={isModalOpen} onClose={closeAuth}>
         <AuthenticationForm
+        isGuest={true}
           onSuccess={() => setModalOpen(false)}
           callbackUrl={pathname || "/profile"}
           // handlerAction={location.reload()}
