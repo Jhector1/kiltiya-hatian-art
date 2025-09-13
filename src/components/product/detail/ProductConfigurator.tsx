@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import PurchaseOptionsCore from "@/components/product/shared/core/PurchaseOptionsCore";
@@ -19,12 +19,13 @@ import type {
   CartSelectedItem,
 } from "@/types";
 import type { SizeOption } from "@/components/product/shared/core/SizeSelectorCore";
-import type { PriceOptionsProps } from "@/hooks/usePriceCalculator";
+
 import { useCart } from "@/contexts/CartContext";
 import { usePurchaseConfigurator } from "@/hooks/usePurchaseConfigurator";
 import { SaleAndCountdown } from "@/components/product/shared/core/SalePriceAndCountDown";
-import { applyBundleIfBoth, getEffectiveSale, roundMoney } from "@/lib/pricing";
-import {  cleanSizes } from "@/utils/helpers";
+import { cleanSizes } from "@/utils/helpers";
+import { computeFinalUnitPrice } from "@/lib/finalize";
+import { roundMoney } from "@/lib/pricing";
 import { DescriptionCard } from "../shared/core/DescriptionCard";
 
 interface SelectionModel {
@@ -35,7 +36,7 @@ interface SelectionModel {
 }
 
 interface ProductConfiguratorProps {
-  previewImageSrc?: string; // ✅ NEW
+  previewImageSrc?: string;
 
   showFormat?: boolean;
   product: ProductDetailResult;
@@ -73,13 +74,8 @@ interface ProductConfiguratorProps {
 
   selection: SelectionModel;
 
-  calculatePrice: (
-    type: "Digital" | "Print",
-    eraser?: "material" | "frame" | "size" | "license" | "",
-    newMultiplier?: number
-  ) => PriceOptionsProps;
-
-  finalPrice: number;
+  // kept for hook API shape; not used directly here
+  // calculatePrice: any;
 }
 
 export default function ProductConfigurator({
@@ -91,7 +87,6 @@ export default function ProductConfigurator({
   const {
     product,
     inCart,
-
     materials,
     licenses,
     frames,
@@ -101,29 +96,10 @@ export default function ProductConfigurator({
     materialData,
     frameData,
     selection,
-    calculatePrice,
-    finalPrice,
+    // calculatePrice,
   } = props;
-  // Robust "WxH" parser: "8x10", "8 × 10", `8" x 10"`, "8in x 10in", etc.
-  // const parseWh = (s: string): [number, number] | null => {
-  //   if (!s) return null;
-  //   const cleaned = s.trim().toLowerCase().replace(/[×✕]/g, "x");
-  //   const m = cleaned.match(
-  //     /(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?\s*x\s*(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?/
-  //   );
-  //   if (!m) return null;
-  //   const w = parseFloat(m[1]);
-  //   const h = parseFloat(m[2]);
-  //   return Number.isFinite(w) && Number.isFinite(h) ? [w, h] : null;
-  // };
 
-  // // Build multipliers: area-based if all sizes parse; otherwise simple stepped.
-  // const STEP = 0.25;
-  // const BASE = 1;
-
-  const availableSizes =cleanSizes(product.sizes);
-
-  // alert(JSON.stringify(availableSizes))
+  const availableSizes = cleanSizes(product.sizes);
 
   const ctrl = usePurchaseConfigurator({
     product,
@@ -148,85 +124,96 @@ export default function ProductConfigurator({
     frame: frameData.frame,
     setFrame: frameData.setFrame,
 
-    calculatePrice,
+    // calculatePrice,
     inCart,
     updateCart: (input) =>
       updateCart({
         productId: input.productId,
         digitalVariantId: input.digitalVariantId,
         printVariantId: input.printVariantId,
-        updates: input.updates,
+        updates: input.updates, // no price
       }),
     options: formatData?.options,
     setOptions: formatData.setOptions,
   });
 
-  const baseTotal =
-    (selection.wantDigital ? ctrl.digitalPriceNum : 0) +
-    (selection.wantPrint ? ctrl.printPriceNum : 0);
-  // normalize date fields if they arrive as strings
-  const saleStartsAt = product?.saleStartsAt
-    ? new Date(product.saleStartsAt as any)
-    : null;
-  const saleEndsAt = product?.saleEndsAt
-    ? new Date(product.saleEndsAt as any)
-    : null;
-  //  alert(JSON.stringify(product))
+  // Unified price (API-identical)
+  const sizeString = useMemo(() => {
+    if (!selection.wantPrint) return null;
+    if (!sizeData.isCustom) return sizeData.size?.label ?? null;
+    const w = parseFloat(sizeData.customSize.width || "");
+    const h = parseFloat(sizeData.customSize.height || "");
+    return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0
+      ? `${w}x${h} in`
+      : sizeData.size?.label ?? null;
+  }, [selection.wantPrint, sizeData.isCustom, sizeData.customSize, sizeData.size?.label]);
 
-  const saleInfo = product
-    ? getEffectiveSale({
-        price: baseTotal,
-        salePrice: (product as any).salePrice ?? null,
-        salePercent: (product as any).salePercent ?? null,
-        saleStartsAt,
-        saleEndsAt,
-      })
-    : {
-        price: baseTotal,
-        compareAt: null,
-        onSale: false,
-        endsAt: null as Date | null,
-      };
+  const priceInfo = useMemo(() => {
+    const saleStartsAt = product?.saleStartsAt ? new Date(product.saleStartsAt as any) : null;
+    const saleEndsAt   = product?.saleEndsAt   ? new Date(product.saleEndsAt as any)   : null;
 
-  // after computing baseTotal & saleInfo
-  const priceWithBundle = applyBundleIfBoth(
-    baseTotal,
+    return computeFinalUnitPrice({
+      productBase: product.price,
+      salePrice: (product as any).salePrice ?? null,
+      salePercent: (product as any).salePercent ?? null,
+      saleStartsAt,
+      saleEndsAt,
+      format: ctrl.format,
+      size: sizeString,
+      material: selection.wantPrint ? materialData.material.label : null,
+      frame: selection.wantPrint ? frameData.frame?.label ?? null : null,
+      license: selection.wantDigital ? licenseData.license.type : null,
+      digital: selection.wantDigital
+        ? { type: "DIGITAL", format: ctrl.format, license: licenseData.license.type }
+        : null,
+      print: selection.wantPrint
+        ? { type: "PRINT", format: ctrl.format, size: sizeString, material: materialData.material.label, frame: frameData.frame?.label ?? null }
+        : null,
+      sizeList: product.sizes,
+    });
+  }, [
+    product,
+    ctrl.format,
+    sizeString,
+    selection.wantPrint,
     selection.wantDigital,
-    selection.wantPrint
-  );
-  const priceWithSale = saleInfo.price;
-  const finalUnitPrice = roundMoney(Math.min(priceWithSale, priceWithBundle));
+    materialData.material.label,
+    frameData.frame,
+    licenseData.license.type,
+  ]);
 
-  const hasBundle = selection.wantDigital && selection.wantPrint;
-  const bundleWins = hasBundle && priceWithBundle < priceWithSale;
+  const finalUnitPrice = priceInfo.finalUnitPrice;
+  const bundleWins =
+    selection.wantDigital &&
+    selection.wantPrint &&
+    priceInfo.priceWithBundle < priceInfo.priceWithSale;
 
-  // For strike-through math (what we compare against)
-  const baseRounded = roundMoney(baseTotal);
-  const compareAtForUI = bundleWins
-    ? baseRounded // bundle compares against base
-    : saleInfo.compareAt ?? baseRounded; // sale compares against original compareAt or base
+const saleActive = !bundleWins && priceInfo.priceWithSale < priceInfo.baseUnit;
+const compareAtForUI = roundMoney(priceInfo.baseUnit);
 
-  // Shape the props the price bar expects
-  const pricing = {
-    price: finalUnitPrice,
-    compareAt: bundleWins ? compareAtForUI : saleInfo.compareAt ?? null,
-    onSale: bundleWins ? true : saleInfo.onSale, // turn on "discount visuals" for bundle too
-    endsAt: bundleWins ? null : saleInfo.endsAt, // bundles usually have no countdown
-  } as const;
+const pricing = {
+  price: finalUnitPrice,
+  // ✅ show %-off for both sale and bundle
+  compareAt: (bundleWins || saleActive) ? compareAtForUI : null,
+  onSale: bundleWins ? true : saleActive,
+  // no countdown for bundle
+  endsAt: bundleWins ? null : (product?.saleEndsAt ? new Date(product.saleEndsAt as any) : null),
+} as const;
+
   return (
     <>
-   <DescriptionCard text={product.description} />
-   <SaleAndCountdown {...pricing} />
+      <DescriptionCard text={product.description} />
+      <SaleAndCountdown {...pricing} />
       {bundleWins && (
         <div className="mt-1 text-[11px] sm:text-xs text-emerald-700 font-medium">
           Bundle applied: Digital + Print
         </div>
       )}
-   
+
       <PurchaseOptionsCore
         digitalChecked={selection.wantDigital}
         printChecked={selection.wantPrint}
-        digitalPrice={ctrl.digitalPriceStr}
+        digitalPrice={ ctrl.digitalPriceStr}
         printPrice={ctrl.printPriceStr}
         onToggleDigital={ctrl.handleToggleDigital}
         onTogglePrint={ctrl.handleTogglePrint}
@@ -261,7 +248,7 @@ export default function ProductConfigurator({
             updateCart({
               productId: product.id,
               printVariantId: formatData.options.printVariantId,
-              updates,
+              updates, // no price
             })
           }
         />
@@ -290,14 +277,13 @@ export default function ProductConfigurator({
 
             <PrintCustomizerCore
               imageSrc={props.previewImageSrc ?? product.imageUrl}
-              // {/* ✅ use override if provided */}
               materials={materials}
               frames={frames}
               material={materialData.material}
               frame={frameData.frame}
               onMaterial={ctrl.handleMaterial}
               onFrame={ctrl.handleFrame}
-              total={finalPrice}
+              total={finalUnitPrice}
             />
           </motion.div>
         )}

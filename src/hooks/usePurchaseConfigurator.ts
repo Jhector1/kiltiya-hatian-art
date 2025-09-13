@@ -1,5 +1,4 @@
-"use client";
-
+// src/hooks/usePurchaseConfigurator.ts
 import { useMemo, useState, useCallback } from "react";
 import type {
   ProductDetailResult,
@@ -11,7 +10,8 @@ import type {
   AddOptions,
 } from "@/types";
 import type { SizeOption } from "@/components/product/shared/core/SizeSelectorCore";
-import type { PriceOptionsProps } from "@/hooks/usePriceCalculator";
+import { computeFinalUnitPrice } from "@/lib/finalize"; // unified client/server pricing
+import { toDate } from "@/utils/helpers";
 
 export function usePurchaseConfigurator(args: {
   product: ProductDetailResult;
@@ -37,12 +37,6 @@ export function usePurchaseConfigurator(args: {
   frame: FrameOption | null;
   setFrame: (f: FrameOption | null) => void;
 
-  calculatePrice: (
-    type: "Digital" | "Print",
-    eraser?: "material" | "frame" | "size" | "license" | "",
-    newMultiplier?: number
-  ) => PriceOptionsProps;
-
   inCart?: CartSelectedItem | null;
   updateCart?: (input: {
     productId: string;
@@ -58,31 +52,73 @@ export function usePurchaseConfigurator(args: {
     product, wantDigital, setWantDigital, wantPrint, setWantPrint,
     license, setLicense, size, setSize, customSize, setCustomSize, isCustom, setIsCustom,
     material, setMaterial, frame, setFrame,
-    calculatePrice,
     inCart, updateCart, options, setOptions,
   } = args;
-
+const saleStartsAt = toDate(product?.saleStartsAt as any);
+const saleEndsAt   = toDate(product?.saleEndsAt as any);
+  // Available formats
   const formats = useMemo(() => {
     const seen = new Set<string>();
     return (product?.formats ?? [])
-      .map((url) => {
-        const ext = (url?.split(".").pop() ?? "").toLowerCase();
-        return { type: ext, resolution: "n/a", multiplier: 1 };
-      })
-      .filter((f) => {
-        if (seen.has(f.type)) return false;
-        seen.add(f.type);
-        return true;
-      });
+      .map((url) => (url?.split(".").pop() ?? "").toLowerCase())
+      .filter((ext) => ext && !seen.has(ext) && (seen.add(ext), true))
+      .map((ext) => ({ type: ext, resolution: "n/a", multiplier: 1 }));
   }, [product?.formats]);
 
   const [format, setFormat] = useState<string>(formats[0]?.type || "");
 
-  const digitalPriceStr = calculatePrice("Digital").digitalPrice;
-  const printPriceStr = calculatePrice("Print").printPrice;
-  const digitalPriceNum = Number(digitalPriceStr) || 0;
-  const printPriceNum = Number(printPriceStr) || 0;
+  // Normalized size string (supports custom)
+  const sizeString = useMemo(() => {
+    if (!wantPrint) return null;
+    if (!isCustom) return size?.label ?? null;
+    const w = parseFloat(customSize.width || "");
+    const h = parseFloat(customSize.height || "");
+    return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0
+      ? `${w}x${h} in`
+      : size?.label ?? null;
+  }, [wantPrint, isCustom, customSize, size?.label]);
 
+  // Per-option unit prices using the same pipeline as the API
+  const digitalUnit = useMemo(() => {
+    if (!wantDigital) return { finalUnitPrice: 0 };
+    return computeFinalUnitPrice({
+      productBase: product.price,
+      salePrice: product.salePrice,
+      salePercent: product.salePercent,
+      saleStartsAt,
+      saleEndsAt,
+      format,
+      license: license.type,
+      digital: { type: "DIGITAL", format, license: license.type },
+      print: null,
+      sizeList: product.sizes,
+    });
+  }, [wantDigital, product, format, license.type]);
+
+  const printUnit = useMemo(() => {
+    if (!wantPrint) return { finalUnitPrice: 0 };
+    return computeFinalUnitPrice({
+      productBase: product.price,
+      salePrice: product.salePrice,
+      salePercent: product.salePercent,
+      saleStartsAt,
+      saleEndsAt,
+      format,
+      size: sizeString,
+      material: material.label,
+      frame: frame?.label ?? null,
+      digital: null,
+      print: { type: "PRINT", format, size: sizeString, material: material.label, frame: frame?.label ?? null },
+      sizeList: product.sizes,
+    });
+  }, [wantPrint, product, format, sizeString, material.label, frame?.label]);
+
+  const digitalPriceNum = Number(digitalUnit.finalUnitPrice) || 0;
+  const printPriceNum   = Number(printUnit.finalUnitPrice) || 0;
+  const digitalPriceStr = digitalPriceNum.toFixed(2);
+  const printPriceStr   = printPriceNum.toFixed(2);
+
+  // Toggle DIGITAL — no client price in updates
   const handleToggleDigital = useCallback(async () => {
     const turningOn = !wantDigital;
     setWantDigital(turningOn);
@@ -94,13 +130,8 @@ export function usePurchaseConfigurator(args: {
       const res = await updateCart({
         productId: product.id,
         digitalVariantId: "ADD",
-        updates: {
-          format: format || "jpg",
-          license: license.type,
-          price: (options.print ? printPriceNum : 0) + digitalPriceNum,
-        } as CartUpdates,
+        updates: { format: format || "jpg", license: license.type } as CartUpdates,
       });
-      // sync ids if server returns them
       if (res?.digitalVariantId) {
         setOptions((o) => ({ ...o, digitalVariantId: res.digitalVariantId }));
       }
@@ -108,19 +139,15 @@ export function usePurchaseConfigurator(args: {
       const res = await updateCart({
         productId: product.id,
         digitalVariantId: "REMOVE",
-        updates: { price: options.print ? printPriceNum : 0 } as CartUpdates,
+        updates: {},
       });
       if (res?.digitalVariantId === null) {
         setOptions((o) => ({ ...o, digitalVariantId: "" }));
       }
     }
-  }, [
-    wantDigital, setWantDigital, setOptions,
-    inCart, updateCart, product?.id,
-    format, license?.type,
-    options?.print, printPriceNum, digitalPriceNum,
-  ]);
+  }, [wantDigital, setWantDigital, setOptions, inCart, updateCart, product?.id, format, license?.type]);
 
+  // Toggle PRINT — no client price in updates
   const handleTogglePrint = useCallback(async () => {
     const turningOn = !wantPrint;
     setWantPrint(turningOn);
@@ -137,7 +164,6 @@ export function usePurchaseConfigurator(args: {
           size: size.label,
           material: material.label,
           frame: frame?.label ?? null,
-          price: (options.digital ? digitalPriceNum : 0) + printPriceNum,
         } as CartUpdates,
       });
       if (res?.printVariantId) {
@@ -147,107 +173,91 @@ export function usePurchaseConfigurator(args: {
       const res = await updateCart({
         productId: product.id,
         printVariantId: "REMOVE",
-        updates: { price: options.digital ? digitalPriceNum : 0 } as CartUpdates,
+        updates: {},
       });
       if (res?.printVariantId === null) {
         setOptions((o) => ({ ...o, printVariantId: "" }));
       }
     }
-  }, [
-    wantPrint, setWantPrint, setOptions,
-    inCart, updateCart, product?.id,
-    size?.label, material?.label, frame,
-    options?.digital, digitalPriceNum, printPriceNum,
-  ]);
+  }, [wantPrint, setWantPrint, setOptions, inCart, updateCart, product?.id, size?.label, material?.label, frame]);
 
+  // Field updaters — never send price
   const handleFormatChange = useCallback(async (nextFormat: string) => {
     setFormat(nextFormat);
-    if (!inCart || !updateCart || !options.print || !options.printVariantId) return;
-    await updateCart({
-      productId: product.id,
-      printVariantId: options.printVariantId!,
-      updates: { format: nextFormat } as CartUpdates,
-    });
-  }, [inCart, updateCart, options.print, options.printVariantId, product?.id]);
+    if (!inCart || !updateCart) return;
+
+    if (options.print && options.printVariantId) {
+      await updateCart({
+        productId: product.id,
+        printVariantId: options.printVariantId!,
+        updates: { format: nextFormat } as CartUpdates,
+      });
+    }
+    if (options.digital && options.digitalVariantId) {
+      await updateCart({
+        productId: product.id,
+        digitalVariantId: options.digitalVariantId!,
+        updates: { format: nextFormat } as CartUpdates,
+      });
+    }
+  }, [inCart, updateCart, options.print, options.printVariantId, options.digital, options.digitalVariantId, product?.id]);
 
   const handleLicenseSelect = useCallback(async (lic: LicenseOption) => {
     setLicense(lic);
     if (!inCart || !updateCart || !options.digital) return;
-
     const res = await updateCart({
       productId: product.id,
       digitalVariantId: options.digitalVariantId || "ADD",
-      updates: {
-        license: lic.type,
-        price: (Number(calculatePrice("Digital", 'license').digitalPrice) || 0) + (options.print ? printPriceNum : 0) + lic.price,
-        format, // ensure format is present on ADD
-      } as CartUpdates,
+      updates: { license: lic.type, format } as CartUpdates,
     });
     if (res?.digitalVariantId && !options.digitalVariantId) {
       setOptions((o) => ({ ...o, digitalVariantId: res.digitalVariantId }));
     }
-  }, [
-    inCart, updateCart, options.digital, options.digitalVariantId,
-    product?.id, setLicense, calculatePrice, printPriceNum, format, setOptions
-  ]);
+  }, [inCart, updateCart, options.digital, options.digitalVariantId, product?.id, setLicense, format, setOptions]);
 
   const handleSizeSelect = useCallback(async (sel: SizeOption) => {
     setSize(sel);
     setIsCustom(sel.label === "Custom");
     if (!inCart || !updateCart || !options.print || !options.printVariantId) return;
-    const newPrintPrice = Number(calculatePrice("Print", "size", sel.multiplier).printPrice) || 0;
     await updateCart({
       productId: product.id,
       printVariantId: options.printVariantId!,
-      updates: { size: sel.label, price: newPrintPrice + (wantDigital ? digitalPriceNum : 0) } as CartUpdates,
+      updates: { size: sel.label } as CartUpdates,
     });
-  }, [
-    setSize, setIsCustom, inCart, updateCart, options.print, options.printVariantId,
-    calculatePrice, product?.id, wantDigital, digitalPriceNum
-  ]);
+  }, [setSize, setIsCustom, inCart, updateCart, options.print, options.printVariantId, product?.id]);
 
   const handleCustomSizeChange = useCallback(async (c: { width: string; height: string }) => {
     setCustomSize(c);
     if (!inCart || !updateCart || !options.print || !options.printVariantId) return;
-    const newPrintPrice = Number(calculatePrice("Print", "size").printPrice) || 0;
+    const w = parseFloat(c.width || "");
+    const h = parseFloat(c.height || "");
+    const label = Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0 ? `${w}x${h} in` : null;
     await updateCart({
       productId: product.id,
       printVariantId: options.printVariantId!,
-      updates: { size: `${c.width}x${c.height} in`, price: newPrintPrice + (wantDigital ? digitalPriceNum : 0) } as CartUpdates,
+      updates: { size: label } as CartUpdates,
     });
-  }, [
-    setCustomSize, inCart, updateCart, options.print, options.printVariantId,
-    calculatePrice, product?.id, wantDigital, digitalPriceNum
-  ]);
+  }, [setCustomSize, inCart, updateCart, options.print, options.printVariantId, product?.id]);
 
   const handleMaterial = useCallback(async (m: MaterialOption) => {
     setMaterial(m);
     if (!inCart || !updateCart || !options.print || !options.printVariantId) return;
-    const newPrintPrice = Number(calculatePrice("Print", "material", m.multiplier).printPrice) || 0;
     await updateCart({
       productId: product.id,
       printVariantId: options.printVariantId!,
-      updates: { material: m.label, price: newPrintPrice + (wantDigital ? digitalPriceNum : 0) } as CartUpdates,
+      updates: { material: m.label } as CartUpdates,
     });
-  }, [
-    setMaterial, inCart, updateCart, options.print, options.printVariantId,
-    calculatePrice, product?.id, wantDigital, digitalPriceNum
-  ]);
+  }, [setMaterial, inCart, updateCart, options.print, options.printVariantId, product?.id]);
 
   const handleFrame = useCallback(async (f: FrameOption | null) => {
     setFrame(f);
     if (!inCart || !updateCart || !options.print || !options.printVariantId) return;
-    const mult = f ? f.multiplier : 1;
-    const newPrintPrice = Number(calculatePrice("Print", "frame", mult).printPrice) || 0;
     await updateCart({
       productId: product.id,
       printVariantId: options.printVariantId!,
-      updates: { frame: f?.label ?? "", price: newPrintPrice + (wantDigital ? digitalPriceNum : 0) } as CartUpdates,
+      updates: { frame: f?.label ?? null } as CartUpdates,
     });
-  }, [
-    setFrame, inCart, updateCart, options.print, options.printVariantId,
-    calculatePrice, product?.id, wantDigital, digitalPriceNum
-  ]);
+  }, [setFrame, inCart, updateCart, options.print, options.printVariantId, product?.id]);
 
   return {
     formats, format, setFormat,

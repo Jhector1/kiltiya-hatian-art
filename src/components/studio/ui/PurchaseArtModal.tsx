@@ -13,7 +13,6 @@ import type { LicenseOption, MaterialOption, FrameOption } from "@/types";
 import type { SizeOption } from "@/components/product/shared/core/SizeSelectorCore";
 
 import { useProductData } from "@/components/studio/hooks/useProductData";
-// import { useExportArtwork } from "../hooks/useExportArtwork";
 
 type RequiredDesignPayload = {
   id?: string;
@@ -37,25 +36,20 @@ type Props = {
   productId: string;
   imageSrc: string;
 
-  // optional catalogs (we keep your defaults so it matches the page)
   licenses?: LicenseOption[];
   optionSizes?: SizeOption[];
   materials?: MaterialOption[];
   frames?: FrameOption[];
 
-  // defaults (optional)
   defaultVariant?: "digital" | "print";
 
-  // enable/disable paths
-  digital?: DigitalOpts | null; // prefill (format, license?)
-  print?: PrintOpts | null; // prefill (format)
+  digital?: DigitalOpts | null;
+  print?: PrintOpts | null;
 
-  // design flow
   design: RequiredDesignPayload;
   getPreviewDataUrl: () => Promise<string | null>;
 
-  // checkout
-  onCheckout: (opts: {
+  onCheckout?: (opts: {
     variant: "digital" | "print";
     quantity: number;
     productId: string;
@@ -66,7 +60,7 @@ type Props = {
   }) => Promise<void> | void;
 
   snapshotCartItem?: boolean;
-  showFormat?: boolean; // if you don't want to change format in modal, pass false
+  showFormat?: boolean;
   setHeaderBooting: (booting: boolean) => void;
 };
 
@@ -74,7 +68,6 @@ export default function PurchaseArtModal({
   open,
   onClose,
   busy = false,
-  // onCheckout,
   setHeaderBooting,
 
   productId,
@@ -85,7 +78,6 @@ export default function PurchaseArtModal({
   materials = allMaterials,
   frames: framesProp = allFrames,
 
-  // defaultVariant = "digital",
   digital = { format: "png", license: "personal" },
   print = { format: "jpg" },
 
@@ -93,75 +85,58 @@ export default function PurchaseArtModal({
   getPreviewDataUrl,
 
   snapshotCartItem = true,
-  // showFormat = false, // modal usually doesn’t need to change format
 }: Props) {
   const portalEl = useRef<HTMLElement | null>(null);
   const firstFocusRef = useRef<HTMLButtonElement | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [previewSrc, setPreviewSrc] = useState<string>(imageSrc || "");
-  // const { refreshExportStatus } = useExportArtwork(productId);
-  // Use the same data/state/pricing as the Product page
+
+  // Shared product state + server-identical unit price
   const {
     product,
-    // unified selections (shared with ProductConfigurator)
-    options,
-    setOptions,
-    size,
-    setSize,
-    customSize,
-    setCustomSize,
-    isCustom,
-    setIsCustom,
-    material,
-    setMaterial,
-    frame,
-    setFrame,
-    handleCheckoutAction,
-    license,
-    setLicense,
-    wantDigital,
-    setWantDigital,
-    wantPrint,
-    setWantPrint,
+    // selections used by configurator
+    options, setOptions,
+    size, setSize,
+    customSize, setCustomSize,
+    isCustom, setIsCustom,
+    material, setMaterial,
+    frame, setFrame,
+    license, setLicense,
+    wantDigital, setWantDigital,
+    wantPrint, setWantPrint,
+
+    // cart + flow
     inCart,
     removeFromCart,
-    // pricing & calculator (identical to ProductDetail)
-    calculatePrice,
-    finalPriceUI, // ✅ this is the authoritative total used on the page
+    handleCheckoutAction,
+
+    // unified per-unit price (for display only)
+    finalPrice,
   } = useProductData({ productId });
 
-  // Cart API used only to add with DESIGN payload
+  // Cart API (used here only for ADD with a design snapshot)
   const cartApi = useCart() as any;
+
+  // Try to refresh preview when modal opens
   useEffect(() => {
     let cancelled = false;
     if (!open) return;
-
     (async () => {
       try {
         const dataUrl = await getPreviewDataUrl?.();
         if (!cancelled && dataUrl) setPreviewSrc(dataUrl);
       } catch {}
     })();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [open, getPreviewDataUrl]);
 
-  // inside PurchaseArtModal
-  const buyStartedRef = useRef(false);
-
-  // const handleClose = () => {
-  //   // Only clear booting if user closes the modal BEFORE starting checkout
-  //   if (!buyStartedRef.current) setHeaderBooting(false);
-  //   onClose();
-  // };
-
-  // Portals & a11y
+  // portal target
   useEffect(() => {
     portalEl.current = document.body;
   }, []);
+
+  // close on escape + lock scroll
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -173,26 +148,16 @@ export default function PurchaseArtModal({
       window.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);
+
   useEffect(() => {
     if (open) firstFocusRef.current?.focus();
   }, [open]);
+
   useEffect(() => {
     if (!open) setErr(null);
   }, [open]);
 
-  // Seed variant default the first time modal opens
-  // useEffect(() => {
-  //   if (!open) return;
-  //   if (defaultVariant === "digital") {
-  //     setWantDigital(true);
-  //     setWantPrint(false);
-  //   } else if (defaultVariant === "print") {
-  //     setWantDigital(false);
-  //     setWantPrint(true);
-  //   }
-  // }, [open, defaultVariant, setWantDigital, setWantPrint]);
-
-  // Helper: capture a fresh preview for design snapshot
+  // Build a fresh design payload with preview image (if available)
   const buildDesignWithPreview = useCallback(async (): Promise<
     RequiredDesignPayload & { previewDataUrl?: string }
   > => {
@@ -207,19 +172,15 @@ export default function PurchaseArtModal({
 
   const isBusy = busy || adding;
 
-  // The modal doesn’t mutate cart variants while toggling (we pass `inCart={null}` below),
-  // so the only cart call here is addToCartWithDesign on submit.
-
+  // Add (with design snapshot) or remove
   const handleAddToCart = useCallback(async () => {
-    if (!product) return; // guard while loading
+    if (!product) return;
     if (!wantDigital && !wantPrint) {
       setErr("Select at least one option (Digital or Print).");
       return;
     }
     if (typeof cartApi?.addToCartWithDesign !== "function") {
-      setErr(
-        "CartContext.addToCartWithDesign is required for design purchases."
-      );
+      setErr("CartContext.addToCartWithDesign is required for design purchases.");
       return;
     }
 
@@ -229,24 +190,24 @@ export default function PurchaseArtModal({
       if (!inCart) {
         const designPayload = await buildDesignWithPreview();
 
-        // Your backend expects one "format" field; prefer digital.format if present
+        // Choose one format to snapshot on the line
         const chosenFormat =
           digital?.format ??
           print?.format ??
           (product.formats[0]?.split(".").pop() || "png");
 
+        // ✅ Do NOT send price; server computes authoritative price
         await cartApi.addToCartWithDesign({
           productId,
           digitalType: wantDigital ? "DIGITAL" : null,
-          printType: wantPrint ? "PRINT" : null,
-          price: finalPriceUI, // ✅ same math as ProductDetail
+          printType:  wantPrint  ? "PRINT"   : null,
           quantity: 1,
           format: chosenFormat,
-          size: wantPrint ? size?.label ?? null : null,
-          material: wantPrint ? material?.label ?? null : null,
-          frame: wantPrint ? frame?.label ?? null : null,
-          license: wantDigital ? license?.type : license?.type, // snapshot license anyway
-          design: designPayload, // include live preview snapshot
+          size: wantPrint ? (size?.label ?? null) : null,
+          material: wantPrint ? (material?.label ?? null) : null,
+          frame: wantPrint ? (frame?.label ?? null) : null,
+          license: wantDigital ? license?.type : license?.type, // snapshot current license
+          design: designPayload,
           snapshot: snapshotCartItem,
         });
 
@@ -265,78 +226,25 @@ export default function PurchaseArtModal({
       setAdding(false);
     }
   }, [
-    product,
-    productId,
-    wantDigital,
-    wantPrint,
-    size,
-    material,
-    frame,
-    license,
-    digital?.format,
-    print?.format,
-    finalPriceUI,
+    product, productId,
+    wantDigital, wantPrint,
+    size, material, frame, license,
+    digital?.format, print?.format,
     cartApi,
     buildDesignWithPreview,
-    onClose,
     snapshotCartItem,
-    inCart,
-    options.digitalVariantId,
-    options.printVariantId,
-    removeFromCart,
+    inCart, options.digitalVariantId, options.printVariantId, removeFromCart,
+    onClose,
   ]);
 
-  // const handleBuyNow = useCallback(async () => {
-  //   if (!product) return;
-  //   if (!wantDigital && !wantPrint) {
-  //     setErr("Select at least one option (Digital or Print).");
-  //     return;
-  //   }
-  //   try {
-  //     const compatVariant: "digital" | "print" = wantDigital
-  //       ? "digital"
-  //       : "print";
-  //     await onCheckout({
-  //       variant: compatVariant,
-  //       quantity: 1,
-  //       productId,
-  //       price: finalPriceUI, // ✅ same total
-  //       digital: wantDigital
-  //         ? { format: digital?.format ?? "png", license: license.type }
-  //         : null,
-  //       print: wantPrint
-  //         ? {
-  //             format: print?.format ?? "jpg",
-  //             size: size.label,
-  //             material: material.label,
-  //             frame: frame?.label ?? null,
-  //           }
-  //         : null,
-  //       design,
-  //     });
-  //   } catch (e: any) {
-  //     console.error("Checkout failed:", e);
-  //     setErr(e?.message || "Checkout failed. Please try again.");
-  //   }
-  // }, [
-  //   product,
-  //   productId,
-  //   wantDigital,
-  //   wantPrint,
-  //   size,
-  //   material,
-  //   frame,
-  //   license,
-  //   digital?.format,
-  //   print?.format,
-  //   finalPriceUI,
-  //   onCheckout,
-  //   design,
-  // ]);
+  // Some configurator versions still accept a calculatePrice prop even if unused.
+  // Provide a harmless stub to avoid runtime TypeErrors across variants.
+  // const stubCalculatePrice = useCallback(
+  //   (_type: "Digital" | "Print") => ({ digitalPrice: "0", printPrice: "0" }),
+  //   []
+  // );
 
-  // Render
   const disabled = isBusy || (!wantDigital && !wantPrint);
-
   const portalTarget = portalEl.current;
   if (!portalTarget) return null;
 
@@ -368,18 +276,10 @@ export default function PurchaseArtModal({
                 initial={{ y: 20, opacity: 0, scale: 0.98 }}
                 animate={{ y: 0, opacity: 1, scale: 1 }}
                 exit={{ y: 12, opacity: 0, scale: 0.98 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 380,
-                  damping: 30,
-                  mass: 0.8,
-                }}
+                transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.8 }}
               >
                 <div className="mb-3 flex items-center justify-between">
-                  <h3
-                    id="purchase-art-title"
-                    className="text-base font-semibold"
-                  >
+                  <h3 id="purchase-art-title" className="text-base font-semibold">
                     Purchase this customized artwork
                   </h3>
                   <button
@@ -392,16 +292,15 @@ export default function PurchaseArtModal({
                   </button>
                 </div>
 
-                {/* 👇 SAME configurator UI/behavior as the Product page */}
+                {/* Same configurator UX as the product page */}
                 {product && (
                   <div className="space-y-5">
                     <ProductConfigurator
                       showFormat={false}
-                      // often false for modal
                       previewImageSrc={previewSrc}
                       product={product}
                       inCart={inCart || null}
-                      materials={materials} // ← important: prevents PATCH logic
+                      materials={materials}
                       frames={framesProp}
                       licenses={licensesProp}
                       optionSizes={optionSizesProp}
@@ -417,30 +316,23 @@ export default function PurchaseArtModal({
                       }}
                       materialData={{ material, setMaterial }}
                       frameData={{ frame, setFrame }}
-                      selection={{
-                        wantDigital,
-                        setWantDigital,
-                        wantPrint,
-                        setWantPrint,
-                      }}
-                      calculatePrice={calculatePrice}
-                      finalPrice={finalPriceUI}
+                      selection={{ wantDigital, setWantDigital, wantPrint, setWantPrint }}
+                      // pass stub for compatibility (ignored by unified configurator)
+                      // calculatePrice={stubCalculatePrice as any}
                     />
                   </div>
                 )}
 
-                {/* Error */}
                 {err && (
                   <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                     {err}
                   </div>
                 )}
 
-                {/* Actions */}
                 <div className="py-5 mt-3 sticky bottom-0 flex flex-col gap-2 pt-1 sm:flex-row sm:justify-end bg-white">
                   <button
                     onClick={handleAddToCart}
-                    disabled={isBusy || (!wantDigital && !wantPrint)}
+                    disabled={disabled}
                     className={[
                       "rounded-xl px-3 py-2 text-sm font-medium ring-1 ring-emerald-600/20",
                       "bg-white text-emerald-700 hover:bg-emerald-50",
@@ -448,21 +340,12 @@ export default function PurchaseArtModal({
                     ].join(" ")}
                     aria-busy={isBusy}
                   >
-                    {adding
-                      ? inCart
-                        ? "Removing…"
-                        : "Adding…"
-                      : inCart
-                      ? "Remove from Cart"
-                      : "Add  to Cart"}
-
-                    {/* {adding ? "Adding…" : "Add to cart"} */}
+                    {adding ? (inCart ? "Removing…" : "Adding…") : inCart ? "Remove from Cart" : "Add to Cart"}
                   </button>
 
                   <button
                     onClick={async () => {
-                      buyStartedRef.current = true; // 🚩 from now on, modal closes shouldn't clear header
-
+                      // Let the page-level checkout flow handle Stripe (embedded/redirect/session)
                       setHeaderBooting(true);
                       const result = await handleCheckoutAction({
                         openUI: false,
@@ -470,64 +353,44 @@ export default function PurchaseArtModal({
                       });
 
                       if (result?.status === "error") {
-                        buyStartedRef.current = false; // reset since checkout didn’t start
                         setHeaderBooting(false);
-                        setErr(
-                          result?.message || "Checkout failed. Please try again."
-                        );
+                        setErr(result?.message || "Checkout failed. Please try again.");
                         return;
                       }
                       if (result?.status === "auth_required") {
-                        // show login if you want
-                        buyStartedRef.current = false; // reset since checkout didn’t start
                         setHeaderBooting(false);
                         return;
                       }
-                      // Close THIS modal so the overlay never sits above Stripe
+
+                      // Close modal so Stripe isn't layered underneath
                       onClose();
                       await new Promise((r) => requestAnimationFrame(r));
 
                       if (result?.flow === "embedded") {
                         window.dispatchEvent(
                           new CustomEvent("open-checkout", {
-                            detail: {
-                              clientSecret: result.clientSecret,
-                              exportHref: "/account/orders",
-                              // onPurchaseComplete: async () => {
-                              //   await refreshExportStatus();
-                              // },
-                            },
+                            detail: { clientSecret: result.clientSecret, exportHref: "/account/orders" },
                           })
                         );
                       } else if (result?.flow === "redirect") {
                         window.location.href = result.url;
                       } else if (result?.flow === "sessionId") {
-                        // buyStartedRef.current = false;  // reset since checkout didn’t start
                         setHeaderBooting(false);
-                        const stripe = await import("@stripe/stripe-js").then(
-                          (m) =>
-                            m.loadStripe(
-                              process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
-                            )
+                        const stripe = await import("@stripe/stripe-js").then((m) =>
+                          m.loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
                         );
-                        await stripe?.redirectToCheckout({
-                          sessionId: result.sessionId,
-                        });
+                        await stripe?.redirectToCheckout({ sessionId: result.sessionId });
                       }
                     }}
-                    disabled={isBusy || (!wantDigital && !wantPrint)}
+                    disabled={disabled}
                     className={[
                       "rounded-xl px-3 py-2 text-sm font-medium",
-                      !disabled
-                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                        : "bg-emerald-300 text-white hover:bg-emerald-300",
+                      !disabled ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-emerald-300 text-white",
                       disabled ? "opacity-60 cursor-not-allowed" : "",
                     ].join(" ")}
                     aria-busy={isBusy}
                   >
-                    {busy
-                      ? "Processing…"
-                      : `Buy now — $${finalPriceUI.toFixed(2)}`}
+                    {busy ? "Processing…" : `Buy now — $${Number(finalPrice).toFixed(2)}`}
                   </button>
 
                   <button

@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import type { OrderList } from "@/types";
 import { getCustomerIdFromRequest } from "@/utils/guest";
 import { applyBundleIfBoth, computeBaseUnit, getEffectiveSale, roundMoney } from "@/lib/pricing";
-import { getSizeMultiplier } from "@/utils/helpers";
+// import { getSizeMultiplier } from "@/utils/helpers";
 
 /** Latest UserDesign for a given (user|guest)+productId */
 async function findDesign(productId: string, userId: string | null, guestId: string | null) {

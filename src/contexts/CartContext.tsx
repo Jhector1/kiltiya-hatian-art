@@ -15,36 +15,33 @@ export type CartContextType = {
   loadingAdd: boolean;
   totalPrice: number;
   refreshCart: () => Promise<void>;
+
+  // ✅ no price/originalPrice here anymore; server computes
   addToCart: (
     productId: string,
     digitalType: string | null,
     printType: string | null,
-    price: number,
-        originalPrice:number,
-
     format: string,
-    size: string,
-    material: string,
-    frame: string,
+    size: string | null,
+    material: string | null,
+    frame: string | null,
     license: string,
     quantity?: number
   ) => Promise<AddToCartResponse>;
 
+  // ✅ same here; include design/snapshot when needed
   addToCartWithDesign: (args: {
     productId: string;
     digitalType: string | null;
     printType: string | null;
-    price: number;
-        originalPrice:number,
-
     format: string;
     size: string | null;
     material: string | null;
     frame: string | null;
     license: string;
     quantity?: number;
-    design?: DesignPayload; // NEW
-    snapshot?: boolean; // default true (freeze the cart line)
+    design?: DesignPayload;
+    snapshot?: boolean;
   }) => Promise<AddToCartResponse>;
 
   removeFromCart: (
@@ -52,38 +49,35 @@ export type CartContextType = {
     digitalVariantId: string,
     printVariantId: string
   ) => Promise<void>;
+
   updateCart: (args: {
     productId: string;
     printVariantId?: string;
     digitalVariantId?: string;
-    updates: CartUpdates;
+    updates: CartUpdates; // ⚠️ do not include price in updates
   }) => Promise<void>;
 };
 
-const defaultContext = {
+const defaultContext: CartContextType = {
   cart: [],
   loadingCart: false,
   loadingAdd: false,
   totalPrice: 0,
   refreshCart: async () => {},
   addToCart: async () => ({ result: undefined }),
+  addToCartWithDesign: async () => ({ result: undefined }),
   removeFromCart: async () => {},
   updateCart: async () => {},
-  addToCartWithDesign: async () => ({ result: undefined }),
 };
 
-const CartContext = createContext<CartContextType>(
-  defaultContext as CartContextType
-);
+const CartContext = createContext<CartContextType>(defaultContext);
 export const useCart = () => useContext(CartContext);
 
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const { isLoggedIn, guestId } = useUser();
-
   const [cart, setCart] = useState<CartSelectedItem[]>([]);
   const [loadingCart, setLoadingCart] = useState(true);
   const [loadingAdd, setLoadingAdd] = useState(false);
-
   const pathname = usePathname();
 
   const fetchCart = async () => {
@@ -105,23 +99,21 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // existing: on auth change
+  // On auth change, refresh cart
   useEffect(() => {
     void fetchCart();
   }, [isLoggedIn]);
 
-  // NEW: when you navigate to /cart (SPA), fetch again
+  // When navigating to /cart (SPA), refresh cart
   useEffect(() => {
     if (pathname?.startsWith("/cart")) {
       void fetchCart();
     }
   }, [pathname]);
 
-  // NEW: when window regains focus / tab becomes visible, fetch again
+  // Refresh when window regains focus / becomes visible
   useEffect(() => {
-    const onFocus = () => {
-      void fetchCart();
-    };
+    const onFocus = () => void fetchCart();
     const onVis = () => {
       if (document.visibilityState === "visible") onFocus();
     };
@@ -133,95 +125,18 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  // const { isLoggedIn, guestId } = useUser();
-
   const addToCart = async (
     productId: string,
     digitalType: string | null,
     printType: string | null,
-    price: number,
-    originalPrice: number,
-
     format: string,
-    size: string,
-
-    material: string,
-    frame: string,
+    size: string | null,
+    material: string | null,
+    frame: string | null,
     license: string,
     quantity: number = 1
   ): Promise<AddToCartResponse> => {
-    if (!isLoggedIn && !guestId) return { result: undefined }; // ⛔️ block only if both are missing
-
-    setLoadingAdd(true);
-    try {
-      const res = await fetch("/api/cart", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId,
-          digitalType,
-          printType,
-          price,
-          originalPrice,
-
-          quantity,
-          format,
-          size,
-          material,
-          license,
-          frame,
-          guestId, // ✅ send guestId to backend
-        }),
-      });
-
-      const data = await res.json();
-      await fetchCart();
-
-      return {
-        result: {
-          cartItemId: data?.result?.cartItemId,
-          digitalVariantId: data?.result?.digitalVariantId,
-          printVariantId: data?.result?.printVariantId,
-        },
-      };
-    } catch (err) {
-      console.error("Failed to add to cart:", err);
-      return { result: undefined };
-    } finally {
-      setLoadingAdd(false);
-    }
-  };
-
-  const addToCartWithDesign = async ({
-    productId,
-    digitalType,
-    printType,
-    price,
-    originalPrice,
-    format,
-    size,
-    material,
-    frame,
-    license,
-    quantity = 1,
-    design,
-    snapshot = true,
-  }: {
-    productId: string;
-    digitalType: string | null;
-    printType: string | null;
-    price: number;
-    originalPrice: number;
-    format: string;
-    size: string | null;
-    material: string | null;
-    frame: string | null;
-    license: string;
-    quantity?: number;
-    design?: DesignPayload;
-    snapshot?: boolean;
-  }): Promise<AddToCartResponse> => {
+    // Only block if neither user nor guest
     if (!isLoggedIn && !guestId) return { result: undefined };
 
     setLoadingAdd(true);
@@ -234,17 +149,69 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
           productId,
           digitalType,
           printType,
-          price,
-          originalPrice,
           quantity,
           format,
           size,
           material,
-          license,
           frame,
-          // NOTE: you don't need to send guestId if your server derives it from cookies
-          design, // ← NEW: server will upsert and overwrite preview
-          snapshot, // ← NEW: freeze cart line image/style
+          license,
+          // server derives user/guest from cookies; no need to send guestId
+        }),
+      });
+
+      const data = await res.json();
+      await fetchCart();
+
+      return {
+        result: data?.result
+          ? {
+              cartItemId: data.result.cartItemId,
+              digitalVariantId: data.result.digitalVariantId ?? null,
+              printVariantId: data.result.printVariantId ?? null,
+            }
+          : undefined,
+      };
+    } catch (err) {
+      console.error("Failed to add to cart:", err);
+      return { result: undefined };
+    } finally {
+      setLoadingAdd(false);
+    }
+  };
+
+  const addToCartWithDesign: CartContextType["addToCartWithDesign"] = async ({
+    productId,
+    digitalType,
+    printType,
+    format,
+    size,
+    material,
+    frame,
+    license,
+    quantity = 1,
+    design,
+    snapshot = true,
+  }) => {
+    if (!isLoggedIn && !guestId) return { result: undefined };
+
+    setLoadingAdd(true);
+    try {
+      const res = await fetch("/api/cart", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId,
+          digitalType,
+          printType,
+          quantity,
+          format,
+          size,
+          material,
+          frame,
+          license,
+          design,   // server will validate/own and snapshot
+          snapshot, // freeze preview/style at add time
         }),
       });
 
@@ -272,8 +239,8 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
 
   const removeFromCart = async (
     productId: string,
-    digitalVariantId: string,
-    printVariantId: string
+    _digitalVariantId: string,
+    _printVariantId: string
   ) => {
     if (!isLoggedIn && !guestId) return;
     setLoadingAdd(true);
@@ -282,7 +249,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         method: "DELETE",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, digitalVariantId, printVariantId }),
+        body: JSON.stringify({ productId }), // server only needs productId
       });
       await fetchCart();
     } catch (err) {
@@ -313,7 +280,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
           productId,
           printVariantId,
           digitalVariantId,
-          updates,
+          updates, // ✅ do NOT include price; server recomputes
         }),
       });
       if (!res.ok) {
@@ -326,10 +293,6 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
       console.error("Error updating cart:", err);
     }
   };
-
-  useEffect(() => {
-    fetchCart();
-  }, [isLoggedIn]);
 
   const totalPrice = Array.isArray(cart)
     ? cart.reduce((sum, item) => sum + item.cartPrice * item.cartQuantity, 0)
@@ -344,9 +307,9 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         totalPrice,
         refreshCart: fetchCart,
         addToCart,
+        addToCartWithDesign,
         removeFromCart,
         updateCart,
-        addToCartWithDesign, // NEW
       }}
     >
       {children}

@@ -1,26 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
+
 import ProductImageGallery from "@/components/product/detail/ProductImageGallery";
 import ProductConfigurator from "@/components/product/detail/ProductConfigurator";
-// import ProductDescriptionBlock from "@/components/product/detail/ProductDescriptionBlock";
 import UniversalModal from "@/components/modal/UniversalModal";
 import AuthenticationForm from "@/components/authenticate/AuthenticationFom";
 import CartActions from "@/components/product/CartActions";
-// import ReviewsSection from "@/components/product/review/ReviewsSection";
-// import Link from "next/link";
+import ReviewsSection from "@/components/product/review/ReviewSection";
+// import { DescriptionCard } from "@/components/product/shared/core/DescriptionCard";
 
 import type { MaterialOption, FrameOption, LicenseOption } from "@/types";
 import { allFrames, allLicenses, allMaterials, allSizes } from "@/data/helpers";
 import { useUser } from "@/contexts/UserContext";
 import { useProductData } from "@/components/studio/hooks/useProductData";
-
-// ⬇️ NEW: sale helper
-import { getEffectiveSale } from "@/lib/pricing";
-import ReviewsSection from "@/components/product/review/ReviewSection";
-import { useRouter } from "next/navigation";
-// import { cleanSizes } from "@/utils/helpers";
-// import { SaleAndCountdown, SaleCountdown } from "@/components/shared/core/SalePriceAndCountDown";
+import { roundMoney } from "@/lib/pricing";
 
 interface ProductDetailProps {
   productId: string;
@@ -35,6 +30,7 @@ export default function ProductDetail({
 }: ProductDetailProps) {
   const { isLoggedIn, guestId } = useUser();
   const [isModalOpen, setModalOpen] = useState(false);
+  const router = useRouter();
 
   const {
     product,
@@ -63,81 +59,64 @@ export default function ProductDetail({
     loadingAdd,
     preview,
     setPreview,
-    calculatePrice,
-    finalPrice, // base total (we'll apply sale below)
+    // calculatePrice,
+    // unified pricing from the hook (API-identical, per unit)
+    finalPrice,
+    baseUnit,
+    priceWithSale,
+    priceWithBundle,
   } = useProductData({ productId });
-  const router = useRouter();
+
   const loadingUI = <div className="p-10 text-center">Loading product…</div>;
 
-  // ⬇️ Compute sale-aware price for current selection
-  // finalPrice might be string; coerce to number
-  const baseTotal = (() => {
-    const n =
-      typeof finalPrice === "string" ? parseFloat(finalPrice) : finalPrice;
-    return Number.isFinite(n) ? n : 0;
-  })();
+  // Sale / bundle flags for UI
+  const bundleWins = useMemo(
+    () => wantDigital && wantPrint && priceWithBundle < priceWithSale,
+    [wantDigital, wantPrint, priceWithBundle, priceWithSale]
+  );
+  const saleActive = useMemo(
+    () => !bundleWins && priceWithSale < baseUnit,
+    [bundleWins, priceWithSale, baseUnit]
+  );
 
-  // normalize date fields if they arrive as strings
-  const saleStartsAt = product?.saleStartsAt
-    ? new Date(product.saleStartsAt as any)
-    : null;
-  const saleEndsAt = product?.saleEndsAt
-    ? new Date(product.saleEndsAt as any)
-    : null;
-  //  alert(JSON.stringify(product))
-  // alert(saleEndsAt)
-  const saleInfo = product
-    ? getEffectiveSale({
-        price: baseTotal,
-        salePrice: (product as any).salePrice ?? null,
-        salePercent: (product as any).salePercent ?? null,
-        saleStartsAt,
-        saleEndsAt,
-     
-      })
-    : {
-        price: baseTotal,
-        compareAt: null,
-        onSale: false,
-        endsAt: null as Date | null,
-      };
-  // alert(JSON.stringify(getEffectiveSale({
-  //         price: baseTotal,
-  //         salePrice: (product as any).salePrice ?? null,
-  //         salePercent: (product as any).salePercent ?? null,
-  //         saleStartsAt,
-  //         saleEndsAt,
-  //       })))
-  // const pctOff = saleInfo.compareAt
-  //   ? Math.max(0, Math.round(100 * (1 - saleInfo.price / saleInfo.compareAt)))
-  //   : 0;
- const handleClick = () => {
-    // if (!isLoggedIn) return setModalOpen(true);
-    if (!productId) return; // guard
+  const pricingForBanner = useMemo(
+    () => ({
+      price: finalPrice,
+      compareAt: saleActive ? roundMoney(baseUnit) : null,
+      onSale: bundleWins ? true : saleActive,
+      endsAt:
+        bundleWins || !product?.saleEndsAt
+          ? null
+          : new Date(product.saleEndsAt as any),
+    }),
+    [finalPrice, saleActive, baseUnit, bundleWins, product?.saleEndsAt]
+  );
+
+  const goCustomize = () => {
+    if (!productId) return;
     router.push(`${encodeURIComponent(String(productId))}/studio`);
   };
+
   return (
     <>
       <UniversalModal isOpen={isModalOpen} onClose={() => setModalOpen(false)}>
         <AuthenticationForm
-
-        onSuccess={()=>setModalOpen(false)}
-        
+          onSuccess={() => setModalOpen(false)}
           isGuest={true}
           handlerAction={async () => {
             if (!isLoggedIn && !guestId) setModalOpen(true);
             if (!product) return;
+
+            // Do not send price; server recomputes
             if (!inCart) {
               await addToCart(
                 productId,
                 wantDigital ? "Digital" : null,
                 wantPrint ? "Print" : null,
-                saleInfo.price, // ✅ pass discounted price
-               finalPrice,
                 product.formats[0]?.split(".").pop() || "",
-                size.label,
+                size?.label ?? null,
                 material.label,
-                frame?.label || "",
+                frame?.label ?? null,
                 license.type,
                 1
               );
@@ -164,36 +143,16 @@ export default function ProductDetail({
                 setPreview={setPreview}
               />
             )}
-            
-       
 
             <div className="flex relative flex-col gap-6 w-full">
-              {/* <div className="w-full left-0 top-0 h-full absolute bg-black p-5 opacity-50"></div> */}
-              {/* <ProductDescriptionBlock product={product} /> */}
+              {/* <DescriptionCard text={product.description} /> */}
 
-              {/* <SaleAndCountdown {...saleInfo}/> */}
-{/* 
-              ⬇️ SALE-AWARE PRICE BLOCK
-              <div className="rounded-2xl ring-1 ring-black/5 bg-white p-4 flex items-center justify-between">
-                <div className="flex items-baseline gap-3">
-                  <span className="text-2xl font-semibold">
-                    ${saleInfo.price.toFixed(2)}
-                  </span>
-                  {saleInfo.onSale && saleInfo.compareAt && (
-                    <span className="text-lg text-gray-400 line-through">
-                      ${saleInfo.compareAt.toFixed(2)}
-                    </span>
-                  )}
-                  {saleInfo.onSale && pctOff > 0 && (
-                    <span className="text-xs font-semibold text-white bg-red-600 rounded-full px-2 py-0.5">
-                      -{pctOff}%
-                    </span>
-                  )}
+              {/* Optional banner: <SaleAndCountdown {...pricingForBanner} /> */}
+              {bundleWins && (
+                <div className="mt-1 text-[11px] sm:text-xs text-emerald-700 font-medium">
+                  Bundle applied: Digital + Print
                 </div>
-                {saleInfo.onSale && saleInfo.endsAt && (
-                  <SaleCountdown endsAt={saleInfo.endsAt} />
-                )}
-              </div> */}
+              )}
 
               {product.category.toLowerCase() === "spiritual & vodou imagery" &&
                 product.svgPreview && (
@@ -203,15 +162,14 @@ export default function ProductDetail({
                         Want different colors or gradients?
                       </p>
                       <button
-                      onClick={handleClick}
-                 
+                        onClick={goCustomize}
                         className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition"
                       >
                         ✨ Customize this piece
                       </button>
                     </div>
                   </div>
-                )} 
+                )}
 
               <ProductConfigurator
                 showFormat={true}
@@ -239,8 +197,7 @@ export default function ProductDetail({
                   wantPrint,
                   setWantPrint,
                 }}
-                calculatePrice={calculatePrice}
-                finalPrice={saleInfo.price} // ✅ show discounted price inside configurator
+                // calculatePrice={calculatePrice}
               />
 
               <CartActions
@@ -249,17 +206,17 @@ export default function ProductDetail({
                 disabled={!wantDigital && !wantPrint}
                 onToggleCart={async () => {
                   if (!isLoggedIn && !guestId) setModalOpen(true);
+
+                  // Do not send price; server recomputes
                   if (!inCart) {
                     await addToCart(
                       productId,
                       wantDigital ? "Digital" : null,
                       wantPrint ? "Print" : null,
-                      saleInfo.price, // ✅ discounted
-                      finalPrice,
                       product.formats[0]?.split(".").pop() || "",
-                      size.label,
+                      size?.label ?? null,
                       material.label,
-                      frame?.label || "",
+                      frame?.label ?? null,
                       license.type,
                       1
                     );
@@ -311,7 +268,7 @@ export default function ProductDetail({
         </main>
       )}
 
-      {/* (Optional) enrich JSON-LD with sale-aware offer */}
+      {/* JSON-LD: reflect unified price */}
       {product && (
         <script
           type="application/ld+json"
@@ -326,9 +283,9 @@ export default function ProductDetail({
               offers: {
                 "@type": "Offer",
                 priceCurrency: "USD",
-                price: saleInfo.price.toFixed(2),
-                ...(saleInfo.onSale && saleInfo.endsAt
-                  ? { priceValidUntil: saleInfo.endsAt.toISOString() }
+                price: Number(finalPrice).toFixed(2),
+                ...(saleActive && product.saleEndsAt
+                  ? { priceValidUntil: new Date(product.saleEndsAt as any).toISOString() }
                   : {}),
                 availability: "https://schema.org/InStock",
                 url: `/store/${product.id}`,
@@ -340,4 +297,3 @@ export default function ProductDetail({
     </>
   );
 }
-
