@@ -195,6 +195,8 @@ export default function ProductForm() {
 
   return (
     <motion.form
+      noValidate   // ← add this
+
       onSubmit={submit}
       encType="multipart/form-data"
       className="max-w-3xl mx-auto p-8 bg-white rounded-3xl shadow-2xl space-y-8"
