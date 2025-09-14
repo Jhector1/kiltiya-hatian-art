@@ -1,5 +1,7 @@
 import { Prisma } from "@prisma/client";
+export const RATE_PER_SQIN = 0.15;
 
+/* ---------------- existing json utils (unchanged) ---------------- */
 export const toJsonInput = (
   v: Prisma.JsonValue | null | undefined
 ): Prisma.InputJsonValue | Prisma.NullTypes.JsonNull =>
@@ -10,7 +12,7 @@ export const toNullableJson = (
 ): Prisma.InputJsonValue | null =>
   v == null ? null : (v as Prisma.InputJsonValue);
 
-// Robust "WxH" parser: 8x10, 8 × 10, 8" x 10", 8in x 10in, etc.
+/* ---------------- robust WxH parser (unchanged API) ---------------- */
 const parseWh = (s: string): [number, number] | null => {
   if (!s) return null;
   const cleaned = s.trim().toLowerCase().replace(/[×✕]/g, "x");
@@ -23,187 +25,147 @@ const parseWh = (s: string): [number, number] | null => {
   return Number.isFinite(w) && Number.isFinite(h) ? [w, h] : null;
 };
 
-// keeps your names/signature
-const clamp = (v: number, lo: number, hi: number) =>
-  Math.max(lo, Math.min(hi, v));
+/* ---------------- small helpers (names kept) ---------------- */
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-// Floating-point-safe rounding to a step (e.g., 0.05)
-const roundTo = (v: number, step = 0.05) => {
+/** Keep step-based rounding for UI multipliers (same name/signature). */
+export const roundTo = (v: number, step = 0.05) => {
   const dec = Math.max(0, (step.toString().split(".")[1] || "").length);
   const k = Math.round(v / step + Number.EPSILON);
   const res = k * step;
   return parseFloat(res.toFixed(dec));
 };
 
+/* ---------------- options/type kept for compatibility ---------------- */
 export type SizeMathOptions = {
-  method?: "area" | "perimeter" | "max-dim";
-  exponent?: number;     // main growth (< 1.0)
-  minMult?: number;      // floor
-  maxMult?: number;      // set to Infinity for "no stop"
-  step?: number;         // rounding for UI
-  knee?: number;         // start of soft-knee in raw ratio (e.g. 6×)
-  slope?: number;        // 0..1 strength of log-tail beyond knee
-  /** NEW (optional): choose baseline for ratios.
-   *  - "min"   : smallest in the list (default)
+  method?: "area" | "perimeter" | "max-dim"; // kept but ignored (we use area only)
+  exponent?: number;     // kept, ignored
+  minMult?: number;      // optional floor clamp for multiplier
+  maxMult?: number;      // optional ceil clamp for multiplier
+  step?: number;         // rounding step for multiplier (kept)
+  knee?: number;         // kept, ignored
+  slope?: number;        // kept, ignored
+  /** choose baseline for ratios.
+   *  - "min"   : smallest in the list (DEFAULT)
    *  - "first" : first entry in the list
    *  - "8x10"  : or any WxH string to anchor all sizes
    */
   baseline?: "min" | "first" | string;
 };
 
-const METHOD = "area";
-const EXPONENT = 0.3;     // gentle sub-linear growth
-const MIN_MULT = 1.0;
-const MAX_MULT = Infinity;
-const STEP = 0.05;
-const KNEE = 6;           // begin soft knee ~6× base metric
-const SLOPE = 0.18;       // tail strength; lower = slower
+/* ---------------- defaults (baseline now MIN to stop 'first item huge') ---------------- */
+const STEP = 0.05 as const;
+const BASELINE_DEFAULT: "min" = "min";
 
-// Soft-knee: after ratio > knee, add a tiny log-based tail so it never stops
-const withSoftKnee = (
-  ratio: number,
-  moderated: number,
-  knee = KNEE,
-  slope = SLOPE
-) => {
-  if (!(ratio > knee)) return moderated;
-  const extra = Math.log(1 + (ratio - knee)); // smooth, slow growth
-  return moderated * (1 + slope * extra);
+/* ---------------- NEW helpers (added; won't break existing code) ---------------- */
+export const areaInSqIn = (size: string | null | undefined): number => {
+  const p = size ? parseWh(size) : null;
+  return p ? p[0] * p[1] : 0;
 };
 
+/** Simple, deterministic: base + area*rate (USD), rounded to cents. */
+export const priceForSize = (
+  basePrice: number,
+  ratePerSqIn: number,
+  size: string | null | undefined
+): number => {
+  const area = areaInSqIn(size);
+  const raw = basePrice + area * ratePerSqIn;
+  const cents = Math.round((raw + Number.EPSILON) * 100);
+  return cents / 100;
+};
+
+/* ---------------- SIMPLE linear multipliers by AREA (structure preserved) ---------------- */
+/**
+ * cleanSizes: returns multipliers relative to a baseline area.
+ * Baseline default is "min" (smallest area) to avoid first-item skew.
+ */
 export const cleanSizes = (
   sizes: string[] | undefined,
   opts?: SizeMathOptions
 ) => {
-  const {
-    method = METHOD,
-    exponent = EXPONENT,
-    minMult = MIN_MULT,
-    maxMult = MAX_MULT,
-    step = STEP,
-    knee = KNEE,
-    slope = SLOPE,
-    baseline = "min",
-  } = opts || {};
-
   if (!sizes?.length) return [];
 
-  const parsed = sizes.map(parseWh);
-  const allParsed = parsed.every((p): p is [number, number] => Array.isArray(p));
+  const step = opts?.step ?? STEP;
 
-  const metric = (w: number, h: number) =>
-    method === "perimeter" ? w + h :
-    method === "max-dim"  ? Math.max(w, h) :
-    w * h; // default: area
+  // parse once
+  const dims = sizes.map(parseWh);
+  const areas = dims.map((p) => (p ? p[0] * p[1] : 0));
 
-  if (allParsed) {
-    const values = parsed.map(([w, h]) => metric(w, h));
+  // choose baseline area
+  const baseline = opts?.baseline ?? BASELINE_DEFAULT;
+  let baseArea: number | null = null;
 
-    // pick baseline
-    let baseVal: number | null = null;
-    if (baseline === "first") {
-      const [bw, bh] = parsed[0];
-      baseVal = metric(bw, bh);
-    } else if (baseline === "min") {
-      baseVal = Math.min(...values);
-    } else if (typeof baseline === "string") {
-      const p = parseWh(baseline);
-      if (p) baseVal = metric(p[0], p[1]);
-    }
-    if (!baseVal || !isFinite(baseVal) || baseVal <= 0) {
-      baseVal = Math.min(...values);
-    }
-
-    if (!isFinite(baseVal) || baseVal <= 0) {
-      // Extremely defensive fallback
-      return sizes.map((label, i) => ({
-        label,
-        multiplier: roundTo(1 + i * 0.05, step),
-      }));
-    }
-
-    return sizes.map((label, i) => {
-      const ratio = Math.max(values[i] / baseVal, 1);         // ≥ 1
-      const base = Math.pow(ratio, exponent);                 // sub-linear
-      const tailed = withSoftKnee(ratio, base, knee, slope);  // keep rising slowly
-      const bounded = clamp(tailed, minMult, maxMult);
-      return { label, multiplier: roundTo(bounded, step) };   // ALWAYS rounded
-    });
+  if (baseline === "first") {
+    baseArea = areas[0] || 0;
+  } else if (baseline === "min") {
+    baseArea = Math.min(...areas.filter((a) => a > 0));
+  } else if (typeof baseline === "string") {
+    const p = parseWh(baseline);
+    if (p) baseArea = p[0] * p[1];
+  }
+  if (!baseArea || !isFinite(baseArea) || baseArea <= 0) {
+    baseArea = Math.min(...areas.filter((a) => a > 0)) || 1; // safe fallback
   }
 
-  // fallback: gentle steps (RESPECT step)
-  return sizes.map((label, i) => ({
-    label,
-    multiplier: roundTo(1 + i * 0.05, (opts && opts.step) ?? STEP),
-  }));
+  const minMult = opts?.minMult ?? 0;          // default no floor
+  const maxMult = opts?.maxMult ?? Infinity;   // default no cap
+
+  return sizes.map((label, i) => {
+    const a = areas[i] > 0 ? areas[i] : baseArea!;
+    const raw = a / baseArea!;
+    const bounded = clamp(raw, minMult, maxMult);
+    return { label, multiplier: roundTo(bounded, step) };
+  });
 };
 
-/** Single-size lookup (same soft-knee behavior, same rounding). */
+/**
+ * getSizeMultiplier: same signature; linear area ratio against the same baseline rule.
+ * If the size is present in the provided list, we use the table for exact parity.
+ */
 export const getSizeMultiplier = (
   size: string | null | undefined,
   allSizes: string[] | undefined,
   opts?: Parameters<typeof cleanSizes>[1]
 ): number => {
-  const {
-    method = METHOD,
-    exponent = EXPONENT,
-    minMult = MIN_MULT,
-    maxMult = MAX_MULT,
-    step = STEP,
-    knee = KNEE,
-    slope = SLOPE,
-    baseline = "min",
-  } = opts || {};
-
   if (!size) return 1;
 
-  // If we have a table, use it (ensures exact consistency with cleanSizes)
-  const table = cleanSizes(allSizes, opts);
+  const baseline = opts?.baseline ?? BASELINE_DEFAULT;
+  const table = cleanSizes(allSizes, { ...opts, baseline });
+
   const hit = table.find(
     (x) => x.label.trim().toLowerCase() === size.trim().toLowerCase()
   );
   if (hit) return hit.multiplier;
 
-  // Compute directly (and ROUND) with the SAME baseline rules
-  const wh = parseWh(size);
-  if (!wh) return 1;
+  // fallback compute using same baseline rule
+  if (!allSizes?.length) return 1;
 
-  // choose base dimensions
-  let baseW = 8, baseH = 10; // sensible default
-  if (baseline === "first" && allSizes?.length) {
-    const p = parseWh(allSizes[0]);
-    if (p) [baseW, baseH] = p;
-  } else if (baseline === "min" && allSizes?.length) {
-    const ps = allSizes.map(parseWh).filter(Boolean) as [number, number][];
-    if (ps.length) {
-      const areas = ps.map(([w, h]) => metric(w, h, method));
-      let idx = 0, min = areas[0];
-      for (let i = 1; i < areas.length; i++) {
-        if (areas[i] < min) { min = areas[i]; idx = i; }
-      }
-      [baseW, baseH] = ps[idx];
-    }
+  let baseArea: number | null = null;
+  if (baseline === "first") {
+    const p0 = parseWh(allSizes[0]);
+    baseArea = p0 ? p0[0] * p0[1] : null;
+  } else if (baseline === "min") {
+    baseArea = Math.min(...allSizes.map(areaInSqIn).filter((x) => x > 0));
   } else if (typeof baseline === "string") {
     const p = parseWh(baseline);
-    if (p) [baseW, baseH] = p;
+    baseArea = p ? p[0] * p[1] : null;
+  }
+  if (!baseArea || baseArea <= 0 || !isFinite(baseArea)) {
+    baseArea = Math.min(...allSizes.map(areaInSqIn).filter((x) => x > 0)) || 1;
   }
 
-  const metric = (w: number, h: number, m: SizeMathOptions["method"]) =>
-    m === "perimeter" ? w + h :
-    m === "max-dim"  ? Math.max(w, h) :
-    w * h;
+  const step = opts?.step ?? STEP;
+  const minMult = opts?.minMult ?? 0;
+  const maxMult = opts?.maxMult ?? Infinity;
 
-  const baseVal = metric(baseW, baseH, method);
-  const ratio = Math.max(metric(wh[0], wh[1], method) / baseVal, 1);
-  const base = Math.pow(ratio, exponent);
-  const tailed = withSoftKnee(ratio, base, knee, slope);
-  const bounded = clamp(tailed, minMult, maxMult);
-  return roundTo(bounded, step); // ALWAYS rounded
+  const a = areaInSqIn(size);
+  const raw = a > 0 ? a / baseArea : 1;
+  const bounded = clamp(raw, minMult, maxMult);
+  return roundTo(bounded, step);
 };
 
-
-
- // at the top of the file (or near where you use it)
+/* ---------------- unchanged date util ---------------- */
 export const toDate = (v: Date | string | null | undefined): Date | null => {
   if (!v) return null;
   return typeof v === "string" ? new Date(v) : v;

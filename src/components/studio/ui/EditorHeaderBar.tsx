@@ -199,7 +199,7 @@ export default function EditorHeaderBar({
         <ExportFormatBar
           purchasedDigital={purchasedDigital}
           purchased={purchased}
-          formats={["png", "jpg", "webp", "tiff", "svg"]}
+          formats={["png", "jpg", "webp", "tiff"]} //svg can be added
           canExport={canExport}
           exporting={exporting}
           loading={loading}

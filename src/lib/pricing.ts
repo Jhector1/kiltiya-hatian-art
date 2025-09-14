@@ -1,5 +1,5 @@
 import { allFrames, allLicenses, allMaterials } from "@/data/helpers";
-import { getSizeMultiplier, SizeMathOptions } from "@/utils/helpers";
+import { areaInSqIn, getSizeMultiplier, RATE_PER_SQIN, SizeMathOptions } from "@/utils/helpers";
 // import { number } from "zod";
 
 // lib/pricing.ts
@@ -61,64 +61,56 @@ export function getEffectiveSale(p: SaleFields, now = new Date()) {
 const round2 = (n: number) => Math.max(0, Math.round(n * 100) / 100);
 
 export function computeBaseUnit(args: {
-  productBase: number; // product.price
+  productBase: number;
   format?: string | null;
   size?: string | null;
   material?: string | null;
   frame?: string | null;
   license?: string | null;
-  digital?: any; // truthy when a digital variant is selected
-  print?: any;   // truthy when a print variant is selected
+  digital?: any;
+  print?: any;
 
-  // NEW:
-  sizeList?: string[];              // e.g., product.sizes
-  sizeOptions?: SizeMathOptions; // tuning (exponent, caps, etc.)
+  // still accepted; we just won’t use size multiplier anymore
+  sizeList?: string[];
+  sizeOptions?: SizeMathOptions;
 }): number {
   const {
     productBase,
-    format = null,
     size = null,
     material = null,
     frame = null,
     license = null,
     digital = null,
     print = null,
-    sizeList,
-    sizeOptions,
   } = args;
 
   const isDigital = !!digital;
   const isPrint = !!print;
 
-  // License adder (unchanged)
+  // License adder still applies to digital
   const licenseAdd = allLicenses.find((l) => l.type === license)?.price ?? 0;
 
-  // ✅ SIZE multiplier now uses moderated math (sub-linear + caps).
-  // If sizeList is missing, it will fall back to a baseline (8x10) internally.
-  const sizeMult = isPrint ? getSizeMultiplier(size ?? null, sizeList, sizeOptions) : 1;
+  // Material/frame multipliers still apply
+  const materialMult = allMaterials.find((m) => m.label === material)?.multiplier ?? 1;
+  const frameMult    = allFrames.find((f) => f.label === frame)?.multiplier ?? 1;
 
-  const materialMult =
-    allMaterials.find((m) => m.label === material)?.multiplier ?? 1;
-
-  const frameMult =
-    allFrames.find((f) => f.label === frame)?.multiplier ?? 1;
-
-  const formatMult = 1; // keep or replace with your own logic per format
-
-  // Digital price (base + license add-on)
+  // --- Digital ---
   let digitalPrice = 0;
   if (isDigital) {
     digitalPrice = productBase + licenseAdd;
   }
 
-  // Print price (multiplicative model, now with moderated sizeMult)
+  // --- Print (size additive, NOT a multiplier) ---
   let printPrice = 0;
   if (isPrint) {
-    printPrice = productBase * sizeMult * materialMult * frameMult * formatMult;
+    // parse area from size string like `12" x 12"`
+    const area = typeof size === "string" && size ? areaInSqIn(size) : 0;
+    const sizeAmount = area * RATE_PER_SQIN; // additive
+    printPrice = (productBase + sizeAmount) * materialMult * frameMult;
   }
 
   const total = digitalPrice + printPrice;
-  return round2(Number.isFinite(total) ? total : 0);
+  return Math.max(0, Math.round(total * 100) / 100);
 }
 
 
@@ -126,8 +118,12 @@ export function computeBaseUnit(args: {
 
 // const BUNDLE_BOTH_PERCENT = 20;
 
-export const roundMoney = (v: number) => Number(v.toFixed(2)) //Math.round((v + Number.EPSILON) * 100) / 100;
-/** 20% off if BOTH are present. Accepts booleans or objects. */
+// after
+export const roundMoney = (v: number) => {
+  const sign = v < 0 ? -1 : 1;
+  const n = Math.abs(v);
+  return (Math.round((n + Number.EPSILON) * 100) / 100) * sign;
+};/** 20% off if BOTH are present. Accepts booleans or objects. */
 export function applyBundleIfBoth(
   base: number,
   digital?: unknown,

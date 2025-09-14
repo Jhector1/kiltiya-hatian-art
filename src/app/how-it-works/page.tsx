@@ -84,7 +84,7 @@ const faqs = [
   },
   {
     q: "Where do I find my downloads?",
-    a: "On the checkout success page right after payment and anytime in your Profile → Purchases.",
+    a: "On the checkout success page right after payment and anytime in your Profile → Collections.",
   },
   {
     q: "What’s the difference between Personal and Commercial licenses?",

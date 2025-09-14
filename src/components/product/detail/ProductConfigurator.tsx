@@ -199,7 +199,7 @@ const pricing = {
   // no countdown for bundle
   endsAt: bundleWins ? null : (product?.saleEndsAt ? new Date(product.saleEndsAt as any) : null),
 } as const;
-
+// alert(ctrl.digitalPriceStr)
   return (
     <>
       <DescriptionCard text={product.description} />
@@ -213,8 +213,8 @@ const pricing = {
       <PurchaseOptionsCore
         digitalChecked={selection.wantDigital}
         printChecked={selection.wantPrint}
-        digitalPrice={ ctrl.digitalPriceStr}
-        printPrice={ctrl.printPriceStr}
+        digitalPrice={ (ctrl.digitalPriceStr!=='0.00')? ctrl.digitalPriceStr: product.price}
+        printPrice={(ctrl.printPriceStr!=='0.00')? ctrl.printPriceStr: product.price}
         onToggleDigital={ctrl.handleToggleDigital}
         onTogglePrint={ctrl.handleTogglePrint}
       />
