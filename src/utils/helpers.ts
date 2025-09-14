@@ -13,17 +13,44 @@ export const toNullableJson = (
   v == null ? null : (v as Prisma.InputJsonValue);
 
 /* ---------------- robust WxH parser (unchanged API) ---------------- */
+// replace your existing parseWh with this
+// drop-in replacement
 const parseWh = (s: string): [number, number] | null => {
   if (!s) return null;
-  const cleaned = s.trim().toLowerCase().replace(/[×✕]/g, "x");
-  const m = cleaned.match(
-    /(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?\s*x\s*(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?/
-  );
+
+  // normalize weird stuff
+  const normalized = s
+    .normalize("NFKC")
+    // quotes & double prime → "
+    .replace(/[“”„‟″ʺ˝❞❝〞〝]/g, '"')
+    // single quotes & prime → '
+    .replace(/[’‘‚‛′ʹ`]/g, "'")
+    // multiply signs → x (add a few more variants)
+    .replace(/[×✕✖⨉⨯⤫✖️]/g, "x")
+    // remove zero-width chars
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    // collapse ALL unicode spaces to a single normal space
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+  // 1) strict pattern: WxH with optional inch tokens
+  let m =
+    normalized.match(
+      /(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?\s*x\s*(\d+(?:\.\d+)?)\s*(?:in|inch|inches|")?/
+    );
+
+  // 2) fallback: any two numbers separated by non-number stuff
+  if (!m) {
+    m = normalized.match(/(\d+(?:\.\d+)?)[^\d.]+(\d+(?:\.\d+)?)/);
+  }
+
   if (!m) return null;
   const w = parseFloat(m[1]);
   const h = parseFloat(m[2]);
   return Number.isFinite(w) && Number.isFinite(h) ? [w, h] : null;
 };
+
 
 /* ---------------- small helpers (names kept) ---------------- */
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
