@@ -4,6 +4,7 @@ import GoogleProvider from "next-auth/providers/google";
 import { PrismaClient } from "@prisma/client";
 import { compare, hash } from "bcryptjs";
 import crypto from "crypto";
+import { NextRequest } from "next/server";
 
 const prisma = new PrismaClient();
 
@@ -131,3 +132,43 @@ callbacks: {
   pages: { signIn: "/authenticate" },
   secret: process.env.NEXTAUTH_SECRET,
 };
+
+
+
+
+export async function requireAdmin(_req: NextRequest) {
+  // TODO: integrate with your NextAuth / RBAC. Throw if not allowed.
+  const isAdmin = true;
+  if (!isAdmin) {
+    const err = new Error("Unauthorized");
+    (err as any).status = 401;
+    throw err;
+  }
+}
+
+
+export function parseList(input: unknown): string[] {
+  if (Array.isArray(input)) return input.map(String).map((s) => s.trim()).filter(Boolean);
+  if (typeof input !== "string") return [];
+  // Accept CSV or newline; trim empties
+  return input
+    .split(/\r?\n|,/g)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function listToTextarea(items?: string[]) {
+  return (items ?? []).join("\n");
+}
+
+/** Convert Date to value for <input type="datetime-local"> (local, no 'Z') */
+export function toDatetimeLocalValue(d?: Date | null) {
+  if (!d) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  return `${year}-${month}-${day}T${hh}:${mm}`;
+}

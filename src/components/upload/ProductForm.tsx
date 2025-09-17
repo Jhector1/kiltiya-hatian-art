@@ -3,48 +3,9 @@
 import { useState, useEffect, useMemo, Dispatch, SetStateAction } from "react";
 import { motion } from "framer-motion";
 import categories from "@/data/categories";
+import { formatSizeLive, normalizeSizeOnBlur, SIZE_PATTERN, SIZE_RE } from "@/utils/helpers";
 
-// Accepts: 10x12, 10 x 12, 10" x 12", 10 in x 12 in, 10.5×12.25
-const SIZE_PATTERN = String.raw`^\s*\d+(\.\d+)?\s*(?:"|in(?:ches)?)?\s*[x×]\s*\d+(\.\d+)?\s*(?:"|in(?:ches)?)?\s*$`;
-const SIZE_RE = new RegExp(SIZE_PATTERN, "i");
 
-function formatSizeLive(input: string): string {
-  // "credit-card style" gentle formatting while typing (1 'x' max, allow ×)
-  let v = input.replace(/[×]/g, "x");
-  // Keep only digits, dot, x, quotes, letters of "in"/"inches", and spaces
-  v = v.replace(/[^0-9.x"inches\s]/gi, "");
-
-  // Enforce a single 'x'
-  const firstX = v.indexOf("x");
-  if (firstX !== -1) {
-    const before = v.slice(0, firstX).replace(/x/gi, "");
-    const after = v.slice(firstX + 1).replace(/x/gi, "");
-    v = `${before}x${after}`;
-  }
-
-  // Collapse spaces
-  v = v.replace(/\s+/g, " ");
-
-  // If user typed two numbers separated by any space, gently insert ` x `
-  if (!/x/i.test(v)) {
-    const m = v.match(/^\s*(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/);
-    if (m) v = `${m[1]} x ${m[2]}`;
-  }
-
-  return v;
-}
-
-function normalizeSizeOnBlur(input: string): string {
-  const raw = input.replace(/[×]/g, "x").replace(/\s+/g, " ").trim();
-  const m = raw.match(
-    /^\s*(\d+(?:\.\d+)?)(?:\s*(?:"|in(?:ches)?))?\s*[x]\s*(\d+(?:\.\d+)?)(?:\s*(?:"|in(?:ches)?))?\s*$/i
-  );
-  if (!m) return raw; // don't force if not valid; the border/message will show why
-  const w = parseFloat(m[1]);
-  const h = parseFloat(m[2]);
-  // Canonical output: 10" x 12"
-  return `${w}" x ${h}"`;
-}
 
 // ---------- helpers for appending / removing files ----------
 const sameFile = (a: File, b: File) =>

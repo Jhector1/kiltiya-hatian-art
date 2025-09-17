@@ -27,11 +27,13 @@ function normalizePaint(v: string): string {
 const TARGETS = ["fill", "stroke", "background"] as const;
 type Target = typeof TARGETS[number];
 
+const MAX_VISIBLE = 24;
+
 export default function Palette() {
   const {
     style,
     defsMap,
-    setDefsMap,           // ← use raw setter (no auto-commit)
+    setDefsMap, // ← use raw setter (no auto-commit)
     handleStyleChange,
     beginHistory,
     commitHistory,
@@ -56,6 +58,19 @@ export default function Palette() {
     setSelected(val); // immediate UI
     handleStyleChange(activeKey, val);
   };
+
+  // Show-more toggles per section
+  const [showAllSolids, setShowAllSolids] = React.useState(false);
+  const [showAllGradients, setShowAllGradients] = React.useState(false);
+  const [showAllPatterns, setShowAllPatterns] = React.useState(false);
+
+  const solidsToRender = showAllSolids ? SOLIDS : SOLIDS.slice(0, MAX_VISIBLE);
+  const gradientsToRender = showAllGradients
+    ? GRADIENTS
+    : GRADIENTS.slice(0, MAX_VISIBLE);
+  const patternsToRender = showAllPatterns
+    ? PATTERNS
+    : PATTERNS.slice(0, MAX_VISIBLE);
 
   return (
     <div className="mb-4 rounded-2xl border border-black/10 p-3">
@@ -88,7 +103,7 @@ export default function Palette() {
       <div className="mb-3">
         <div className="mb-1 text-xs text-black/50">Solids</div>
         <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
-          {SOLIDS.map((c) => {
+          {solidsToRender.map((c) => {
             const isSelected = normalizePaint(selected) === normalizePaint(c);
             return (
               <button
@@ -115,13 +130,27 @@ export default function Palette() {
             );
           })}
         </div>
+        {SOLIDS.length > MAX_VISIBLE && (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => setShowAllSolids((v) => !v)}
+              className="text-xs underline underline-offset-2 text-emerald-700 hover:text-emerald-900"
+              aria-expanded={showAllSolids}
+            >
+              {showAllSolids
+                ? "Show less"
+                : `Show ${SOLIDS.length - MAX_VISIBLE} more`}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Gradients */}
       <div className="mb-3">
         <div className="mb-1 text-xs text-black/50">Gradients</div>
         <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2">
-          {GRADIENTS.map((g) => {
+          {gradientsToRender.map((g) => {
             const val = `url(#${g.id})`;
             const isSelected = normalizePaint(selected) === normalizePaint(val);
             return (
@@ -151,13 +180,27 @@ export default function Palette() {
             );
           })}
         </div>
+        {GRADIENTS.length > MAX_VISIBLE && (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => setShowAllGradients((v) => !v)}
+              className="text-xs underline underline-offset-2 text-emerald-700 hover:text-emerald-900"
+              aria-expanded={showAllGradients}
+            >
+              {showAllGradients
+                ? "Show less"
+                : `Show ${GRADIENTS.length - MAX_VISIBLE} more`}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Patterns */}
       <div>
         <div className="mb-1 text-xs text-black/50">Patterns</div>
         <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2">
-          {PATTERNS.map((p) => {
+          {patternsToRender.map((p) => {
             const val = `url(#${p.id})`;
             const isSelected = normalizePaint(selected) === normalizePaint(val);
             return (
@@ -187,6 +230,20 @@ export default function Palette() {
             );
           })}
         </div>
+        {PATTERNS.length > MAX_VISIBLE && (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => setShowAllPatterns((v) => !v)}
+              className="text-xs underline underline-offset-2 text-emerald-700 hover:text-emerald-900"
+              aria-expanded={showAllPatterns}
+            >
+              {showAllPatterns
+                ? "Show less"
+                : `Show ${PATTERNS.length - MAX_VISIBLE} more`}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
