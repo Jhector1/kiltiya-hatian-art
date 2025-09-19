@@ -121,17 +121,17 @@ async function loadSvgContent(svgOrUrl: string): Promise<string> {
 }
 
 /** Render SVG → PNG bytes (Uint8Array) to avoid Buffer typing issues */
-async function svgToPngBytes(svg: string): Promise<Uint8Array> {
-  const header = svg.trim().startsWith("<?xml")
-    ? ""
-    : '<?xml version="1.0" encoding="UTF-8"?>\n';
-  const svgString = header + svg;
-  const buf = await sharp(Buffer.from(svgString, "utf8"), { density: 96 })
-    .png({ quality: 80 })
-    .toBuffer();
-  // Return a Uint8Array view over the same memory (no copy)
-  return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
-}
+// // async function svgToPngBytes(svg: string): Promise<Uint8Array> {
+//   const header = svg.trim().startsWith("<?xml")
+//     ? ""
+//     : '<?xml version="1.0" encoding="UTF-8"?>\n';
+//   const svgString = header + svg;
+//   const buf = await sharp(Buffer.from(svgString, "utf8"), { density: 96 })
+//     .png({ quality: 80 })
+//     .toBuffer();
+//   // Return a Uint8Array view over the same memory (no copy)
+//   return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+// // }
 
 const isInDefs = <T extends AnyNode>($el: Cheerio<T>) =>
   $el.parents("defs").length > 0;

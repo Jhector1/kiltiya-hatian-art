@@ -468,16 +468,16 @@ export default function ProductEditorForm({ product, categories }: Props) {
   );
 }
 
-function ListChips({ items }: { items: string[] }) {
-  if (!items.length) return <span className="text-xs text-neutral-400">—</span>;
-  return (
-    <span className="inline-flex flex-wrap gap-1.5 align-middle">
-      {items.map((it, i) => (
-        <Chip key={`${it}-${i}`}>{it}</Chip>
-      ))}
-    </span>
-  );
-}
+// function ListChips({ items }: { items: string[] }) {
+//   if (!items.length) return <span className="text-xs text-neutral-400">—</span>;
+//   return (
+//     <span className="inline-flex flex-wrap gap-1.5 align-middle">
+//       {items.map((it, i) => (
+//         <Chip key={`${it}-${i}`}>{it}</Chip>
+//       ))}
+//     </span>
+//   );
+// }
 
 function ListEditor({
   label,
@@ -713,16 +713,25 @@ function SizeEditor({
   const splitList = (v: string) =>
     v.split(/\r?\n|,/g).map((s) => s.trim()).filter(Boolean);
 
-  function commit(next: string[]) {
-    // normalize + trim + dedupe (stable)
-    const cleaned = next
-      .map((s) => normalizeSizeOnBlur(s).trim())
-      .filter((s) => s.length && SIZE_RE.test(s));
-    const seen = new Set<string>();
-    const deduped = cleaned.filter((s) => !seen.has(s) && seen.add(s));
-    setRows(deduped);
-    onChange(deduped);
-  }
+function commit(next: string[]) {
+  // normalize + trim + dedupe (stable)
+  const cleaned = next
+    .map((s) => normalizeSizeOnBlur(s).trim())
+    .filter((s) => s.length && SIZE_RE.test(s));
+  const seen = new Set<string>();
+  const deduped = cleaned.filter((s) => !seen.has(s) && (seen.add(s), true));
+  setRows(deduped);
+  onChange(deduped);
+}
+
+// NEW: raw commit that does not normalize/filter (for reorder)
+function commitRaw(next: string[]) {
+  // keep as-is (except trivial trim), preserve invalid-in-progress entries
+  const kept = next.map((s) => s.trim());
+  setRows(kept);
+  onChange(kept);
+}
+
 
   function addOne(v: string) {
     const parts = splitList(v).map(normalizeSizeOnBlur);
@@ -731,32 +740,34 @@ function SizeEditor({
     if (addRef.current) addRef.current.value = "";
   }
 
-  function move(i: number, dir: -1 | 1) {
-    const j = i + dir;
-    if (j < 0 || j >= rows.length) return;
-    const next = rows.slice();
-    [next[i], next[j]] = [next[j], next[i]];
-    commit(next);
-  }
+function move(i: number, dir: -1 | 1) {
+  const j = i + dir;
+  if (j < 0 || j >= rows.length) return;
+  const next = rows.slice();
+  [next[i], next[j]] = [next[j], next[i]];
+  // IMPORTANT: Reorder without cleaning/validating
+  commitRaw(next);
+}
 
-  function removeAt(i: number) {
-    const next = rows.slice();
-    next.splice(i, 1);
-    commit(next);
-  }
+ function removeAt(i: number) {
+  const next = rows.slice();
+  next.splice(i, 1);
+  // Removing is a “final” action → okay to clean
+  commit(next);
+}
 
-  function replaceAt(i: number, v: string) {
-    const live = formatSizeLive(v);
-    const next = rows.slice();
-    next[i] = live;
-    setRows(next);
-  }
+function replaceAt(i: number, v: string) {
+  const live = formatSizeLive(v);
+  const next = rows.slice();
+  next[i] = live;
+  setRows(next); // keep typing free-form until blur
+}
 
-  function blurAt(i: number) {
-    const next = rows.slice();
-    next[i] = normalizeSizeOnBlur(next[i]);
-    commit(next);
-  }
+function blurAt(i: number) {
+  const next = rows.slice();
+  next[i] = normalizeSizeOnBlur(next[i]);
+  commit(next); // only clean on explicit blur, not on reorder clicks
+}
 
   function applyBulk() {
     commit(splitList(bulkText));
@@ -853,32 +864,38 @@ function SizeEditor({
                 </div>
 
                 <div className="mt-1 flex items-center gap-1">
-                  <button
-                    type="button"
-                    className="rounded-md border px-2 py-1 text-xs hover:bg-neutral-50"
-                    onClick={() => move(i, -1)}
-                    disabled={i === 0}
-                    title="Move up"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border px-2 py-1 text-xs hover:bg-neutral-50"
-                    onClick={() => move(i, 1)}
-                    disabled={i === rows.length - 1}
-                    title="Move down"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
-                    onClick={() => removeAt(i)}
-                    title="Remove"
-                  >
-                    ✕
-                  </button>
+                <button
+  type="button"
+  className="rounded-md border px-2 py-1 text-xs hover:bg-neutral-50"
+  onMouseDown={(e) => e.preventDefault()}
+  onClick={() => move(i, -1)}
+  disabled={i === 0}
+  title="Move up"
+>
+  ↑
+</button>
+
+<button
+  type="button"
+  className="rounded-md border px-2 py-1 text-xs hover:bg-neutral-50"
+  onMouseDown={(e) => e.preventDefault()}
+  onClick={() => move(i, 1)}
+  disabled={i === rows.length - 1}
+  title="Move down"
+>
+  ↓
+</button>
+
+<button
+  type="button"
+  className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+  onMouseDown={(e) => e.preventDefault()}
+  onClick={() => removeAt(i)}
+  title="Remove"
+>
+  ✕
+</button>
+
                 </div>
               </li>
             );
